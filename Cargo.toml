@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = ["cli"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.88.0"
+version = "0.1.0"
+authors = ["Angelos Drossos"]
+keywords = ["tasks"]
+license-file = "LICENSE"
+readme = "README.md"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.dependencies]
