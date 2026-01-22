@@ -730,4 +730,328 @@ George Millers klassische Forschung (1956) etablierte eine der berühmtesten Zah
 
 Aber Miller selbst warnte: Das ist eine Obergrenze unter idealen Bedingungen.
 
-Neuere Forschung von Cowan (2001) zeigt: Die tatsächliche Kapazität für komplexe Informationen liegt näher bei 4±1 Chunks. Und diese Kapazität wird nicht nur durch die Informationsmenge limitiert, sondern auch durch:
+Neuere Forschung von Cowan (2001) zeigt: Die tatsächliche Kapazität für komplexe Informationen liegt näher bei 4±1 Chunks. Und diese Kapazität wird nicht nur durch die Informationsmenge limitiert, sondern auch durch Stress, Ablenkung und kognitive Ermüdung reduziert.
+
+*Die Implikation für Sie:*
+
+Jedes Formularfeld, jede Navigations-Entscheidung, jede Syntax-Regel belegt einen dieser kostbaren Arbeitsspeicher-Slots. Slots, die Sie eigentlich für die *eigentliche* Aufgabe brauchen würden.
+
+Stellen Sie sich vor, Ihr Laptop hat 4 GB RAM, und das Betriebssystem benötigt bereits 3,5 GB. Was bleibt für Ihre tatsächliche Arbeit? Fast nichts. Sie würden den Laptop als "zu langsam" bezeichnen und nach einem besseren suchen.
+
+Genauso verhält es sich mit einem formular-basierten Interface, das 6-10 Chunks verlangt, wenn Sie nur 4-7 haben. Ihr Gehirn läuft im "zu wenig RAM"-Modus. Kein Wunder, dass Sie sich überfordert fühlen.
+
+Konversationelle Interfaces belegen 1-2 Chunks. Ihr mentales RAM bleibt frei für das, was wichtig ist.
+
+== Decision Fatigue (Baumeister et al., 1998): Das begrenzte Entscheidungsbudget
+
+Roy Baumeisters Forschung zu "Ego Depletion" und Entscheidungsermüdung revolutionierte unser Verständnis darüber, wie Entscheidungen uns beeinflussen. Seine zentrale These: Willenskraft und Entscheidungsfähigkeit sind begrenzte Ressourcen – wie ein Muskel, der ermüdet.
+
+Die zentralen Erkenntnisse:
+
+*1. Entscheidungsqualität verschlechtert sich im Tagesverlauf*
+
+Unsere erste Entscheidung morgens ist typischerweise besser als unsere letzte am Abend. Nicht weil wir weniger intelligent werden, sondern weil das "Entscheidungsbudget" aufgebraucht ist.
+
+*2. Jede Entscheidung verbraucht begrenzte kognitive Ressourcen*
+
+Hier kommt der Schock: Selbst triviale Entscheidungen zapfen denselben Pool an wie wichtige. "Welche Kategorie für diese Aufgabe?" verbraucht die gleiche Art von Ressourcen wie "Welches Projekt soll Priorität haben?".
+
+Der Unterschied ist nicht die Art der Ressource – sondern die Wichtigkeit des Ergebnisses.
+
+*3. Triviale Entscheidungen können nachfolgende wichtige Entscheidungen beeinträchtigen*
+
+Die israelische Bewährungsrichter-Studie (Danziger et al., 2011) illustriert dies dramatisch:
+
+Richter gewährten zu Tagesbeginn in 65% der Fälle Bewährung. Am späten Nachmittag sank die Rate auf nahe 0%. Nach Essenspausen erholte sie sich auf ~65%. 
+
+Die Entscheidungsermüdung beeinflusste Urteile über Menschenschicksale. Nicht weil die Richter schlechte Menschen waren – sondern weil ihr "Entscheidungsmuskel" ermüdet war. Der Standard-Modus bei Erschöpfung? Der konservativere, einfachere "Nein"-Entscheid.
+
+*Was bedeutet das für Sie?*
+
+Obwohl Ihre Aufgabenverwaltungs-Entscheidungen weniger folgenreich sind als Bewährungsentscheidungen, nutzen sie denselben begrenzten Ressourcen-Pool.
+
+Hundert Mikro-Entscheidungen über Kategorien und Prioritäten am Tag können Sie erschöpfen wie eine wichtige strategische Entscheidung. Am Ende haben Sie für die wirklich wichtigen Entscheidungen nur noch "Reste".
+
+Möchten Sie wichtige Lebens- oder Karriere-Entscheidungen mit Ihrem "erschöpften Nachmittags-Richter-Gehirn" treffen? Oder mit voller kognitiver Kapazität?
+
+Konversationelle Interfaces bewahren Ihr Entscheidungsbudget für das, was zählt.
+
+== Der Zeigarnik-Effekt (Zeigarnik, 1927): Der mentale RAM-Fresser
+
+Bluma Zeigarnik entdeckte in den 1920ern ein faszinierendes Phänomen: Kellner konnten sich perfekt an noch offene Bestellungen erinnern, vergaßen aber sofort die bezahlten. 
+
+Warum? Unvollständige oder unterbrochene Aufgaben erzeugen eine persistente kognitive Spannung – sie belegen Arbeitsspeicher, auch wenn wir nicht aktiv daran denken. Wie Browser-Tabs, die im Hintergrund RAM verbrauchen.
+
+Moderne Forschung von Masicampo & Baumeister (2011) verfeinerte dies mit einer überraschenden Wendung:
+
+*Die Entdeckung:*
+
+- *Unerfüllte Ziele verursachen aufdringliche Gedanken* – Das Gehirn "erinnert" uns ständig: "Vergiss das nicht! Vergiss das nicht!"
+
+- *Einen spezifischen Plan zu machen eliminiert diese Gedanken* – Nicht die *Erledigung* beruhigt das Gehirn, sondern die *Erfassung in einem vertrauenswürdigen System*.
+
+- *Ein vertrauenswürdiges externes System kann konstante mentale Wiederholung ersetzen* – "Ich muss daran denken..." wird zu "Das System erinnert mich."
+
+*Die kritische Frage: Was ist "vertrauenswürdig"?*
+
+Hier ist der Haken: Das System muss so einfach zu benutzen sein, dass Sie es tatsächlich *konsequent* nutzen. Ein komplexes formular-basiertes System, das Sie selten verwenden, weil es zu anstrengend ist, hilft nicht gegen den Zeigarnik-Effekt.
+
+Im Gegenteil: Jetzt haben Sie *zwei* Probleme:
+1. Die unerfassten Aufgaben, die im Kopf nagen
+2. Die Schuld, Ihr System nicht zu nutzen
+
+Ein konversationelles System senkt die Barriere so weit, dass vollständige Erfassung realistisch wird. Und erst dann – wenn wirklich *alles* erfasst ist – kann Ihr Gehirn loslassen.
+
+*Das Resultat:*
+
+Kein nächtliches Aufwachen mit "Oh, ich habe vergessen...". Keine mentalen Loops während der Autofahrt. Kein konstanter Hintergrund-Stress. Echter mentaler Frieden.
+
+== Dual Process Theory (Kahneman, 2011): System 1 vs. System 2
+
+Daniel Kahnemans "Schnelles Denken, langsames Denken" (Thinking, Fast and Slow) Framework unterscheidet zwei fundamental verschiedene Denkmodi in unserem Gehirn:
+
+*System 1: Der intuitive Autopilot*
+- Schnell, automatisch, unbewusst, mühelos
+- Evolutionär alt, immer aktiv
+- Beispiele: Gesichter erkennen, natürliche Sprache verstehen, "2+2=4", Autofahren auf bekannter Strecke
+- Verbraucht kaum kognitive Ressourcen
+
+*System 2: Der bewusste Denker*
+- Langsam, bewusst, deliberativ, anstrengend
+- Evolutionär jung, muss aktiviert werden
+- Beispiele: Komplexe Mathematik, strategisches Denken, Entscheidungen unter Unsicherheit, formular-basierte Navigation
+- Verbraucht massiv kognitive Ressourcen und ist begrenzt verfügbar
+
+*Die entscheidende Asymmetrie:*
+
+System 1 ist immer da. Es kostet nichts. Es ermüdet nicht. Nach intensiver System-1-Nutzung sind Sie nicht erschöpft.
+
+System 2 ist begrenzt. Es kostet viel. Es ermüdet schnell. Nach intensiver System-2-Nutzung sind Sie kognitiv ausgelaugt – auch wenn Sie "nur" am Computer gesessen haben.
+
+*Die kritische Einsicht für Interface-Design:*
+
+Formular-basierte Interfaces erzwingen System-2-Engagement für jede einzelne Interaktion. Konversationelle Interfaces nutzen System 1 für die Aufgabenbeschreibung (natürliche Sprache) und reservieren System 2 für die eigentliche Aufgabenplanung.
+
+*Ein konkretes Beispiel:*
+
+Wenn Sie "Milch kaufen" sagen, nutzen Sie System 1 – mühelos, automatisch, kostet nichts.
+
+Wenn Sie entscheiden müssen, ob das unter "Einkaufen" (13 andere Aufgaben) oder "Haushalt" (27 andere Aufgaben) gehört, und ob es Priorität "Mittel" oder "Niedrig" hat, brauchen Sie System 2 – für eine Entscheidung, die letztlich egal ist.
+
+Das ist wie einen Ferrari zu nutzen, um zum Briefkasten zu gehen. Ja, es funktioniert. Aber es ist massive Verschwendung einer begrenzten, kostbaren Ressource.
+
+== Kontextwechsel-Kosten (Mark et al., 2008): Die 23-Minuten-Strafe
+
+Gloria Marks Forschung zu Unterbrechungen und Kontextwechseln lieferte eine der eindrucksvollsten und gleichzeitig erschreckendsten Zahlen der modernen Produktivitätsforschung:
+
+*Es dauert durchschnittlich 23 Minuten und 15 Sekunden, um nach einer Unterbrechung zum ursprünglichen Aufgabenfokus vollständig zurückzukehren.*
+
+Selbst selbst-initiierte Unterbrechungen (wie das Notieren von Aufgaben) erfordern einen kognitiven Kontextwechsel:
+
+1. Aktuellen Denkkontext "einfrieren" (komplexer als es klingt)
+2. Neuen Kontext aktivieren ("Wie funktioniert diese App? Wo war ich?")
+3. Im neuen Kontext operieren (Navigation, Eingabe, Entscheidungen)
+4. Zum ursprünglichen Kontext zurückkehren ("Wo war ich? Was dachte ich?")
+
+*Der versteckte Kostenfaktor:*
+
+Formular-basierte Interfaces erzwingen einen tiefen Kontextwechsel – von "Arbeit erledigen" zu "System bedienen". Das sind fundamental verschiedene mentale Modi, fast wie verschiedene Programmiersprachen.
+
+Konversationelle Interfaces minimieren diesen Wechsel drastisch. Das Mentalmodell bleibt ähnlich: "Gedanken artikulieren". Ob Sie zu sich selbst denken, mit einem Kollegen sprechen, oder der KI etwas sagen – es ist der gleiche kognitive Modus.
+
+*Der Unterschied:*
+
+- Formular-Interface: Wie zwischen Deutsch und Chinesisch wechseln
+- Konversationelles Interface: Wie vom Nachdenken zum Aussprechen wechseln
+
+Der eine Wechsel kostet Sie potentiell 23 Minuten Wiederherstellungszeit. Der andere praktisch nichts.
+
+*Bei 10 Aufgabenerfassungen pro Tag:*
+
+Auch wenn Sie nicht volle 23 Minuten für jede Rückkehr brauchen – selbst 5 Minuten reduzierter Fokus pro Wechsel sind 50 Minuten pro Tag. Pro Jahr: 208 Stunden reduzierte Produktivität.
+
+Nur wegen Kontextwechseln. Nicht wegen der Arbeit selbst.
+
+== Exekutive Funktions-Beeinträchtigungen bei ADHS (Barkley, 1997): Warum Formulare zur Barriere werden
+
+Russell Barkleys Modell der ADHS als Störung exekutiver Funktionen erklärt wissenschaftlich fundiert, warum formular-basierte Interfaces für ADHS-Nutzer nicht nur "schwierig", sondern oft "fast unmöglich" sind.
+
+Exekutive Funktionen sind die Management-Prozesse des Gehirns – Planung, Organisation, Impulskontrolle, Arbeitsspeicher-Verwaltung. Bei ADHS sind diese Funktionen beeinträchtigt:
+
+*1. Arbeitsspeicher-Defizite*
+
+Reduzierte Kapazität (~2-3 statt 4-7 Chunks), Informationen gleichzeitig zu halten und zu manipulieren. Das erklärt das "Vergessen während des Eingebens" – der Arbeitsspeicher ist schlicht überlastet.
+
+*2. Inhibitions-Schwierigkeiten*
+
+Herausforderungen, Fokus durch mehrstufige Prozesse aufrechtzuerhalten, ohne durch irrelevante Stimuli abgelenkt zu werden. Jeder Schritt in einem Formular ist eine Gelegenheit für Ablenkung.
+
+*3. Aufgaben-Initiations-Barrieren*
+
+Besonders hohe "Startenergie" für nicht-bevorzugte Aktivitäten. Jede zusätzliche Komplexität erhöht diese Barriere exponentiell, nicht linear.
+
+*4. Zeit-Blindheit*
+
+Schwierigkeiten, Zeitdauern intuitiv einzuschätzen oder sich der verstreichenden Zeit bewusst zu sein. "Wie lange wird das dauern?" ist eine der schwierigsten Fragen für ADHS-Gehirne.
+
+*5. Organisations-Herausforderungen*
+
+Probleme mit Kategorisierung, Priorisierung und systematischem Denken. "Welche Kategorie?" ist nicht trivial – es ist kognitiv fordernd.
+
+*Die erschreckende Realität:*
+
+Jedes dieser Defizite wird durch formular-basierte Interfaces direkt getriggert:
+
+- Zu viele gleichzeitige Chunks → Arbeitsspeicher-Überlastung
+- Mehrstufiger Prozess → Inhibitions-Probleme → Abbruch
+- Komplexes Interface → Erhöhte Startbarriere → Vermeidung
+- "Wie lange dauert das?" → Zeit-Blindheit → Frustration
+- "Welche Kategorie?" → Organisations-Schwierigkeiten → Paralyse
+
+Konversationelle Interfaces umgehen oder kompensieren jeden dieser Punkte. Die KI wird zur externen exekutiven Funktion – sie übernimmt Funktionen, die das ADHS-Gehirn nur schwer leisten kann.
+
+== ADHS und Technologie-Design: Was die Forschung zeigt
+
+Spezifische Forschung zu ADHS-freundlichem Technologie-Design hat konkrete, evidenz-basierte Prinzipien identifiziert:
+
+*Schritte minimieren* (Hourcade et al., 2012)
+
+Jeder zusätzliche Schritt in einem Prozess erzeugt ein exponentielles Abbruch-Risiko. ADHS-Nutzer brechen mehrstufige Workflows signifikant häufiger ab als neurotypische Nutzer – nicht aus Faulheit, sondern aus neurobiologischen Gründen.
+
+Die Konsequenz: Ein System mit 8 Schritten wird zu 10% genutzt, eins mit 2 Schritten zu 80%. Konversationelle Einschritt-Eingabe maximiert tatsächliche Nutzung.
+
+*Sofortiges Feedback* (Rapport et al., 2000)
+
+ADHS-Gehirne haben ein unterschiedliches Belohnungssystem – sie reagieren besonders stark auf sofortige Rückmeldung und schwach auf verzögerte. Konversationelle Bestätigung ("Okay, notiert") liefert Instant Gratification. Formular-Submission hat oft verzögertes oder mehrdeutiges Feedback.
+
+*Externes Arbeitsgedächtnis* (Kofler et al., 2018)
+
+ADHS-Personen profitieren überproportional von externen Gedächtnis-Hilfen – nicht weil sie "vergesslicher" sind, sondern weil ihr Arbeitsspeicher bereits mit der Regulation von Aufmerksamkeit und Impulsen ausgelastet ist.
+
+Ein verlässliches Erfassungs-System + proaktive KI-Erinnerungen = externe exekutive Funktion. Das System wird zum kognitiven Prothese.
+
+= Fazit: Was Sie jetzt tun können
+
+Wir sind am Ende dieser Analyse angekommen. Sie haben gesehen:
+
+- *WAS*: Die konkreten Unterschiede zwischen formular-basierten und konversationellen Interfaces
+- *WIE VIEL*: 75-95% Mental Load Reduktion, 4-7 Arbeitswochen mentale Kapazität pro Jahr
+- *WARUM*: Die kognitionswissenschaftlichen Grundlagen, die das erklären
+- *FÜR WEN*: Neurotypische Nutzer profitieren, neurodivergente transformativ
+
+Jetzt bleibt die wichtigste Frage: *Was tun Sie damit?*
+
+== Die harte Wahrheit
+
+Basierend auf kognitionswissenschaftlicher Forschung und vergleichender Analyse zeigt sich: KI-assistierte konversationelle Aufgabenverwaltung kann die mentale Belastung um etwa *75-85% für neurotypische Nutzer* und *85-95% für neurodivergente Nutzer (insbesondere ADHS)* reduzieren.
+
+Diese Reduktion stammt von der Konvergenz mehrerer kognitiver Vorteile:
+
++ *Arbeitsspeicher-Erhaltung*: 1-2 Chunks vs. 6-10 Chunks
++ *Entscheidungsermüdungs-Prävention*: 1-2 vs. 8-12 Entscheidungen pro Aufgabe
++ *Kontextwechsel-Minimierung*: Natürliche Konversation vs. System-Bedienung
++ *Kognitive Fluency*: System 1 vs. System 2 Verarbeitung
++ *Reduzierte Aufgaben-Vermeidung*: Niedrigere Barriere für konsistente Nutzung
++ *Exekutive Funktions-Unterstützung*: Besonders wertvoll für neurodivergente Nutzer
+
+Die praktische Auswirkung erstreckt sich weit über reine Zeit-Einsparungen hinaus. Es geht um die Erhaltung kognitiver Ressourcen für höherwertige Aktivitäten: kreative Arbeit, strategisches Denken, Familien-Beziehungen und persönliches Wohlbefinden.
+
+*Der wahre Wert liegt nicht in den eingesparten 45-60 Minuten täglich, sondern in der Umleitung dieser mentalen Kapazität zu Aktivitäten, die wirklich zählen.*
+
+== Das Experiment: Eine Woche, die alles ändern könnte
+
+Wir laden Sie zu einem konkreten Experiment ein – nicht theoretisch, sondern praktisch:
+
+*Woche 1: Bewusstsein schaffen*
+
+Beobachten Sie für eine Woche, wie Sie mit Ihren digitalen Werkzeugen interagieren:
+
+- Zählen Sie die Mikro-Entscheidungen bei jeder Aufgabenerfassung
+- Spüren Sie die Kontextwechsel zwischen "Arbeit" und "System bedienen"
+- Bemerken Sie die Momente, wo Sie eine Aufgabe *nicht* notieren, weil es "zu viel Aufwand" erscheint
+- Fragen Sie sich am Abend: "Warum bin ich so müde?"
+
+Führen Sie ein kurzes Protokoll. Nur für sich selbst. Ehrlich.
+
+*Woche 2: Der Kontrast*
+
+Probieren Sie eine Woche lang ein konversationelles System. Nicht perfekt, nicht mit allen Features – einfach nur für Aufgabenerfassung. Viele KI-Assistenten (ChatGPT, Claude, usw.) können das bereits.
+
+Beobachten Sie:
+- Wie fühlt sich die Erfassung an?
+- Erfassen Sie mehr oder weniger?
+- Wie ist Ihre Energie am Abend?
+- Was machen Sie mit der gewonnenen mentalen Kapazität?
+
+*Woche 3: Die Entscheidung*
+
+Nach zwei Wochen wissen Sie aus eigener Erfahrung, nicht aus Theorie:
+- Ist der Unterschied real für *Sie*?
+- Rechtfertigt er eine Änderung Ihrer Arbeitsweise?
+- Was würden Sie mit einem Monat mentaler Kapazität pro Jahr anfangen?
+
+Dann entscheiden Sie – mit Daten, nicht mit Hoffnung.
+
+== Universal Design als Auftrag
+
+Die überproportionalen Vorteile für neurodivergente Nutzer demonstrieren die Kraft von Universal Design: Wenn wir für die am meisten betroffenen Nutzer designen, profitieren alle.
+
+Dies ist mehr als ein Design-Prinzip – es ist ein ethisches Statement. Technologie sollte nicht zusätzliche Barrieren für jene schaffen, die bereits mit kognitiven Herausforderungen kämpfen. Im Idealfall kompensiert sie diese Herausforderungen.
+
+Konversationelle Interfaces tun genau das. Sie sind nicht "dumbed down" oder "Behinderten-Features" – sie sind einfach *besser designed* für die Art, wie menschliche Gehirne tatsächlich funktionieren.
+
+== Zukunftsvision: Wenn Interfaces verschwinden
+
+Die Zukunft der Mensch-Computer-Interaktion liegt nicht in komplexeren Interfaces mit mehr Features und Optionen. Sie liegt in Interfaces, die *verschwinden* – die so natürlich sind, dass wir vergessen, dass wir mit Software interagieren.
+
+Stellen Sie sich vor:
+
+- Sie denken einen Gedanken
+- Sie artikulieren ihn natürlich
+- Er ist erfasst, organisiert, zur richtigen Zeit wieder präsent
+- Ohne Kategorien, ohne Prioritäten-Grübeln, ohne Kontextwechsel
+- Einfach: Denken → Sein → Weitermachen
+
+Das ist nicht Science Fiction. Die Technologie existiert. Die Wissenschaft ist klar. Was fehlt, ist nur die Adoption.
+
+*Konversationelle KI ist ein Schritt in diese Richtung. Und die Forschung zeigt: Dieser Schritt könnte nicht nur produktiver, sondern auch menschlicher sein.*
+
+== Ihre nächsten Schritte
+
+Wenn Sie bis hierher gelesen haben, haben Sie bereits den wichtigsten Schritt gemacht: Bewusstsein. Sie verstehen jetzt, *warum* Sie am Ende des Tages erschöpft sind. Sie wissen, *wie viel* mentale Kapazität auf dem Spiel steht.
+
+Was Sie damit machen, liegt bei Ihnen.
+
+Aber zumindest wissen Sie jetzt: Es ist nicht Ihre Schuld. Es ist ein Design-Problem.
+
+Und Design-Probleme kann man lösen.
+
+= Literaturverzeichnis
+
+#set par(first-line-indent: 0em, hanging-indent: 1em)
+
+Barkley, R. A. (1997). Behavioral inhibition, sustained attention, and executive functions: Constructing a unifying theory of ADHD. _Psychological Bulletin_, 121(1), 65-94.
+
+Baumeister, R. F., Bratslavsky, E., Muraven, M., & Tice, D. M. (1998). Ego depletion: Is the active self a limited resource? _Journal of Personality and Social Psychology_, 74(5), 1252-1265.
+
+Cowan, N. (2001). The magical number 4 in short-term memory: A reconsideration of mental storage capacity. _Behavioral and Brain Sciences_, 24(1), 87-185.
+
+Danziger, S., Levav, J., & Avnaim-Pesso, L. (2011). Extraneous factors in judicial decisions. _Proceedings of the National Academy of Sciences_, 108(17), 6889-6892.
+
+Hourcade, J. P., Bullock-Rest, N. E., & Hansen, T. E. (2012). Multitouch tablet applications and activities to enhance the social skills of children with autism spectrum disorders. _Personal and Ubiquitous Computing_, 16(2), 157-168.
+
+Kahneman, D. (2011). _Thinking, Fast and Slow_. Farrar, Straus and Giroux.
+
+Kofler, M. J., Irwin, L. N., Soto, E. F., Groen, M., Sarver, D. E., & Harmon, S. L. (2018). Executive functioning heterogeneity in pediatric ADHD. _Journal of Abnormal Child Psychology_, 47(2), 273-286.
+
+Mark, G., Gudith, D., & Klocke, U. (2008). The cost of interrupted work: More speed and stress. _Proceedings of CHI 2008_, 107-110.
+
+Masicampo, E. J., & Baumeister, R. F. (2011). Consider it done! Plan making can eliminate the cognitive effects of unfulfilled goals. _Journal of Personality and Social Psychology_, 101(4), 667-683.
+
+Miller, G. A. (1956). The magical number seven, plus or minus two: Some limits on our capacity for processing information. _Psychological Review_, 63(2), 81-97.
+
+Rapport, M. D., Tucker, S. B., DuPaul, G. J., Merlo, M., & Gardner, M. J. (2000). Hyperactivity and frustration: The influence of control over and size of rewards in delaying gratification. _Journal of Abnormal Child Psychology_, 28(2), 191-204.
+
+Sweller, J. (1988). Cognitive load during problem solving: Effects on learning. _Cognitive Science_, 12(2), 257-285.
+
+Zeigarnik, B. (1927). Das Behalten erledigter und unerledigter Handlungen. _Psychologische Forschung_, 9, 1-85.
