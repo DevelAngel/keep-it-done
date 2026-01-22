@@ -1,11 +1,11 @@
 [package]
-name = "kid-cli"
+name = "kid-server"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
 [[bin]]
-name = "kid"
+name = "kiddy"
 path = "src/main.rs"
 
 [lints]
@@ -15,8 +15,10 @@ workspace = true
 anyhow.workspace = true
 clap.workspace = true
 clap-verbosity-flag.workspace = true
+futures.workspace = true
 kid-service = { path = "../service" }
 kid-types = { path = "../types" }
+rand.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = [
   "macros",

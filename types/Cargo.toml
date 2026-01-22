@@ -1,22 +1,17 @@
 [package]
-name = "kid-cli"
+name = "kid-types"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-
-[[bin]]
-name = "kid"
-path = "src/main.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
 anyhow.workspace = true
-clap.workspace = true
-clap-verbosity-flag.workspace = true
-kid-service = { path = "../service" }
-kid-types = { path = "../types" }
+futures.workspace = true
+rand.workspace = true
+serde.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = [
   "macros",
@@ -25,4 +20,4 @@ tokio = { workspace = true, features = [
   "tokio-macros",
 ] }
 tracing.workspace = true
-tracing-subscriber.workspace = true
+uuid = { workspace = true, features = ["rng-rand", "serde", "v7"] }
