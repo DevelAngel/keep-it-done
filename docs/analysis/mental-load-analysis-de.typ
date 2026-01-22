@@ -1,4 +1,4 @@
-#import "task-management-template.typ": *
+#import "template.typ": *
 
 #set text(lang: "de")
 #show: articulate-coderscompass.with(
