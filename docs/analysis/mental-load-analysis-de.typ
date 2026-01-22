@@ -2,6 +2,7 @@
 
 #set text(lang: "de")
 #show: articulate-coderscompass.with(
+  version: "1.3",
   title: "Mental Load Analyse",
   subtitle: "Konversationelle vs. Formular-basierte Aufgabenverwaltung",
   authors: (),
