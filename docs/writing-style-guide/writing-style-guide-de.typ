@@ -1,6 +1,7 @@
-#import "template.typ": *
+#import "../article-template.typ": *
 
 #show: articulate-coderscompass.with(
+  lang: "de",
   version: "1.1",
   title: "Leserorientiertes wissenschaftliches Schreiben",
   subtitle: "Ein Leitfaden für überzeugende, wissenschaftlich fundierte Kommunikation",

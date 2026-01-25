@@ -72,6 +72,9 @@
   /// Name of the publication or journal where the paper is published. Optional.
   publication: "Coders' Compass Texts",
 
+  /// Language of the text. Optional.
+  lang: "en",
+
   // Design configs that can be overriden.
   // These are optional and can be used to customise the appearance of the document.
 
@@ -221,7 +224,7 @@
   )
 
   // Main font for the document
-  set text(font: regularFont, lang: "de")
+  set text(font: regularFont, lang: lang)
 
   // Make links underlined to be visible
   show link: underline
