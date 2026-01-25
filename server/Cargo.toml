@@ -4,27 +4,29 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
-[[bin]]
-name = "kiddy"
-path = "src/main.rs"
-
 [lints]
 workspace = true
 
+[dependencies.kid-types]
+path = "../types"
+
+[dependencies.kid-app]
+path = "../app"
+default-features = false
+features = ["ssr"]
+
 [dependencies]
 anyhow.workspace = true
+axum.workspace = true
 clap.workspace = true
 clap-verbosity-flag.workspace = true
 futures.workspace = true
-kid-service = { path = "../service" }
-kid-types = { path = "../types" }
+leptos = { workspace = true, features = ["ssr"] }
+leptos_axum.workspace = true
 rand.workspace = true
 tarpc = { workspace = true, features = ["full"] }
-tokio = { workspace = true, features = [
-  "macros",
-  "net",
-  "rt-multi-thread",
-  "tokio-macros",
-] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tower.workspace = true
+tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

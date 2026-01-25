@@ -4,7 +4,7 @@ mod task;
 use crate::cli::{Cli, Parser};
 use crate::task::TaskPrint;
 
-use kid_types::TaskServiceClient;
+use kid_types::rpc::TaskServiceClient;
 
 use anyhow::{Context, Result};
 use tarpc::client;
