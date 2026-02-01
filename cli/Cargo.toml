@@ -11,12 +11,14 @@ path = "src/main.rs"
 [lints]
 workspace = true
 
+[dependencies.kid-types]
+path = "../types"
+features = ["rpc"]
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
 clap-verbosity-flag.workspace = true
-kid-service = { path = "../service" }
-kid-types = { path = "../types" }
 tarpc = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = [
   "macros",

@@ -4,7 +4,7 @@ mod task;
 use crate::cli::{Cli, Parser};
 use crate::task::TaskPrint;
 
-use kid_types::TaskServiceClient;
+use kid_types::rpc::TaskServiceClient;
 
 use anyhow::{Context, Result};
 use tarpc::client;
@@ -30,6 +30,15 @@ async fn main() -> Result<()> {
     transport.config_mut().max_frame_length(usize::MAX);
     let transport = transport.await.context("failed to connect")?;
     let client = TaskServiceClient::new(client::Config::default(), transport).spawn();
+
+    match args.cmd {
+        cli::Commands::List => list(client).await?,
+        cli::Commands::Add { summary } => add(client, summary).await?,
+    }
+    Ok(())
+}
+
+async fn list(client: TaskServiceClient) -> Result<()> {
     let task_list = async move {
         // Send the request twice, just to be safe! ;)
         tokio::select! {
@@ -39,7 +48,7 @@ async fn main() -> Result<()> {
     }
     .instrument(tracing::info_span!("Two Task Lists"))
     .await
-    .context("Error message received")?;
+    .context("failed to fetch the task list")?;
 
     // Print task list to standard out
     task_list
@@ -48,5 +57,14 @@ async fn main() -> Result<()> {
         .enumerate()
         .map(|(i, task)| (i + 1, task))
         .for_each(|(n, task)| println!("{n:>3}: {task}"));
+
+    Ok(())
+}
+
+async fn add(client: TaskServiceClient, summary: String) -> Result<()> {
+    client
+        .add(context::current(), summary)
+        .await
+        .context("failed to add the new task")?;
     Ok(())
 }

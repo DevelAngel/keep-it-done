@@ -1,0 +1,27 @@
+[package]
+name = "kid-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+hydrate = ["leptos/hydrate"]
+ssr = ["leptos/ssr", "leptos_meta/ssr", "leptos_router/ssr", "dep:leptos_axum", "kid-types/ssr"]
+
+[dependencies.kid-types]
+path = "../types"
+
+[dependencies]
+cfg-if.workspace = true
+http.workspace = true
+leptos.workspace = true
+leptos_meta.workspace = true
+leptos_router.workspace = true
+leptos_axum = { workspace = true, optional = true }
+thiserror.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["sync"] }

@@ -7,17 +7,12 @@ authors.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+rpc = ["dep:tarpc"]
+ssr = ["rpc", "uuid/rng-rand", "uuid/v7"]
+
 [dependencies]
-anyhow.workspace = true
-futures.workspace = true
-rand.workspace = true
-serde.workspace = true
-tarpc = { workspace = true, features = ["full"] }
-tokio = { workspace = true, features = [
-  "macros",
-  "net",
-  "rt-multi-thread",
-  "tokio-macros",
-] }
-tracing.workspace = true
-uuid = { workspace = true, features = ["rng-rand", "serde", "v7"] }
+serde = { workspace = true, features = ["derive"] }
+tarpc = { workspace = true, features = ["serde1"], optional = true }
+uuid = { workspace = true, features = ["serde"] }

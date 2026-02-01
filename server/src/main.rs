@@ -1,46 +1,39 @@
 mod cli;
+mod http;
 mod rpc;
 
 use crate::cli::{Cli, Parser};
-use crate::rpc::{TaskRpcServer, TaskService};
+use crate::http::HttpServer;
+use crate::rpc::RpcServer;
 
-use futures::{future, prelude::*};
-use tarpc::serde_transport::tcp;
-use tarpc::server::incoming::Incoming;
-use tarpc::server::{self, Channel};
-use tarpc::tokio_serde::formats::Json;
+use kid_app::ssr::SharedTaskCache;
+use kid_types::server::TaskCache;
+
+use anyhow::Result;
+use leptos::prelude::get_configuration;
+use tokio::sync::RwLock;
+
+use std::sync::Arc;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     let args = Cli::parse();
     tracing_subscriber::fmt()
         .with_max_level(args.verbosity)
         .init();
-    tracing::warn!("work-in-progress");
-    tracing::error!("test");
-    tracing::debug!("test");
-    tracing::trace!("test");
-    tracing::info!("SERVER will listen to {}", args.server.addr);
+    let leptos_conf = get_configuration(None)?;
+    let leptos_options = leptos_conf.leptos_options.clone();
+    let site_addr = leptos_conf.leptos_options.site_addr;
+    let rpc_addr = args.server.addr;
 
-    // Start RPC service
-    let mut listener = tcp::listen(&args.server.addr, Json::default).await?;
-    listener.config_mut().max_frame_length(usize::MAX);
-    tracing::info!("Listening on port {}", listener.local_addr().port());
-    listener
-        .filter_map(|r| future::ready(r.ok()))
-        .map(server::BaseChannel::with_defaults)
-        .max_channels_per_key(1, |t| t.transport().peer_addr().unwrap().ip())
-        .map(|channel| {
-            let server = TaskRpcServer;
-            channel.execute(server.serve()).for_each(spawn)
-        })
-        .buffer_unordered(10)
-        .for_each(|_| async {})
-        .await;
+    let rpc_listener = tokio::net::TcpListener::bind(&rpc_addr).await?;
+    let web_listener = tokio::net::TcpListener::bind(&site_addr).await?;
+
+    let task_cache: SharedTaskCache = Arc::new(RwLock::new(TaskCache::default()));
+
+    let rpc = RpcServer::serve(rpc_listener, task_cache.clone());
+    let http = HttpServer::serve(web_listener, leptos_options, task_cache);
+    tokio::try_join!(rpc, http)?;
 
     Ok(())
-}
-
-async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-    tokio::spawn(fut);
 }

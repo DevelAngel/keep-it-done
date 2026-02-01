@@ -29,6 +29,12 @@ pub struct ServerArgs {
 pub enum Commands {
     /// List all tasks
     List,
+    /// Add a new task
+    Add {
+        /// Task summary
+        #[clap(short, long)]
+        summary: String,
+    },
 }
 
 #[cfg(debug_assertions)]
