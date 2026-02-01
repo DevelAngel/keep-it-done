@@ -1,5 +1,6 @@
 use crate::Task;
 
+use ahash::RandomState;
 use indexmap::IndexSet;
 use uuid::Uuid;
 
@@ -65,11 +66,12 @@ pub trait TaskList {
 }
 
 #[derive(Debug)]
-pub struct TaskCache(IndexSet<CachedTask>);
+pub struct TaskCache(IndexSet<CachedTask, RandomState>);
 
 impl Default for TaskCache {
     fn default() -> Self {
-        let mut set = IndexSet::with_capacity(10);
+        const CAPACITY: usize = 10;
+        let mut set = IndexSet::with_capacity_and_hasher(CAPACITY, RandomState::new());
         let list = vec![
             Task::new("Task A.1"),
             Task::new("Task B.2"),

@@ -21,6 +21,7 @@ readme = "README.md"
 unsafe_code = "forbid"
 
 [workspace.dependencies]
+ahash = "0.8.12"
 anyhow = { version = "1.0.100", features = ["backtrace"] }
 axum = "0.8.4"
 cfg-if = "1.0.0"
