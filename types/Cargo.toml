@@ -10,9 +10,10 @@ workspace = true
 [features]
 default = []
 rpc = ["dep:tarpc"]
-ssr = ["rpc", "uuid/rng-rand", "uuid/v7"]
+ssr = ["rpc", "uuid/rng-rand", "uuid/v7", "dep:indexmap"]
 
 [dependencies]
+indexmap = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 tarpc = { workspace = true, features = ["serde1"], optional = true }
 uuid = { workspace = true, features = ["serde"] }

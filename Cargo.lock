@@ -1340,6 +1340,7 @@ dependencies = [
 name = "kid-types"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "serde",
  "tarpc",
  "uuid",
