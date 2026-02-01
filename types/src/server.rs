@@ -30,13 +30,7 @@ impl Default for Task {
     }
 }
 
-impl Hash for Task {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
-#[derive(Debug, Clone, Hash, Eq)]
+#[derive(Debug, Clone, Eq)]
 struct CachedTask(Task);
 
 impl Deref for CachedTask {
@@ -58,8 +52,14 @@ impl PartialEq for CachedTask {
     }
 }
 
+impl Hash for CachedTask {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
 pub trait TaskList {
-    fn into_vec(&self) -> Vec<Task>;
+    fn to_vec(&self) -> Vec<Task>;
     fn add(&mut self, task: Task) -> bool;
     fn remove<T: Into<Uuid>>(&mut self, id: T) -> bool;
 }
@@ -67,7 +67,7 @@ pub trait TaskList {
 #[derive(Debug)]
 pub struct TaskCache(IndexSet<CachedTask>);
 
-impl<'a> Default for TaskCache {
+impl Default for TaskCache {
     fn default() -> Self {
         let mut set = IndexSet::with_capacity(10);
         let list = vec![
@@ -83,7 +83,7 @@ impl<'a> Default for TaskCache {
 }
 
 impl TaskList for TaskCache {
-    fn into_vec(&self) -> Vec<Task> {
+    fn to_vec(&self) -> Vec<Task> {
         self.0.iter().map(|t| t.deref()).cloned().collect()
     }
 

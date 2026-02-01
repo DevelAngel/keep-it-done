@@ -49,7 +49,7 @@ pub mod ssr {
             unreachable!("task cache missing")
         };
         let task_cache = task_cache.read().await;
-        task_cache.into_vec()
+        task_cache.to_vec()
     }
 
     pub(crate) async fn add_task(task: Task) -> bool {

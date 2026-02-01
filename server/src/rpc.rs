@@ -59,7 +59,7 @@ impl TaskService for RpcService {
         sleep(sleep_time).await;
 
         let task_cache = self.task_cache.read().await;
-        task_cache.into_vec()
+        task_cache.to_vec()
     }
 
     async fn add(self, _: context::Context, summary: String) {
