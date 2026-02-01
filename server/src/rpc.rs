@@ -1,5 +1,8 @@
+use crate::SharedTaskCache;
+
 use kid_types::Task;
 pub use kid_types::rpc::TaskService;
+use kid_types::server::TaskList;
 
 use anyhow::Result;
 use futures::{future, prelude::*};
@@ -15,7 +18,7 @@ pub struct RpcServer;
 
 impl RpcServer {
     /// Start RPC server
-    pub async fn serve(listener: TcpListener) -> Result<()> {
+    pub async fn serve(listener: TcpListener, task_cache: SharedTaskCache) -> Result<()> {
         tracing::info!(
             "RPC Server will listen to: {}",
             listener.local_addr().unwrap()
@@ -26,7 +29,8 @@ impl RpcServer {
             .filter_map(|r| future::ready(r.ok()))
             .map(server::BaseChannel::with_defaults)
             .map(|channel| {
-                let server = RpcService;
+                let task_cache = task_cache.clone();
+                let server = RpcService { task_cache };
                 channel.execute(server.serve()).for_each(Self::spawn)
             })
             .buffer_unordered(10)
@@ -41,7 +45,9 @@ impl RpcServer {
 }
 
 #[derive(Clone)]
-struct RpcService;
+struct RpcService {
+    task_cache: SharedTaskCache,
+}
 
 impl TaskService for RpcService {
     async fn list(self, _: context::Context) -> Vec<Task> {
@@ -52,12 +58,13 @@ impl TaskService for RpcService {
         };
         sleep(sleep_time).await;
 
-        const MY_TASK_THIRD: &str = "my third task";
-        let task_list = vec![
-            Task::new("my frist task"),
-            Task::new("my second task".to_string()),
-            Task::new(MY_TASK_THIRD),
-        ];
-        task_list
+        let task_cache = self.task_cache.read().await;
+        task_cache.into_vec()
+    }
+
+    async fn add(self, _: context::Context, summary: String) {
+        let task = Task::new(summary);
+        let mut task_cache = self.task_cache.write().await;
+        task_cache.add(task);
     }
 }

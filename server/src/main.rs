@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
 
     let task_cache: SharedTaskCache = Arc::new(RwLock::new(TaskCache::default()));
 
-    let rpc = RpcServer::serve(rpc_listener);
+    let rpc = RpcServer::serve(rpc_listener, task_cache.clone());
     let http = HttpServer::serve(web_listener, leptos_options, task_cache);
     tokio::try_join!(rpc, http)?;
 
