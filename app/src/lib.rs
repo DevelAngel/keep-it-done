@@ -109,63 +109,71 @@ fn TaskList() -> impl IntoView {
         },
         move |_| fetch_task_list(),
     );
-    let task_list = move || {
-        Suspend::new(async move {
-            task_list.await.map(|task_list| {
-                if task_list.is_empty() {
-                    Either::Left(view! { <p>"No tasks were found."</p> })
-                } else {
-                    Either::Right(
-                        task_list
-                            .iter()
-                            .map(move |task: &Task| {
-                                let summary = task.summary().to_string();
-                                let id = task.id().as_simple().to_string();
-                                view! {
-                                    <li>
-                                        {summary} - {id.clone()}
-                                        <ActionForm action=delete_task>
-                                            <input type="hidden" name="id" value=id/>
-                                            <input type="submit" value="X"/>
-                                        </ActionForm>
-                                    </li>
-                                }
-                            })
-                            .collect::<Vec<_>>(),
-                    )
-                }
-            })
-        })
-    };
 
     view! {
         <MultiActionForm action=add_task>
             <label>"Add a Task" <input type="text" name="summary"/></label>
             <input type="submit" value="Add"/>
         </MultiActionForm>
-        <div>
-            <Transition fallback=move || view! { <p>"Loading..."</p> }>
-                <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
-                    <ul>
-                        {task_list}
-                        {move || {
-                            add_task.submissions()
-                                .get()
-                                .into_iter()
-                                .filter(|submission| submission.pending().get())
-                                .map(|submission| {
-                                    view! {
-                                        <li class="pending">
-                                            {move || submission.input().get().map(|data| data.summary)}
-                                        </li>
-                                    }
+        <div class="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600">
+            <div class="max-w-2xl mx-auto min-h-screen bg-white shadow-2xl">
+                <header class="px-6 py-8 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                    <h1 class="text-3xl font-semibold mb-1">"My Day"</h1>
+                </header>
+                <div class="py-2">
+                    <Suspense fallback=move || view! {
+                        <div class="px-6 py-6 text-center text-gray-500">"Loading tasks..."</div>
+                    }>
+                        <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
+                            {move || {
+                                Suspend::new(async move {
+                                    task_list.await.map(|task_list| {
+                                        if task_list.is_empty() {
+                                            Either::Left(view! { <p>"No tasks were found."</p> })
+                                        } else {
+                                            Either::Right(view! {
+                                                <For
+                                                    each=move || task_list.clone()
+                                                    key=|task| task.id().clone()
+                                                    children=move |task| {
+                                                        view! { <TaskItem task=task/> }
+                                                    }
+                                                />
+                                            })
+                                        }
+                                    })
                                 })
-                                .collect::<Vec<_>>()
-                        }}
+                            }}
+                        </ErrorBoundary>
+                    </Suspense>
+                </div>
+            </div>
+        </div>
+    }
+}
 
-                    </ul>
-                </ErrorBoundary>
-            </Transition>
+#[component]
+fn TaskItem<T: for<'a> TaskProperties<'a>>(task: T) -> impl IntoView {
+    let (checked, set_checked) = signal(false);
+    let summary = task.summary().to_string();
+
+    view! {
+        <div class="flex items-center px-6 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+            <input
+                type="checkbox"
+                class="w-5 h-5 rounded-full border-2 border-gray-300 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br checked:from-indigo-500 checked:to-purple-600 checked:border-indigo-500 relative"
+                checked=move || checked.get()
+                on:change=move |_| set_checked.update(|c| *c = !*c)
+            />
+            <div class="flex-1">
+                <span class=move || if checked.get() {
+                    "text-gray-900 line-through opacity-50"
+                } else {
+                    "text-gray-900"
+                }>
+                    {summary}
+                </span>
+            </div>
         </div>
     }
 }
