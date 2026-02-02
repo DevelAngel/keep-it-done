@@ -62,3 +62,4 @@ reload-port = 3001
 browserquery = "defaults"
 watch = false
 env = "DEV"
+tailwind-input-file = "style/tailwind.css"
