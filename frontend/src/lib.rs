@@ -1,9 +1,10 @@
+use kid_app::App;
+
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
-    use kid_app::*;
-    // initializes logging using the `log` crate
-    //_ = console_log::init_with_level(log::Level::Debug);
     console_error_panic_hook::set_once();
+
+    tracing_wasm::set_as_global_default();
 
     leptos::mount::hydrate_body(App);
 }

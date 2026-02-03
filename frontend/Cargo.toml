@@ -19,4 +19,6 @@ features = ["hydrate"]
 console_error_panic_hook.workspace = true
 console_log.workspace = true
 leptos = { workspace = true, features = ["hydrate"] }
+tracing.workspace = true
+tracing-wasm = "0.2.1"
 wasm-bindgen.workspace = true
