@@ -9,15 +9,18 @@ use std::ops::{Deref, DerefMut};
 
 impl Task {
     pub fn new<T: ToString>(summary: T) -> Self {
-        Self::default().summary(summary)
+        Self::default().set_summary(summary)
     }
 
     fn with_id(id: Uuid) -> Self {
+        if 7 != id.get_version_num() {
+            unreachable!("invalid UUID v{} detected", id.get_version_num());
+        }
         let summary = "".to_owned();
         Self { id, summary }
     }
 
-    pub fn summary<T: ToString>(mut self, summary: T) -> Self {
+    pub fn set_summary<T: ToString>(mut self, summary: T) -> Self {
         self.summary = summary.to_string();
         self
     }
@@ -26,6 +29,7 @@ impl Task {
 impl Default for Task {
     fn default() -> Self {
         let id = Uuid::now_v7();
+        assert_eq!(id.get_version_num(), 7);
         let summary = "".to_owned();
         Self { id, summary }
     }
@@ -95,6 +99,7 @@ impl TaskList for TaskCache {
 
     fn remove<T: Into<Uuid>>(&mut self, id: T) -> bool {
         let id = id.into();
+        assert_eq!(id.get_version_num(), 7);
         self.0.shift_remove(&CachedTask(Task::with_id(id)))
     }
 }
