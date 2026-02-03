@@ -94,7 +94,6 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Renders the home page of your application.
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
@@ -222,38 +221,71 @@ fn TaskItem<T: for<'a> TaskProperties<'a>>(
                 </div>
             </div>
 
-            // Expanded detail section
+            // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <div class="px-6 pb-4 pt-2 space-y-2 text-sm">
-                    // Created timestamp
-                    <div class="text-gray-600">
-                        <span class="font-medium">"Created: "</span>
-                        <span>{created.clone()}</span>
-                    </div>
-                    // Priority
-                    <div class="text-gray-600">
-                        <span class="font-medium">"Priority: "</span>
-                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-red-500 to-orange-500 text-white text-xs font-bold">
-                            {mock_priority}
-                        </span>
-                    </div>
-                    // Time estimate
-                    <div class="text-gray-600">
-                        <span class="font-medium">"Time estimate: "</span>
-                        <span>{mock_estimate}</span>
-                    </div>
-                    // Context/Category
-                    <div class="text-gray-600">
-                        <span class="font-medium">"Context: "</span>
-                        <span>{mock_context}</span>
-                    </div>
-                    // Notes (if present)
-                    {mock_notes.map(|notes| view! {
-                        <div class="text-gray-600 pt-2 border-t border-gray-200">
-                            <div class="font-medium mb-1">"Notes:"</div>
-                            <div class="text-gray-700 whitespace-pre-wrap">{notes}</div>
+                <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-white via-indigo-50 to-white">
+                    // Vertical timeline with connecting line
+                    <div class="relative pl-8 space-y-4">
+                        // Vertical line
+                        <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300"></div>
+
+                        // Created
+                        <div class="relative">
+                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-white shadow flex items-center justify-center">
+                                <div class="w-2 h-2 rounded-full bg-white"></div>
+                            </div>
+                            <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-0.5">"Created"</div>
+                            <div class="text-sm text-gray-900">{created.clone()}</div>
                         </div>
-                    })}
+
+                        // Priority
+                        <div class="relative">
+                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-red-500 border-4 border-white shadow flex items-center justify-center">
+                                <span class="text-white text-xs font-bold">{mock_priority}</span>
+                            </div>
+                            <div class="text-xs font-semibold text-red-600 uppercase tracking-wide mb-0.5">"Priority"</div>
+                            <div class="text-sm text-gray-900">"High importance"</div>
+                        </div>
+
+                        // Time estimate
+                        <div class="relative">
+                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                </svg>
+                            </div>
+                            <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-0.5">"Estimate"</div>
+                            <div class="text-sm text-gray-900">{mock_estimate}</div>
+                        </div>
+
+                        // Context
+                        <div class="relative">
+                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+                                </svg>
+                            </div>
+                            <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Context"</div>
+                            <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500 text-white shadow-sm">
+                                {mock_context}
+                            </div>
+                        </div>
+
+                        // Notes
+                        {mock_notes.map(|notes| view! {
+                            <div class="relative">
+                                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-gray-500 border-4 border-white shadow flex items-center justify-center">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
+                                    </svg>
+                                </div>
+                                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">"Notes"</div>
+                                <div class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-200 shadow-sm whitespace-pre-wrap">
+                                    {notes}
+                                </div>
+                            </div>
+                        })}
+                    </div>
                 </div>
             </Show>
         </div>
