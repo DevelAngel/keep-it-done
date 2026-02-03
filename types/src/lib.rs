@@ -10,6 +10,7 @@ pub use uuid::Uuid;
 
 pub trait TaskProperties<'a> {
     fn id(&'a self) -> &'a Uuid;
+    fn completed(&'a self) -> bool;
     fn summary(&'a self) -> &'a str;
     fn created(&'a self) -> DateTime<Utc>;
 }
@@ -17,12 +18,16 @@ pub trait TaskProperties<'a> {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Task {
     id: Uuid,
+    completed: bool,
     summary: String,
 }
 
 impl<'a> TaskProperties<'a> for Task {
     fn id(&'a self) -> &'a Uuid {
         &self.id
+    }
+    fn completed(&'a self) -> bool {
+        self.completed
     }
     fn summary(&'a self) -> &'a str {
         &self.summary

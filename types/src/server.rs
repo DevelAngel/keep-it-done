@@ -8,16 +8,21 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 
 impl Task {
-    pub fn new<T: ToString>(summary: T) -> Self {
-        Self::default().set_summary(summary)
-    }
-
     fn with_id(id: Uuid) -> Self {
         if 7 != id.get_version_num() {
             unreachable!("invalid UUID v{} detected", id.get_version_num());
         }
+        let completed = false;
         let summary = "".to_owned();
-        Self { id, summary }
+        Self {
+            id,
+            completed,
+            summary,
+        }
+    }
+
+    pub fn new<T: ToString>(summary: T) -> Self {
+        Self::default().set_summary(summary)
     }
 
     pub fn set_summary<T: ToString>(mut self, summary: T) -> Self {
@@ -28,10 +33,7 @@ impl Task {
 
 impl Default for Task {
     fn default() -> Self {
-        let id = Uuid::now_v7();
-        assert_eq!(id.get_version_num(), 7);
-        let summary = "".to_owned();
-        Self { id, summary }
+        Self::with_id(Uuid::now_v7())
     }
 }
 
