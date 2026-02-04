@@ -1,4 +1,4 @@
-use kid_app::ssr::SharedTaskCache;
+use crate::SharedTaskCache;
 use kid_app::{App, shell};
 
 use anyhow::Result;

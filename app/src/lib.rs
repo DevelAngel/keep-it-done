@@ -1,9 +1,10 @@
 pub mod cache;
 mod error_template;
+pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskProperties, TaskWithId, Uuid};
+use kid_types::{TaskProperties, Uuid};
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -35,46 +36,6 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     }
 }
 
-#[cfg(feature = "ssr")]
-pub mod ssr {
-    use kid_types::server::{TaskCache, TaskList};
-    use kid_types::{Task, TaskWithId, Uuid};
-
-    use leptos::context::use_context;
-    use tokio::sync::RwLock;
-
-    use std::sync::Arc;
-
-    pub type SharedTaskCache = Arc<RwLock<TaskCache>>;
-
-    pub(crate) async fn fetch_task_list() -> Vec<TaskWithId> {
-        tracing::info!("fetch task list");
-        let Some(task_cache) = use_context::<SharedTaskCache>() else {
-            unreachable!("task cache missing")
-        };
-        let task_cache = task_cache.read().await;
-        task_cache.to_vec()
-    }
-
-    pub(crate) async fn add_task(task: Task) -> bool {
-        tracing::info!("add task {task:?}");
-        let Some(task_cache) = use_context::<SharedTaskCache>() else {
-            unreachable!("task cache missing")
-        };
-        let mut task_cache = task_cache.write().await;
-        task_cache.add(task)
-    }
-
-    pub(crate) async fn delete_task(id: Uuid) -> bool {
-        tracing::info!("delete task with id {id}");
-        let Some(task_cache) = use_context::<SharedTaskCache>() else {
-            unreachable!("task cache missing")
-        };
-        let mut task_cache = task_cache.write().await;
-        task_cache.remove(id)
-    }
-}
-
 #[component]
 pub fn App() -> impl IntoView {
     // Provides context that manages stylesheets, titles, meta tags, etc.
@@ -101,8 +62,8 @@ pub fn App() -> impl IntoView {
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
 
-    let add_task = ServerMultiAction::<AddTask>::new();
-    let delete_task = ServerAction::<DeleteTask>::new();
+    let add_task = ServerMultiAction::<server::AddTask>::new();
+    let delete_task = ServerAction::<server::DeleteTask>::new();
 
     let task_list = Resource::new(
         move || {
@@ -112,7 +73,7 @@ fn TaskList() -> impl IntoView {
                 delete_task.version().get(),
             )
         },
-        move |_| fetch_task_list(),
+        move |_| server::fetch_task_list(),
     );
 
     view! {
@@ -169,6 +130,8 @@ fn TaskItem<T: for<'a> TaskProperties<'a>>(
     set_expanded_task_id: WriteSignal<Option<Uuid>>,
 ) -> impl IntoView {
     let (checked, set_checked) = signal(false);
+    let complete_task = ServerMultiAction::<server::CompleteTask>::new();
+
     let id = *task.id();
     let created = task.created().to_relative_time();
     let summary = task.summary().to_string();
@@ -293,31 +256,6 @@ fn TaskItem<T: for<'a> TaskProperties<'a>>(
             </Show>
         </div>
     }
-}
-
-#[server]
-pub async fn fetch_task_list() -> Result<Vec<TaskWithId>, ServerFnError> {
-    let list = ssr::fetch_task_list().await;
-    Ok(list)
-}
-
-#[server]
-pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
-    tracing::info!("add task with summary {summary}");
-    use kid_types::Task;
-    let task = Task::new(summary);
-    let replaced = ssr::add_task(task).await;
-    tracing::debug!("task replaced: {replaced}");
-    Ok(())
-}
-
-#[server]
-pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
-    tracing::info!("delete task with id {id}");
-    let deleted = ssr::delete_task(id).await;
-    tracing::debug!("task deleted: {deleted}");
-    assert!(deleted, "task was not deleted");
-    Ok(())
 }
 
 trait ToRelativeTime {

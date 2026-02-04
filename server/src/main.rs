@@ -6,7 +6,7 @@ use crate::cli::{Cli, Parser};
 use crate::http::HttpServer;
 use crate::rpc::RpcServer;
 
-use kid_app::ssr::SharedTaskCache;
+pub use kid_app::server::ssr::SharedTaskCache;
 use kid_types::server::TaskCache;
 
 use anyhow::Result;
