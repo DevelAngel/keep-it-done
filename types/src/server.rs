@@ -1,107 +1,60 @@
-use crate::Task;
+use crate::{Task, TaskWithId};
 
 use ahash::RandomState;
-use indexmap::IndexSet;
+use indexmap::IndexMap;
 use uuid::Uuid;
 
-use std::hash::{Hash, Hasher};
-use std::ops::{Deref, DerefMut};
-
-impl Task {
-    fn with_id(id: Uuid) -> Self {
-        if 7 != id.get_version_num() {
-            unreachable!("invalid UUID v{} detected", id.get_version_num());
-        }
-        let completed = false;
-        let summary = "".to_owned();
-        Self {
-            id,
-            completed,
-            summary,
-        }
-    }
-
-    pub fn new<T: ToString>(summary: T) -> Self {
-        Self::default().set_summary(summary)
-    }
-
-    pub fn set_summary<T: ToString>(mut self, summary: T) -> Self {
-        self.summary = summary.to_string();
-        self
-    }
-}
-
-impl Default for Task {
-    fn default() -> Self {
-        Self::with_id(Uuid::now_v7())
-    }
-}
-
-#[derive(Debug, Clone, Eq)]
-struct CachedTask(Task);
-
-impl Deref for CachedTask {
-    type Target = Task;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for CachedTask {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl PartialEq for CachedTask {
-    fn eq(&self, rhs: &Self) -> bool {
-        self.id == rhs.id
-    }
-}
-
-impl Hash for CachedTask {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
 pub trait TaskList {
-    fn to_vec(&self) -> Vec<Task>;
+    fn to_vec(&self) -> Vec<TaskWithId>;
     fn add(&mut self, task: Task) -> bool;
     fn remove<T: Into<Uuid>>(&mut self, id: T) -> bool;
 }
 
 #[derive(Debug)]
-pub struct TaskCache(IndexSet<CachedTask, RandomState>);
+pub struct TaskCache(IndexMap<Uuid, Task, RandomState>);
+
+impl TaskCache {
+    fn create_id() -> Uuid {
+        let id = Uuid::now_v7();
+        assert_eq!(id.get_version_num(), 7, "invalid UUID");
+        id
+    }
+}
 
 impl Default for TaskCache {
     fn default() -> Self {
         const CAPACITY: usize = 10;
-        let mut set = IndexSet::with_capacity_and_hasher(CAPACITY, RandomState::new());
-        let list = vec![
-            Task::new("Task A.1"),
-            Task::new("Task B.2"),
-            Task::new("Task C.3"),
-        ];
-        list.into_iter().for_each(|task| {
-            set.insert(CachedTask(task));
-        });
-        Self(set)
+        let mut collection = Self(IndexMap::with_capacity_and_hasher(
+            CAPACITY,
+            RandomState::new(),
+        ));
+        collection.add(Task::new("Task A.1"));
+        collection.add(Task::new("Task B.2"));
+        collection.add(Task::new("Task C.3"));
+        collection
     }
 }
 
 impl TaskList for TaskCache {
-    fn to_vec(&self) -> Vec<Task> {
-        self.0.iter().map(|t| t.deref()).cloned().collect()
+    fn to_vec(&self) -> Vec<TaskWithId> {
+        self.0
+            .as_slice()
+            .iter()
+            .map(|(id, task)| TaskWithId {
+                id: id.clone(),
+                task: task.clone(),
+            })
+            .collect()
     }
 
     fn add(&mut self, task: Task) -> bool {
-        self.0.insert(CachedTask(task))
+        let id = TaskCache::create_id();
+        self.0.insert(id, task).is_some()
     }
 
     fn remove<T: Into<Uuid>>(&mut self, id: T) -> bool {
         let id = id.into();
-        assert_eq!(id.get_version_num(), 7);
-        self.0.shift_remove(&CachedTask(Task::with_id(id)))
+        assert_eq!(id.get_version_num(), 7, "invalid UUID");
+        self.0.shift_remove(&id).is_some()
     }
 }

@@ -3,7 +3,7 @@ mod error_template;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{Task, TaskProperties, Uuid};
+use kid_types::{TaskProperties, TaskWithId, Uuid};
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -38,7 +38,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[cfg(feature = "ssr")]
 pub mod ssr {
     use kid_types::server::{TaskCache, TaskList};
-    use kid_types::{Task, Uuid};
+    use kid_types::{Task, TaskWithId, Uuid};
 
     use leptos::context::use_context;
     use tokio::sync::RwLock;
@@ -47,7 +47,7 @@ pub mod ssr {
 
     pub type SharedTaskCache = Arc<RwLock<TaskCache>>;
 
-    pub(crate) async fn fetch_task_list() -> Vec<Task> {
+    pub(crate) async fn fetch_task_list() -> Vec<TaskWithId> {
         tracing::info!("fetch task list");
         let Some(task_cache) = use_context::<SharedTaskCache>() else {
             unreachable!("task cache missing")
@@ -296,24 +296,27 @@ fn TaskItem<T: for<'a> TaskProperties<'a>>(
 }
 
 #[server]
-pub async fn fetch_task_list() -> Result<Vec<Task>, ServerFnError> {
+pub async fn fetch_task_list() -> Result<Vec<TaskWithId>, ServerFnError> {
     let list = ssr::fetch_task_list().await;
     Ok(list)
 }
 
 #[server]
-#[allow(unused_variables)]
 pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
+    tracing::info!("add task with summary {summary}");
+    use kid_types::Task;
     let task = Task::new(summary);
-    let _added = ssr::add_task(task).await;
-    assert!(_added);
+    let replaced = ssr::add_task(task).await;
+    tracing::debug!("task replaced: {replaced}");
     Ok(())
 }
 
 #[server]
 pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
-    let _deleted = ssr::delete_task(id).await;
-    assert!(_deleted);
+    tracing::info!("delete task with id {id}");
+    let deleted = ssr::delete_task(id).await;
+    tracing::debug!("task deleted: {deleted}");
+    assert!(deleted, "task was not deleted");
     Ok(())
 }
 

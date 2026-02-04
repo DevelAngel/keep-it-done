@@ -4,6 +4,7 @@ mod task;
 use crate::cli::{Cli, Parser};
 use crate::task::TaskPrint;
 
+use kid_types::Task;
 use kid_types::rpc::TaskServiceClient;
 
 use anyhow::{Context, Result};
@@ -62,8 +63,9 @@ async fn list(client: TaskServiceClient) -> Result<()> {
 }
 
 async fn add(client: TaskServiceClient, summary: String) -> Result<()> {
+    let task = Task::new(summary);
     client
-        .add(context::current(), summary)
+        .add(context::current(), task)
         .await
         .context("failed to add the new task")?;
     Ok(())
