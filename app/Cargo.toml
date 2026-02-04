@@ -25,4 +25,4 @@ leptos_router.workspace = true
 leptos_axum = { workspace = true, optional = true }
 thiserror.workspace = true
 tracing.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "time"] }

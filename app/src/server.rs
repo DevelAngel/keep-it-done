@@ -4,10 +4,22 @@ use kid_types::{TaskWithId, Uuid};
 
 use leptos::prelude::*;
 
+/*
+* Sleep blocking:
+* ```rust
+* std::thread::sleep(std::time::Duration::from_secs(10));
+* ```
+
+* Sleep non-blocking:
+* ```rust
+* tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+* ```
+*/
+
 #[server]
 pub async fn fetch_task_list() -> Result<Vec<TaskWithId>, ServerFnError> {
     tracing::info!("fetch task list");
-    let cache = ssr::use_task_cache();
+    let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     Ok(cache.to_vec())
 }
@@ -18,7 +30,7 @@ pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
     tracing::info!("add task with summary {summary}");
     let task = Task::new(summary);
     tracing::debug!("task created: {task:?}");
-    let cache = ssr::use_task_cache();
+    let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let replaced = cache.add(task);
     tracing::debug!("task replaced: {replaced}");
@@ -28,7 +40,7 @@ pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
 #[server]
 pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     tracing::info!("delete task with id {id}");
-    let cache = ssr::use_task_cache();
+    let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let deleted = cache.remove(id);
     tracing::debug!("task deleted: {deleted}");
@@ -38,7 +50,26 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
 
 #[server]
 pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
-    todo!()
+    let id = Uuid::new_v4();
+    tracing::info!("change completeness status for task with id {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    if let Some(task) = cache.get_mut(&id) {
+        task.complete(completed);
+        tracing::debug!(
+            "task with id {id}: {}",
+            if completed {
+                "completed"
+            } else {
+                "uncompleted"
+            }
+        );
+        Ok(())
+    } else {
+        let msg = format!("task with {id} does not exist");
+        tracing::warn!("{msg} | UUIDv{} detected", id.get_version_num());
+        Err(ServerFnError::ServerError(msg))
+    }
 }
 
 #[cfg(feature = "ssr")]

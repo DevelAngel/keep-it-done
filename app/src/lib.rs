@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskProperties, Uuid};
+use kid_types::{TaskWithIdProperties, Uuid};
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -124,15 +124,25 @@ fn TaskList() -> impl IntoView {
 }
 
 #[component]
-fn TaskItem<T: for<'a> TaskProperties<'a>>(
+fn TaskItem<T: for<'a> TaskWithIdProperties<'a>>(
     task: T,
     expanded_task_id: ReadSignal<Option<Uuid>>,
     set_expanded_task_id: WriteSignal<Option<Uuid>>,
 ) -> impl IntoView {
-    let (checked, set_checked) = signal(false);
-    let complete_task = ServerMultiAction::<server::CompleteTask>::new();
-
     let id = *task.id();
+
+    let (checked, set_checked) = signal(task.completed());
+    let complete_task = Action::new(move |(id, checked): &(_, _)| {
+        let id = *id;
+        let checked = *checked;
+        async move {
+            if let Err(e) = server::complete_task(id, checked).await {
+                tracing::error!("complete task failed: {e}");
+                set_checked.set(!checked);
+            }
+        }
+    });
+
     let created = task.created().to_relative_time();
     let summary = task.summary().to_string();
 
@@ -169,13 +179,21 @@ fn TaskItem<T: for<'a> TaskProperties<'a>>(
                 class="flex items-center px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
                 on:click=handle_task_click
             >
+                // Checkbox
                 <input
                     type="checkbox"
                     class="w-5 h-5 rounded-full border-2 border-gray-300 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br checked:from-indigo-500 checked:to-purple-600 checked:border-indigo-500 relative"
-                    checked=move || checked.get()
-                    on:change=move |_| set_checked.update(|c| *c = !*c)
-                    on:click=|e| e.stop_propagation()  // Prevent row click when checking
+                    prop:checked=move || checked.get()
+                    prop:disabled=move || complete_task.pending().get()
+                    on:click=move |ev| ev.stop_propagation()
+                    on:change=move |ev| {
+                        ev.stop_propagation();
+                        let checked = event_target_checked(&ev);
+                        set_checked.set(checked);
+                        complete_task.dispatch((id.clone(), checked));
+                    }
                 />
+                // Summary
                 <div class="flex-1">
                     <span class=move || if checked.get() {
                         "text-gray-900 line-through opacity-50"
@@ -185,6 +203,15 @@ fn TaskItem<T: for<'a> TaskProperties<'a>>(
                         {summary}
                     </span>
                 </div>
+                // Spinner
+                <Show when=move || complete_task.pending().get()>
+                    <div class="ml-4 flex-shrink-0">
+                        <div class="relative w-5 h-5">
+                            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 opacity-75 animate-ping"></div>
+                            <div class="relative rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 w-5 h-5 animate-spin border-2 border-white border-t-transparent"></div>
+                        </div>
+                    </div>
+                </Show>
             </div>
 
             // Expanded detail section (Timeline-Style)

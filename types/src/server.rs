@@ -1,8 +1,10 @@
+use crate::Uuid;
 use crate::{Task, TaskWithId};
 
 use ahash::RandomState;
 use indexmap::IndexMap;
-use uuid::Uuid;
+
+use std::ops::{Deref, DerefMut};
 
 pub trait TaskList {
     fn to_vec(&self) -> Vec<TaskWithId>;
@@ -32,6 +34,19 @@ impl Default for TaskCache {
         collection.add(Task::new("Task B.2"));
         collection.add(Task::new("Task C.3"));
         collection
+    }
+}
+
+impl Deref for TaskCache {
+    type Target = IndexMap<Uuid, Task, RandomState>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TaskCache {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

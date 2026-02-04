@@ -8,11 +8,19 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 pub use uuid::Uuid;
 
-pub trait TaskProperties<'a> {
+pub trait TaskWithIdProperties<'a>: TaskProperties<'a> {
     fn id(&'a self) -> &'a Uuid;
+    fn created(&'a self) -> DateTime<Utc>;
+}
+
+pub trait IdProperties<'a> {
+    fn id(&'a self) -> &'a Uuid;
+    fn created(&'a self) -> DateTime<Utc>;
+}
+
+pub trait TaskProperties<'a> {
     fn completed(&'a self) -> bool;
     fn summary(&'a self) -> &'a str;
-    fn created(&'a self) -> DateTime<Utc>;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -21,15 +29,9 @@ pub struct TaskWithId {
     task: Task,
 }
 
-impl<'a> TaskProperties<'a> for TaskWithId {
+impl<'a> TaskWithIdProperties<'a> for TaskWithId {
     fn id(&'a self) -> &'a Uuid {
         &self.id
-    }
-    fn completed(&'a self) -> bool {
-        self.task.completed
-    }
-    fn summary(&'a self) -> &'a str {
-        &self.task.summary
     }
     fn created(&'a self) -> DateTime<Utc> {
         assert_eq!(self.id.get_version_num(), 7);
@@ -39,10 +41,28 @@ impl<'a> TaskProperties<'a> for TaskWithId {
     }
 }
 
+impl<'a> TaskProperties<'a> for TaskWithId {
+    fn completed(&'a self) -> bool {
+        self.task.completed()
+    }
+    fn summary(&'a self) -> &'a str {
+        &self.task.summary()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Task {
     completed: bool,
     summary: String,
+}
+
+impl<'a> TaskProperties<'a> for Task {
+    fn completed(&'a self) -> bool {
+        self.completed
+    }
+    fn summary(&'a self) -> &'a str {
+        &self.summary
+    }
 }
 
 impl Task {
@@ -53,8 +73,7 @@ impl Task {
         }
     }
 
-    pub fn set_completed(mut self, completed: bool) -> Self {
+    pub fn complete(&mut self, completed: bool) {
         self.completed = completed;
-        self
     }
 }
