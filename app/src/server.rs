@@ -1,5 +1,10 @@
-#[cfg(feature = "ssr")]
-use kid_types::server::TaskList;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "ssr")] {
+        use kid_types::TaskInfos;
+        use kid_types::server::{TaskList};
+    }
+}
+
 use kid_types::{TaskWithId, Uuid};
 
 use leptos::prelude::*;
@@ -50,20 +55,16 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
 
 #[server]
 pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
-    let id = Uuid::new_v4();
-    tracing::info!("change completeness status for task with id {id}");
+    tracing::info!("change status for task with id {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     if let Some(task) = cache.get_mut(&id) {
-        task.complete(completed);
-        tracing::debug!(
-            "task with id {id}: {}",
-            if completed {
-                "completed"
-            } else {
-                "uncompleted"
-            }
-        );
+        if completed {
+            task.mark_done();
+        } else {
+            task.mark_todo();
+        }
+        tracing::debug!("task with id {id}: mark {status}", status = task.status());
         Ok(())
     } else {
         let msg = format!("task with {id} does not exist");

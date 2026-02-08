@@ -14,7 +14,8 @@ ssr = ["rpc", "uuid/rng-rand", "uuid/v7", "dep:indexmap", "dep:ahash"]
 
 [dependencies]
 ahash = { workspace = true, optional = true }
-chrono = { workspace = true, features = ["std"] }
+chrono = { workspace = true, features = ["std", "serde"] }
+derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 tarpc = { workspace = true, features = ["serde1"], optional = true }

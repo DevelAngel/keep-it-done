@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskWithIdProperties, Uuid};
+use kid_types::{TaskId, TaskInfos, Uuid};
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -124,14 +124,14 @@ fn TaskList() -> impl IntoView {
 }
 
 #[component]
-fn TaskItem<T: for<'a> TaskWithIdProperties<'a>>(
+fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     task: T,
     expanded_task_id: ReadSignal<Option<Uuid>>,
     set_expanded_task_id: WriteSignal<Option<Uuid>>,
 ) -> impl IntoView {
     let id = *task.id();
 
-    let (checked, set_checked) = signal(task.completed());
+    let (checked, set_checked) = signal(task.is_done());
     let complete_task = Action::new(move |(id, checked): &(_, _)| {
         let id = *id;
         let checked = *checked;
