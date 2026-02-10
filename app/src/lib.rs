@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskId, TaskInfos, Uuid};
+use kid_types::{TaskDateEstimationRef, TaskDetails, TaskId, TaskInfos, TaskPriority, Uuid};
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -143,15 +143,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
         }
     });
 
-    let created = task.created().to_relative_time();
     let summary = task.summary().to_string();
-
-    // Mock additional properties until data model is extended
-    let mock_priority = "A";
-    let mock_estimate = "2 hours";
-    let mock_context = "Kitchen";
-    let mock_notes =
-        Some("Contact references from neighbor Bob. Get at least 3 quotes for comparison.");
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
 
@@ -190,7 +182,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                         ev.stop_propagation();
                         let checked = event_target_checked(&ev);
                         set_checked.set(checked);
-                        complete_task.dispatch((id.clone(), checked));
+                        complete_task.dispatch((id, checked));
                     }
                 />
                 // Summary
@@ -216,71 +208,138 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-white via-indigo-50 to-white">
-                    // Vertical timeline with connecting line
-                    <div class="relative pl-8 space-y-4">
-                        // Vertical line
-                        <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300"></div>
-
-                        // Created
-                        <div class="relative">
-                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-white shadow flex items-center justify-center">
-                                <div class="w-2 h-2 rounded-full bg-white"></div>
-                            </div>
-                            <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-0.5">"Created"</div>
-                            <div class="text-sm text-gray-900">{created.clone()}</div>
-                        </div>
-
-                        // Priority
-                        <div class="relative">
-                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-red-500 border-4 border-white shadow flex items-center justify-center">
-                                <span class="text-white text-xs font-bold">{mock_priority}</span>
-                            </div>
-                            <div class="text-xs font-semibold text-red-600 uppercase tracking-wide mb-0.5">"Priority"</div>
-                            <div class="text-sm text-gray-900">"High importance"</div>
-                        </div>
-
-                        // Time estimate
-                        <div class="relative">
-                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow flex items-center justify-center">
-                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
-                                </svg>
-                            </div>
-                            <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-0.5">"Estimate"</div>
-                            <div class="text-sm text-gray-900">{mock_estimate}</div>
-                        </div>
-
-                        // Context
-                        <div class="relative">
-                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
-                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-                                </svg>
-                            </div>
-                            <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Context"</div>
-                            <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500 text-white shadow-sm">
-                                {mock_context}
-                            </div>
-                        </div>
-
-                        // Notes
-                        {mock_notes.map(|notes| view! {
-                            <div class="relative">
-                                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-gray-500 border-4 border-white shadow flex items-center justify-center">
-                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
-                                    </svg>
-                                </div>
-                                <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">"Notes"</div>
-                                <div class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-200 shadow-sm whitespace-pre-wrap">
-                                    {notes}
-                                </div>
-                            </div>
-                        })}
-                    </div>
-                </div>
+                <TaskDetails task=id/>
             </Show>
+        </div>
+    }
+}
+
+#[component]
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
+    let id = *task.id();
+    let created = task.created().to_relative_time();
+    let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
+
+    view! {
+        <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-white via-indigo-50 to-white">
+            // Vertical timeline with connecting line
+            <div class="relative pl-8 space-y-4">
+                // Vertical line
+                <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300"></div>
+                <Suspense>
+                    {move || {
+                        Suspend::new(async move {
+                            details.await.map(|task| {
+                                let priority = task.priority();
+                                let due_date = task.due_date(&Local).map(|t| t.to_relative_time());
+                                let start_date = task.start_date(&Local).map(|t| t.to_relative_time());
+                                let time_estimate = task.time_estimate().map(|t| t.to_string());
+                                let context = task.context().into_owned();
+                                let notes = task.notes().into_owned();
+                                view! {
+                                    {priority.map(|priority| view! {
+                                        // Priority badge with color coding
+                                        <div class="relative">
+                                            <div class={format!(
+                                                "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-white shadow flex items-center justify-center {}",
+                                                match priority {
+                                                    TaskPriority::A => "bg-red-700",
+                                                    TaskPriority::B => "bg-orange-500",
+                                                    TaskPriority::C => "bg-green-300",
+                                                }
+                                            )}>
+                                                <span class="text-white text-xs font-bold">{priority.to_string()}</span>
+                                            </div>
+                                            <div class={format!(
+                                                "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
+                                                match priority {
+                                                    TaskPriority::A => "text-red-700",
+                                                    TaskPriority::B => "text-orange-600",
+                                                    TaskPriority::C => "text-green-400",
+                                                }
+                                            )}>"Priority"</div>
+                                            <div class="text-sm text-gray-900">{
+                                                match priority {
+                                                    TaskPriority::A => "Critical",
+                                                    TaskPriority::B => "Important",
+                                                    TaskPriority::C => "Routine",
+                                                }
+                                            }</div>
+                                        </div>
+                                    })}
+                                    {due_date.map(|due_date| view! {
+                                        <div class="relative">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/>
+                                                </svg>
+                                            </div>
+                                            <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Due Date"</div>
+                                            <div class="text-sm text-gray-900">{due_date}</div>
+                                        </div>
+                                    })}
+                                    {start_date.map(|start_date| view! {
+                                        <div class="relative">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow flex items-center justify-center">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
+                                                </svg>
+                                            </div>
+                                            <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-0.5">"Start Date"</div>
+                                            <div class="text-sm text-gray-900">{start_date}</div>
+                                        </div>
+                                    })}
+                                    {time_estimate.map(|time_estimate| view! {
+                                        <div class="relative">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-md bg-orange-500 border-4 border-white shadow flex items-center justify-center">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M6 2a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-.293.707L12 5.414V7a1 1 0 01-.293.707L10 9.414l-1.707-1.707A1 1 0 018 7V5.414L6.293 3.707A1 1 0 016 3V2zm0 16a1 1 0 001 1h6a1 1 0 001-1v-1a1 1 0 00-.293-.707L12 14.586V13a1 1 0 00-.293-.707L10 10.586l-1.707 1.707A1 1 0 008 13v1.586l-1.707 1.707A1 1 0 006 17v1z"/>
+                                                </svg>
+                                            </div>
+                                            <div class="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-0.5">"Estimate"</div>
+                                            <div class="text-sm text-gray-900">{time_estimate}</div>
+                                        </div>
+                                    })}
+                                    {context.map(|context| view! {
+                                        <div class="relative">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+                                                </svg>
+                                            </div>
+                                            <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Context"</div>
+                                            <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500 text-white shadow-sm">
+                                                {context}
+                                            </div>
+                                        </div>
+                                    })}
+                                    {notes.map(|notes| view! {
+                                        <div class="relative">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-gray-500 border-4 border-white shadow flex items-center justify-center">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
+                                                </svg>
+                                            </div>
+                                            <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">"Notes"</div>
+                                            <div class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-200 shadow-sm whitespace-pre-wrap">
+                                                {notes}
+                                            </div>
+                                        </div>
+                                    })}
+                                }
+                            })
+                        })
+                    }}
+                </Suspense>
+                // Created
+                <div class="relative">
+                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-white shadow flex items-center justify-center">
+                        <div class="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                    <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-0.5">"Created"</div>
+                    <div class="text-sm text-gray-900">{created}</div>
+                </div>
+            </div>
         </div>
     }
 }
@@ -289,23 +348,76 @@ trait ToRelativeTime {
     fn to_relative_time(&self) -> String;
 }
 
-impl ToRelativeTime for DateTime<Utc> {
+impl<Tz: TimeZone> ToRelativeTime for TaskDateEstimationRef<'_, Tz> {
     fn to_relative_time(&self) -> String {
+        match self {
+            Self::Guess(s) => s.to_string(),
+            Self::Precise(date) => date.to_relative_time(),
+        }
+    }
+}
+
+impl<Tz: TimeZone> ToRelativeTime for DateTime<Tz> {
+    fn to_relative_time(&self) -> String {
+        use chrono::TimeDelta;
+        let plural = |num| if num == 1 { "" } else { "s" };
         let duration = Utc::now().signed_duration_since(self);
-        if duration.num_seconds() < 60 {
-            "Just now".to_string()
-        } else if duration.num_minutes() < 60 {
-            let mins = duration.num_minutes();
-            format!("{} minute{} ago", mins, if mins == 1 { "" } else { "s" })
-        } else if duration.num_hours() < 24 {
-            let hours = duration.num_hours();
-            format!("{} hour{} ago", hours, if hours == 1 { "" } else { "s" })
-        } else if duration.num_days() < 7 {
-            let days = duration.num_days();
-            format!("{} day{} ago", days, if days == 1 { "" } else { "s" })
+        if duration > TimeDelta::zero() {
+            // self is in the past
+            if duration < TimeDelta::seconds(60) {
+                "Just now".to_string()
+            } else if duration < TimeDelta::minutes(60) {
+                let mins = duration.num_minutes();
+                format!("{} minute{} ago", mins, plural(mins))
+            } else if duration < TimeDelta::hours(24) {
+                let hours = duration.num_hours();
+                format!("{} hour{} ago", hours, plural(hours))
+            } else if duration < TimeDelta::days(7) {
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                format!(
+                    "{} day{} and {} hour{} ago",
+                    days,
+                    plural(days),
+                    hours,
+                    plural(hours)
+                )
+            } else {
+                self.with_timezone(&Local).to_rfc2822()
+            }
         } else {
-            let timestamp = self.with_timezone(&Local);
-            timestamp.format("%x %T").to_string()
+            let duration = duration.abs();
+            if duration < TimeDelta::seconds(60) {
+                "Just now".to_string()
+            } else if duration < TimeDelta::minutes(60) {
+                let mins = duration.num_minutes();
+                format!("in {} minute{}", mins, plural(mins))
+            } else if duration < TimeDelta::hours(24) {
+                let hours = duration.num_hours();
+                let mins = duration.num_minutes() % 60;
+                format!(
+                    "in {} hour{} and {} minute{}",
+                    hours,
+                    plural(hours),
+                    mins,
+                    plural(mins)
+                )
+            } else if duration < TimeDelta::days(7) {
+                let days = duration.num_days();
+                let hours = duration.num_hours() % 24;
+                let mins = duration.num_minutes() % 60;
+                format!(
+                    "in {} day{}, {} hour{} and {} minute{}",
+                    days,
+                    plural(days),
+                    hours,
+                    plural(hours),
+                    mins,
+                    plural(mins)
+                )
+            } else {
+                self.with_timezone(&Local).to_rfc2822()
+            }
         }
     }
 }

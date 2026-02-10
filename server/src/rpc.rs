@@ -1,8 +1,7 @@
 use crate::SharedTaskCache;
 
 pub use kid_types::rpc::TaskService;
-use kid_types::server::TaskList;
-use kid_types::{Task, TaskWithId};
+use kid_types::{Task, Uuid};
 
 use anyhow::Result;
 use futures::{future, prelude::*};
@@ -50,7 +49,7 @@ struct RpcService {
 }
 
 impl TaskService for RpcService {
-    async fn list(self, _: context::Context) -> Vec<TaskWithId> {
+    async fn list(self, _: context::Context) -> Vec<(Uuid, Task)> {
         let sleep_time = {
             let mut rng = rand::rng();
             let sleep_time = rng.random_range(1..10);
@@ -59,7 +58,10 @@ impl TaskService for RpcService {
         sleep(sleep_time).await;
 
         let task_cache = self.task_cache.read().await;
-        task_cache.to_vec()
+        task_cache
+            .iter()
+            .map(|(id, task)| (*id, task.clone()))
+            .collect()
     }
 
     async fn add(self, _: context::Context, task: Task) {
