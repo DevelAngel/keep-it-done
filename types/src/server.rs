@@ -3,40 +3,72 @@ use crate::{Task, TaskDateEstimation, TaskDetails, TaskPriority, TaskTimeEstimat
 
 use ahash::RandomState;
 use chrono::DateTime;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 #[derive(Debug)]
-pub struct TaskCache(IndexMap<Uuid, Task, RandomState>);
+pub struct TaskCache {
+    deleted: ChangeSet,
+    dirty: ChangeSet,
+    tasks: DataMap,
+}
+
+pub struct TaskMutGuard<'a> {
+    id: Uuid,
+    dirty: &'a mut ChangeSet,
+    task: &'a mut Task,
+}
+
+type DataMap = IndexMap<Uuid, Task, RandomState>;
+type ChangeSet = IndexSet<Uuid, RandomState>;
 
 impl TaskCache {
-    pub fn add(&mut self, task: Task) -> bool {
-        let id = TaskCache::create_id();
-        self.0.insert(id, task).is_some()
-    }
-
-    pub fn remove<T: Into<Uuid>>(&mut self, id: T) -> bool {
-        let id = id.into();
-        assert_eq!(id.get_version_num(), 7, "invalid UUID");
-        self.0.shift_remove(&id).is_some()
-    }
-
     fn create_id() -> Uuid {
         let id = Uuid::now_v7();
         assert_eq!(id.get_version_num(), 7, "invalid UUID");
         id
     }
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            deleted: ChangeSet::with_hasher(RandomState::new()),
+            dirty: ChangeSet::with_hasher(RandomState::new()),
+            tasks: DataMap::with_capacity_and_hasher(capacity, RandomState::new()),
+        }
+    }
+
+    pub fn remove(&mut self, id: &Uuid) -> bool {
+        assert_eq!(id.get_version_num(), 7, "invalid UUID");
+        self.deleted.insert(*id);
+        self.tasks.shift_remove(id).is_some()
+    }
+
+    pub fn add(&mut self, task: Task) -> bool {
+        let id = TaskCache::create_id();
+        self.dirty.insert(id);
+        self.tasks.insert(id, task).is_some()
+    }
+
+    /*
+     * Note: get() is accessable via Deref trait
+     */
+
+    pub fn get_mut(&mut self, id: &Uuid) -> Option<TaskMutGuard<'_>> {
+        let dirty = &mut self.dirty;
+        self.tasks.get_mut(id).map(|task| TaskMutGuard {
+            id: *id,
+            dirty,
+            task,
+        })
+    }
 }
 
 impl Default for TaskCache {
     fn default() -> Self {
-        const CAPACITY: usize = 10;
-        let mut collection = Self(IndexMap::with_capacity_and_hasher(
-            CAPACITY,
-            RandomState::new(),
-        ));
+        let mut collection = Self::with_capacity(10);
+
         // some test data ...
         let mut num = 1;
         for _ in 0..3 {
@@ -122,14 +154,27 @@ impl Default for TaskCache {
 }
 
 impl Deref for TaskCache {
-    type Target = IndexMap<Uuid, Task, RandomState>;
+    type Target = DataMap;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.tasks
     }
 }
 
-impl DerefMut for TaskCache {
+impl<'a> Deref for TaskMutGuard<'a> {
+    type Target = Task;
+    fn deref(&self) -> &Self::Target {
+        self.task
+    }
+}
+
+impl<'a> DerefMut for TaskMutGuard<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.task
+    }
+}
+
+impl<'a> Drop for TaskMutGuard<'a> {
+    fn drop(&mut self) {
+        self.dirty.insert(self.id);
     }
 }

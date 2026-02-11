@@ -62,7 +62,7 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     tracing::info!("delete task with id {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
-    let deleted = cache.remove(id);
+    let deleted = cache.remove(&id);
     tracing::debug!("task deleted: {deleted}");
     assert!(deleted, "task was not deleted");
     Ok(())
@@ -73,7 +73,7 @@ pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnErro
     tracing::info!("change status for task with id {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
-    let task = cache
+    let mut task = cache
         .get_mut(&id)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     if completed {
