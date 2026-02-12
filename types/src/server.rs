@@ -1,24 +1,46 @@
 use crate::Uuid;
 use crate::{Task, TaskDateEstimation, TaskDetails, TaskPriority, TaskTimeEstimation};
 
-use ahash::RandomState;
+use ahash::{HashMap, RandomState};
 use chrono::DateTime;
 use indexmap::{IndexMap, IndexSet};
+use miette::Diagnostic;
+use thiserror::Error;
+use tokio::fs;
 
+use std::io;
 use std::ops::{Deref, DerefMut};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 #[derive(Debug)]
 pub struct TaskCache {
-    deleted: ChangeSet,
-    dirty: ChangeSet,
+    dir: PathBuf,
     tasks: DataMap,
+    dirty: ChangeSet,
 }
 
+#[derive(Debug)]
 pub struct TaskMutGuard<'a> {
     id: Uuid,
-    dirty: &'a mut ChangeSet,
     task: &'a mut Task,
+    dirty: &'a mut ChangeSet,
+}
+
+pub type FlushResult<T> = Result<T, FlushError>;
+
+#[derive(Error, Diagnostic, Debug)]
+pub enum FlushError {
+    #[error("task {0}: failed to convert to JSON")]
+    JsonError(Uuid, #[source] serde_json::Error),
+    #[error("task {0}: failed to remove task file")]
+    IoRemoveError(Uuid, #[source] io::Error),
+    #[error("task {0}: failed to write temporary task file")]
+    IoWriteError(Uuid, #[source] io::Error),
+    #[error("task {0}: failed to save task file (by renaming the temporary task file)")]
+    IoRenameError(Uuid, #[source] io::Error),
+    #[error("flushing failed")]
+    ErrorList(#[related] Vec<FlushError>),
 }
 
 type DataMap = IndexMap<Uuid, Task, RandomState>;
@@ -33,15 +55,21 @@ impl TaskCache {
 
     fn with_capacity(capacity: usize) -> Self {
         Self {
-            deleted: ChangeSet::with_hasher(RandomState::new()),
-            dirty: ChangeSet::with_hasher(RandomState::new()),
+            dir: PathBuf::new(),
             tasks: DataMap::with_capacity_and_hasher(capacity, RandomState::new()),
+            dirty: ChangeSet::with_hasher(RandomState::new()),
         }
+    }
+
+    #[allow(dead_code)]
+    fn with_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
+        self.dir = dir.into();
+        self
     }
 
     pub fn remove(&mut self, id: &Uuid) -> bool {
         assert_eq!(id.get_version_num(), 7, "invalid UUID");
-        self.deleted.insert(*id);
+        self.dirty.insert(*id);
         self.tasks.shift_remove(id).is_some()
     }
 
@@ -62,6 +90,65 @@ impl TaskCache {
             dirty,
             task,
         })
+    }
+
+    pub async fn flush(&mut self) -> FlushResult<()> {
+        let mut errors = HashMap::default();
+
+        for id in &self.dirty {
+            if let Some(task) = self.tasks.get(id) {
+                // Task found -> write file
+                if let Err(e) = self.write_task_file(id, task).await {
+                    errors.insert(*id, e);
+                }
+            } else {
+                // Task deleted -> delete file
+                if let Err(e) = self.delete_task_file(id).await {
+                    errors.insert(*id, e);
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            self.dirty.clear();
+            tracing::info!("tasks successfully flushed");
+            Ok(())
+        } else {
+            // remove ids for successfully written files
+            tracing::error!("errors occured while flushing tasks");
+            for id in self.dirty.clone().iter() {
+                if !errors.contains_key(id) {
+                    self.dirty.swap_remove(id);
+                }
+            }
+            Err(FlushError::ErrorList(errors.into_values().collect()))
+        }
+    }
+
+    async fn write_task_file(&self, id: &Uuid, task: &Task) -> FlushResult<()> {
+        let path = Self::filename(&self.dir, id);
+        let temp_path = path.with_extension("json.tmp");
+
+        let task = serde_json::to_string_pretty(task).map_err(|e| FlushError::JsonError(*id, e))?;
+        fs::write(&temp_path, task)
+            .await
+            .map_err(|e| FlushError::IoWriteError(*id, e))?;
+        fs::rename(&temp_path, path)
+            .await
+            .map_err(|e| FlushError::IoRenameError(*id, e))?;
+        Ok(())
+    }
+
+    async fn delete_task_file(&self, id: &Uuid) -> FlushResult<()> {
+        fs::remove_file(Self::filename(&self.dir, id))
+            .await
+            .map_err(|e| FlushError::IoRemoveError(*id, e))?;
+        Ok(())
+    }
+
+    fn filename<P: AsRef<Path>>(dir: P, id: &Uuid) -> PathBuf {
+        let id = id.as_simple();
+        dir.as_ref().join(format!("task-{id}.json"))
     }
 }
 
@@ -176,5 +263,78 @@ impl<'a> DerefMut for TaskMutGuard<'a> {
 impl<'a> Drop for TaskMutGuard<'a> {
     fn drop(&mut self) {
         self.dirty.insert(self.id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use assert_fs::TempDir;
+    use miette::{IntoDiagnostic, MietteHandlerOpts, Result};
+    use std::path::PathBuf;
+    use tracing_test::traced_test;
+    use uuid::uuid;
+
+    #[test]
+    fn filenames() {
+        // empty dir
+        assert_eq!(
+            TaskCache::filename(
+                &PathBuf::new(),
+                &uuid!("019c500f-e598-75a1-9bd9-286e3d82cd04")
+            ),
+            PathBuf::from("task-019c500fe59875a19bd9286e3d82cd04.json")
+        );
+        // absolute dir
+        assert_eq!(
+            TaskCache::filename(
+                &PathBuf::from("/tasks"),
+                &uuid!("019c500f-e598-75a1-9bd9-286e3d82cd04")
+            ),
+            PathBuf::from("/tasks/task-019c500fe59875a19bd9286e3d82cd04.json")
+        );
+        // relative dir
+        assert_eq!(
+            TaskCache::filename(
+                &PathBuf::from("tasks"),
+                &uuid!("019c500f-e598-75a1-9bd9-286e3d82cd04")
+            ),
+            PathBuf::from("tasks/task-019c500fe59875a19bd9286e3d82cd04.json")
+        );
+    }
+
+    #[tokio::test]
+    #[traced_test]
+    async fn flush() -> Result<()> {
+        init_miette_report();
+        let dir = TempDir::with_prefix("kid-").into_diagnostic()?;
+        tracing::debug!("dir: {}", dir.path().display());
+        assert_files(&dir, 0)?;
+        let mut cache = TaskCache::default().with_dir(dir.path());
+        assert_files(&dir, 0)?;
+        cache.flush().await?;
+        assert_files(&dir, cache.len())?;
+        dir.close().into_diagnostic()?;
+        Ok(())
+    }
+
+    fn assert_files(dir: &Path, num: usize) -> Result<()> {
+        let entries = std::fs::read_dir(dir).into_diagnostic()?;
+        assert_eq!(entries.count(), num);
+        Ok(())
+    }
+
+    fn init_miette_report() {
+        let _ = miette::set_hook(Box::new(|_| {
+            Box::new(
+                MietteHandlerOpts::new()
+                    .color(false)
+                    .without_syntax_highlighting()
+                    .terminal_links(true)
+                    .unicode(true)
+                    .build(),
+            )
+        }));
     }
 }
