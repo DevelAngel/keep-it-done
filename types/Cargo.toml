@@ -20,13 +20,16 @@ ssr = [
   "dep:tokio",
   "dep:serde_json",
 ]
+ssr-test = ["dep:rand"]
 
 [dependencies]
 ahash = { workspace = true, optional = true }
+cfg-if.workspace = true
 chrono = { workspace = true, features = ["std", "serde"] }
 derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, optional = true }
 miette = { version = "7.6.0", features = ["fancy", "fancy-base"] }
+rand = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["indexmap", "preserve_order"], optional = true }
 tarpc = { workspace = true, features = ["serde1"], optional = true }

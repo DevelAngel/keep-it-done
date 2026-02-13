@@ -23,6 +23,7 @@ clap-verbosity-flag.workspace = true
 futures.workspace = true
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum.workspace = true
+miette = { version = "7.6.0", features = ["fancy"] }
 rand.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -31,6 +31,9 @@ pub type FlushResult<T> = Result<T, FlushError>;
 
 #[derive(Error, Diagnostic, Debug)]
 pub enum FlushError {
+    #[cfg(feature = "ssr-test")]
+    #[error("task {0}: failed to flush")]
+    TestError(Uuid),
     #[error("task {0}: failed to convert to JSON")]
     JsonError(Uuid, #[source] serde_json::Error),
     #[error("task {0}: failed to remove task file")]
@@ -39,8 +42,8 @@ pub enum FlushError {
     IoWriteError(Uuid, #[source] io::Error),
     #[error("task {0}: failed to save task file (by renaming the temporary task file)")]
     IoRenameError(Uuid, #[source] io::Error),
-    #[error("flushing failed")]
-    ErrorList(#[related] Vec<FlushError>),
+    #[error("flushing of {0}/{1} tasks failed")]
+    ErrorList(usize, usize, #[related] Vec<FlushError>),
 }
 
 type DataMap = IndexMap<Uuid, Task, RandomState>;
@@ -92,7 +95,8 @@ impl TaskCache {
         })
     }
 
-    pub async fn flush(&mut self) -> FlushResult<()> {
+    pub async fn flush(&mut self) -> FlushResult<usize> {
+        let num = self.dirty.len();
         let mut errors = HashMap::default();
 
         for id in &self.dirty {
@@ -111,17 +115,19 @@ impl TaskCache {
 
         if errors.is_empty() {
             self.dirty.clear();
-            tracing::info!("tasks successfully flushed");
-            Ok(())
+            Ok(num)
         } else {
             // remove ids for successfully written files
-            tracing::error!("errors occured while flushing tasks");
             for id in self.dirty.clone().iter() {
                 if !errors.contains_key(id) {
                     self.dirty.swap_remove(id);
                 }
             }
-            Err(FlushError::ErrorList(errors.into_values().collect()))
+            Err(FlushError::ErrorList(
+                self.dirty.len(),
+                num,
+                errors.into_values().collect(),
+            ))
         }
     }
 
@@ -136,7 +142,25 @@ impl TaskCache {
         fs::rename(&temp_path, path)
             .await
             .map_err(|e| FlushError::IoRenameError(*id, e))?;
-        Ok(())
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "ssr-test")] {
+                Self::should_return_error(id)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[cfg(feature = "ssr-test")]
+    fn should_return_error(id: &Uuid) -> FlushResult<()> {
+        use rand::Rng;
+        let mut rng = rand::rng();
+        if rng.random::<bool>() {
+            Ok(())
+        } else {
+            Err(FlushError::TestError(*id))
+        }
     }
 
     async fn delete_task_file(&self, id: &Uuid) -> FlushResult<()> {
