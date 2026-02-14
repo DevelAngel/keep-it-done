@@ -1,10 +1,10 @@
 use crate::SharedTaskCache;
 use kid_app::{App, shell};
 
-use anyhow::Result;
 use axum::Router;
 use leptos::prelude::*;
 use leptos_axum::{LeptosRoutes, generate_route_list};
+use miette::{IntoDiagnostic, Result};
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
@@ -38,7 +38,7 @@ impl HttpServer {
         // run our app with hyper
         // `axum::Server` is a re-export of `hyper::Server`
         tracing::info!(
-            "Web server listening on http://{}",
+            "HTTP server listening on http://{}",
             &listener.local_addr().unwrap()
         );
         axum::serve(listener, app.into_make_service())
@@ -46,7 +46,8 @@ impl HttpServer {
                 shutdown.cancelled().await;
                 tracing::info!("Web server shutting down");
             })
-            .await?;
+            .await
+            .into_diagnostic()?;
         Ok(())
     }
 }

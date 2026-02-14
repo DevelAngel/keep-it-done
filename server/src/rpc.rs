@@ -3,8 +3,8 @@ use crate::SharedTaskCache;
 pub use kid_types::rpc::TaskService;
 use kid_types::{Task, Uuid};
 
-use anyhow::Result;
 use futures::{future, prelude::*};
+use miette::{IntoDiagnostic, Result};
 use rand::Rng;
 use tarpc::context;
 use tarpc::serde_transport::tcp;
@@ -27,7 +27,9 @@ impl RpcServer {
             "RPC server will listen to: {}",
             listener.local_addr().unwrap()
         );
-        let mut listener = tcp::listen_on(listener, Json::default).await?;
+        let mut listener = tcp::listen_on(listener, Json::default)
+            .await
+            .into_diagnostic()?;
         listener.config_mut().max_frame_length(usize::MAX);
         let stream = listener
             .filter_map(|r| future::ready(r.ok()))
