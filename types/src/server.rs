@@ -31,7 +31,7 @@ pub type FlushResult<T> = Result<T, FlushError>;
 
 #[derive(Error, Diagnostic, Debug)]
 pub enum FlushError {
-    #[cfg(feature = "ssr-test")]
+    #[cfg(any(feature = "ssr-test-storagefail", feature = "ssr-test-rand"))]
     #[error("task {0}: failed to flush")]
     TestError(Uuid),
     #[error("task {0}: failed to convert to JSON")]
@@ -144,7 +144,9 @@ impl TaskCache {
             .map_err(|e| FlushError::IoRenameError(*id, e))?;
 
         cfg_if::cfg_if! {
-            if #[cfg(feature = "ssr-test")] {
+            if #[cfg(feature = "ssr-test-storagefail")] {
+                Self::return_error(id)
+            } else if #[cfg(feature = "ssr-test-rand")] {
                 Self::should_return_error(id)
             } else {
                 Ok(())
@@ -152,7 +154,14 @@ impl TaskCache {
         }
     }
 
-    #[cfg(feature = "ssr-test")]
+    #[cfg(feature = "ssr-test-storagefail")]
+    #[allow(dead_code)]
+    fn return_error(id: &Uuid) -> FlushResult<()> {
+        Err(FlushError::TestError(*id))
+    }
+
+    #[cfg(feature = "ssr-test-rand")]
+    #[allow(dead_code)]
     fn should_return_error(id: &Uuid) -> FlushResult<()> {
         use rand::Rng;
         let mut rng = rand::rng();

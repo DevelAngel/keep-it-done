@@ -7,15 +7,17 @@ use crate::http::HttpServer;
 use crate::rpc::RpcServer;
 
 pub use kid_app::server::ssr::SharedTaskCache;
-use kid_types::server::{FlushError, TaskCache};
+use kid_types::server::FlushError;
+use kid_types::server::TaskCache;
 
 use anyhow::Result;
 use leptos::prelude::get_configuration;
 use miette::MietteHandlerOpts;
+use tokio::signal;
 use tokio::spawn;
 use tokio::sync::RwLock;
-use tokio::task::JoinHandle;
-use tokio::time::{self, Duration};
+use tokio::time::{self, Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 use std::sync::Arc;
 
@@ -34,67 +36,142 @@ async fn main() -> Result<()> {
     let rpc_listener = tokio::net::TcpListener::bind(&rpc_addr).await?;
     let web_listener = tokio::net::TcpListener::bind(&site_addr).await?;
 
-    tracing::debug!("prepare task cache..");
     let task_cache: SharedTaskCache = Arc::new(RwLock::new(TaskCache::default()));
-    let backup_handle = SharedTaskCache::backup_spawn(task_cache.clone(), Duration::from_mins(1));
-    tracing::debug!("prepare task cache.. done.");
 
-    let rpc = RpcServer::serve(rpc_listener, task_cache.clone());
-    let http = HttpServer::serve(web_listener, leptos_options, task_cache);
+    let shutdown = CancellationToken::new();
+    let background_flush = {
+        let shutdown = shutdown.clone();
+        let task_cache = task_cache.clone();
+        spawn(async move {
+            task_cache.background_flush(shutdown).await;
+        })
+    };
+    let rpc = spawn(RpcServer::serve(
+        rpc_listener,
+        shutdown.clone(),
+        task_cache.clone(),
+    ));
+    let http = spawn(HttpServer::serve(
+        web_listener,
+        leptos_options,
+        shutdown.clone(),
+        task_cache.clone(),
+    ));
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C signal handler");
+        tracing::info!("signal received: Ctrl+C");
+    };
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install terminate signal handler")
+            .recv()
+            .await;
+        tracing::info!("signal received: terminate");
+    };
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    shutdown.cancel();
+    let _ = tokio::try_join!(background_flush, rpc, http);
 
-    tokio::join!(backup_handle);
-    tokio::try_join!(rpc, http)?;
-
+    tracing::warn!("Gracefully shutdown started..");
+    task_cache.final_flush().await;
+    tracing::info!("Bye bye");
     Ok(())
 }
 
-trait CacheBackup {
-    async fn backup_spawn(cache: SharedTaskCache, interval: Duration) -> JoinHandle<()>;
+trait TaskCacheFlush<'a> {
+    const FLUSH_INTERVAL: Duration;
+    const FLUSH_TIMEOUT: Duration;
+
+    async fn background_flush(&self, shutdown: CancellationToken);
+    async fn final_flush(&self);
 }
 
-impl CacheBackup for SharedTaskCache {
-    async fn backup_spawn(cache: SharedTaskCache, interval: Duration) -> JoinHandle<()> {
-        spawn(async move {
-            let max_interval = interval;
-            let mut interval = time::interval(max_interval);
-            let mut flush_failed_count = 0;
-            loop {
-                interval.tick().await;
+impl<'a> TaskCacheFlush<'a> for SharedTaskCache {
+    const FLUSH_INTERVAL: Duration = Duration::from_mins(1);
+    const FLUSH_TIMEOUT: Duration = Duration::from_secs(4);
 
-                tracing::trace!("flush task cache..");
-                let mut cache = cache.write().await;
-                match cache.flush().await {
-                    Ok(num) => {
-                        if num > 0 {
-                            tracing::debug!("flush task cache.. {num} tasks successfully flushed.");
-                        } else {
-                            tracing::trace!("flush task cache.. done.");
-                        }
-                        flush_failed_count = 0;
-                    }
-                    Err(e) => {
-                        tracing::warn!("flush task cache.. with errors: {e}");
-                        match e {
-                            FlushError::ErrorList(failed, _, _) => {
-                                interval.reset_after(max_interval / (failed + 1) as u32);
+    async fn background_flush(&self, shutdown: CancellationToken) {
+        let mut interval = time::interval(Self::FLUSH_INTERVAL);
+        let mut flush_failed_count = 0;
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    tracing::trace!("flush task cache..");
+                    let mut cache = self.write().await;
+                    match cache.flush().await {
+                        Ok(num) => {
+                            if num > 0 {
+                                tracing::debug!("flush task cache.. {num} tasks successfully flushed.");
+                            } else {
+                                tracing::trace!("flush task cache.. done.");
                             }
-                            _ => {
-                                interval.reset_after(max_interval / 2);
-                            }
-                        }
-
-                        flush_failed_count += 1;
-                        if flush_failed_count > 10 {
-                            // reset to prevent error spamming
                             flush_failed_count = 0;
-                            // we want a detailed error report (with suberrors)
-                            let e = miette::Report::from(e);
-                            tracing::error!("failed to flush task cache: {e:?}")
+                        }
+                        Err(e) => {
+                            tracing::warn!("flush task cache.. with errors: {e}");
+                            match e {
+                                FlushError::ErrorList(failed, _, _) => {
+                                    interval.reset_after(Self::FLUSH_INTERVAL / (failed + 1) as u32);
+                                }
+                                _ => {
+                                    interval.reset_after(Self::FLUSH_INTERVAL / 2);
+                                }
+                            }
+
+                            flush_failed_count += 1;
+                            if flush_failed_count > 10 {
+                                // reset to prevent error spamming
+                                flush_failed_count = 0;
+                                // we want a detailed error report (with suberrors)
+                                let e = miette::Report::from(e);
+                                tracing::error!("failed to flush task cache:\n{e:?}")
+                            }
                         }
                     }
                 }
+                _ = shutdown.cancelled() => {
+                    tracing::info!("Background task flush shutting down");
+                    break;
+                }
             }
-        })
+        }
+    }
+
+    async fn final_flush(&self) {
+        tracing::trace!("flush task cache finally..");
+        let mut last_error: Option<FlushError> = None;
+        let start = Instant::now();
+        let mut cache = self.write().await;
+        while start.elapsed() < Self::FLUSH_TIMEOUT {
+            match cache.flush().await {
+                Ok(num) => {
+                    tracing::info!("flush task cache.. {num} tasks successfully flushed.");
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!("flush task cache.. with errors: {e}");
+                    last_error = Some(e);
+                    // give storage IO some time to relax..
+                    time::sleep(Duration::from_millis(10)).await;
+                }
+            }
+        }
+
+        if let Some(e) = last_error {
+            // we want a detailed error report (with suberrors)
+            let e = miette::Report::from(e);
+            tracing::error!(
+                "flush task cache.. timeout after {:?} with error:\n{e:?}",
+                Self::FLUSH_TIMEOUT,
+            )
+        } else {
+            tracing::info!("flush task cache.. successfully completed");
+        }
     }
 }
 

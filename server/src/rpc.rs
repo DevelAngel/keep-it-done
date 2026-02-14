@@ -12,19 +12,24 @@ use tarpc::server::{self, Channel};
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpListener;
 use tokio::time::{Duration, sleep};
+use tokio_util::sync::CancellationToken;
 
 pub struct RpcServer;
 
 impl RpcServer {
     /// Start RPC server
-    pub async fn serve(listener: TcpListener, task_cache: SharedTaskCache) -> Result<()> {
+    pub async fn serve(
+        listener: TcpListener,
+        shutdown: CancellationToken,
+        task_cache: SharedTaskCache,
+    ) -> Result<()> {
         tracing::info!(
-            "RPC Server will listen to: {}",
+            "RPC server will listen to: {}",
             listener.local_addr().unwrap()
         );
         let mut listener = tcp::listen_on(listener, Json::default).await?;
         listener.config_mut().max_frame_length(usize::MAX);
-        listener
+        let stream = listener
             .filter_map(|r| future::ready(r.ok()))
             .map(server::BaseChannel::with_defaults)
             .map(|channel| {
@@ -32,9 +37,13 @@ impl RpcServer {
                 let server = RpcService { task_cache };
                 channel.execute(server.serve()).for_each(Self::spawn)
             })
-            .buffer_unordered(10)
-            .for_each(|_| async {})
-            .await;
+            .buffer_unordered(10);
+        tokio::select! {
+            _ = stream.for_each(|_| async {}) => {}
+            _ = shutdown.cancelled() => {
+                tracing::info!("RPC server shutting down");
+            }
+        }
         Ok(())
     }
 

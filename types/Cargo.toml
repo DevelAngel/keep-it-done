@@ -20,7 +20,8 @@ ssr = [
   "dep:tokio",
   "dep:serde_json",
 ]
-ssr-test = ["dep:rand"]
+ssr-test-rand = ["dep:rand"]
+ssr-test-storagefail = []
 
 [dependencies]
 ahash = { workspace = true, optional = true }
