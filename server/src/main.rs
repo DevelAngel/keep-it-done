@@ -26,8 +26,17 @@ async fn main() -> Result<()> {
     let http_addr = leptos_conf.leptos_options.site_addr;
     let rpc_addr = args.server.addr;
 
-    let shutdown = CancellationToken::new();
     let task_cache = SharedTaskCache::default();
+    task_cache.write().await.load().await.and_then(|num| {
+        if num > 0 {
+            tracing::info!("{num} tasks loaded");
+        } else {
+            tracing::warn!("no tasks loaded");
+        }
+        Ok(())
+    })?;
+
+    let shutdown = CancellationToken::new();
     let server = ServerBuilder::new(&shutdown, &task_cache)
         .with_rpc_addr(&rpc_addr)
         .with_http_addr(&http_addr)

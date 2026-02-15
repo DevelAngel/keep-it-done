@@ -1,5 +1,5 @@
 pub use kid_app::server::ssr::SharedTaskCache;
-use kid_types::server::FlushError;
+use kid_types::server::StorageError;
 
 use tokio::time::{self, Duration, Instant};
 use tokio_util::sync::CancellationToken;
@@ -17,40 +17,40 @@ impl<'a> TaskCacheFlush<'a> for SharedTaskCache {
     const FLUSH_TIMEOUT: Duration = Duration::from_secs(4);
 
     async fn background_flush(&self, shutdown: CancellationToken) {
+        const RETRY: usize = 10;
+        let mut failed = 0;
         let mut interval = time::interval(Self::FLUSH_INTERVAL);
-        let mut flush_failed_count = 0;
         loop {
             tokio::select! {
                 _ = interval.tick() => {
-                    tracing::trace!("flush task cache..");
+                    tracing::trace!("flush task cache in background");
                     let mut cache = self.write().await;
                     match cache.flush().await {
                         Ok(num) => {
                             if num > 0 {
-                                tracing::debug!("flush task cache.. {num} tasks successfully flushed.");
+                                tracing::info!("{num} tasks successfully flushed");
                             } else {
-                                tracing::trace!("flush task cache.. done.");
+                                tracing::debug!("no tasks to flush");
                             }
-                            flush_failed_count = 0;
+                            failed = 0;
                         }
                         Err(e) => {
-                            tracing::warn!("flush task cache.. with errors: {e}");
+                            tracing::warn!("{e}");
                             match e {
-                                FlushError::ErrorList(failed, _, _) => {
+                                StorageError::FlushErrors(failed, _, _) => {
                                     interval.reset_after(Self::FLUSH_INTERVAL / (failed + 1) as u32);
                                 }
                                 _ => {
                                     interval.reset_after(Self::FLUSH_INTERVAL / 2);
                                 }
                             }
-
-                            flush_failed_count += 1;
-                            if flush_failed_count > 10 {
+                            failed += 1;
+                            if failed > RETRY {
                                 // reset to prevent error spamming
-                                flush_failed_count = 0;
+                                failed = 0;
                                 // we want a detailed error report (with suberrors)
                                 let e = miette::Report::from(e);
-                                tracing::error!("failed to flush task cache:\n{e:?}")
+                                tracing::error!("failed to flush task cache {RETRY}-times:\n{e:?}")
                             }
                         }
                     }
@@ -65,7 +65,7 @@ impl<'a> TaskCacheFlush<'a> for SharedTaskCache {
 
     async fn final_flush(&self) {
         tracing::trace!("flush task cache finally..");
-        let mut last_error: Option<FlushError> = None;
+        let mut last_error: Option<_> = None;
         let start = Instant::now();
         let mut cache = self.write().await;
         while start.elapsed() < Self::FLUSH_TIMEOUT {

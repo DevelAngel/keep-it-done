@@ -8,7 +8,11 @@ use miette::Diagnostic;
 use thiserror::Error;
 use tokio::fs;
 
+use std::collections::VecDeque;
+use std::env;
+use std::fs::File;
 use std::io;
+use std::io::BufReader;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -27,29 +31,41 @@ pub struct TaskMutGuard<'a> {
     dirty: &'a mut ChangeSet,
 }
 
-pub type FlushResult<T> = Result<T, FlushError>;
+pub type StorageResult<T> = Result<T, StorageError>;
 
 #[derive(Error, Diagnostic, Debug)]
-pub enum FlushError {
+pub enum StorageError {
     #[cfg(any(feature = "ssr-test-storagefail", feature = "ssr-test-rand"))]
     #[error("task {0}: failed to flush")]
-    TestError(Uuid),
-    #[error("task {0}: failed to convert to JSON")]
-    JsonError(Uuid, #[source] serde_json::Error),
+    Test(Uuid),
+    #[error("task {0}: failed to convert from/to JSON")]
+    Json(Uuid, #[source] serde_json::Error),
     #[error("task {0}: failed to remove task file")]
-    IoRemoveError(Uuid, #[source] io::Error),
+    IoRemove(Uuid, #[source] io::Error),
+    #[error("task {0}: failed to read directory {0}")]
+    IoReadDir(PathBuf, #[source] io::Error),
+    #[error("task {0}: failed to read entry of directory {0}")]
+    IoReadDirEntry(PathBuf, #[source] io::Error),
+    #[error("task {0}: failed to read entry of directory {0}")]
+    IoOpen(Uuid, PathBuf, #[source] io::Error),
     #[error("task {0}: failed to write temporary task file")]
-    IoWriteError(Uuid, #[source] io::Error),
+    IoWriteTemp(Uuid, #[source] io::Error),
     #[error("task {0}: failed to save task file (by renaming the temporary task file)")]
-    IoRenameError(Uuid, #[source] io::Error),
+    IoRename(Uuid, #[source] io::Error),
+    #[error("loading of {0}/{1} tasks failed")]
+    LoadErrors(usize, usize, #[related] VecDeque<StorageError>),
     #[error("flushing of {0}/{1} tasks failed")]
-    ErrorList(usize, usize, #[related] Vec<FlushError>),
+    FlushErrors(usize, usize, #[related] Vec<StorageError>),
 }
 
 type DataMap = IndexMap<Uuid, Task, RandomState>;
 type ChangeSet = IndexSet<Uuid, RandomState>;
 
 impl TaskCache {
+    fn has_valid_id(id: &Uuid) -> bool {
+        id.get_version_num() == 7
+    }
+
     fn create_id() -> Uuid {
         let id = Uuid::now_v7();
         assert_eq!(id.get_version_num(), 7, "invalid UUID");
@@ -57,8 +73,9 @@ impl TaskCache {
     }
 
     fn with_capacity(capacity: usize) -> Self {
+        let path = env::current_dir().expect("CWD available");
         Self {
-            dir: PathBuf::new(),
+            dir: path.to_path_buf(),
             tasks: DataMap::with_capacity_and_hasher(capacity, RandomState::new()),
             dirty: ChangeSet::with_hasher(RandomState::new()),
         }
@@ -67,6 +84,7 @@ impl TaskCache {
     #[allow(dead_code)]
     fn with_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
         self.dir = dir.into();
+        assert!(self.dir.is_dir(), "invalid directory");
         self
     }
 
@@ -95,7 +113,43 @@ impl TaskCache {
         })
     }
 
-    pub async fn flush(&mut self) -> FlushResult<usize> {
+    pub async fn load(&mut self) -> StorageResult<usize> {
+        let mut num = 0;
+        let mut errors = VecDeque::new();
+        for entry in std::fs::read_dir(self.dir.as_path())
+            .map_err(|e| StorageError::IoReadDir(self.dir.clone(), e))?
+        {
+            match entry.map_err(|e| StorageError::IoReadDirEntry(self.dir.clone(), e)) {
+                Ok(entry) => {
+                    let entry = entry.path();
+                    let Some(id) = Self::is_task_file(&entry) else {
+                        // no task file
+                        continue;
+                    };
+                    match Self::read_task_file(&id, &entry).await {
+                        Ok(task) => {
+                            self.tasks.insert(id, task);
+                            num += 1;
+                        }
+                        Err(e) => {
+                            errors.push_back(e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    errors.push_back(e);
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(num)
+        } else {
+            Err(StorageError::LoadErrors(errors.len(), num, errors))
+        }
+    }
+
+    pub async fn flush(&mut self) -> StorageResult<usize> {
         let num = self.dirty.len();
         let mut errors = HashMap::default();
 
@@ -123,7 +177,7 @@ impl TaskCache {
                     self.dirty.swap_remove(id);
                 }
             }
-            Err(FlushError::ErrorList(
+            Err(StorageError::FlushErrors(
                 self.dirty.len(),
                 num,
                 errors.into_values().collect(),
@@ -131,17 +185,51 @@ impl TaskCache {
         }
     }
 
-    async fn write_task_file(&self, id: &Uuid, task: &Task) -> FlushResult<()> {
+    fn is_task_file<P: AsRef<Path>>(file: P) -> Option<Uuid> {
+        let file = file.as_ref();
+        if !file.is_file() {
+            return None;
+        }
+
+        let filename = file.file_prefix().unwrap().display().to_string();
+        let Some(id) = filename.strip_prefix("task-") else {
+            return None;
+        };
+
+        // we have found a task file
+        let Ok(id) = Uuid::try_parse(id) else {
+            tracing::warn!("file with invalid UUID detected: {}", file.display());
+            return None;
+        };
+        if !Self::has_valid_id(&id) {
+            tracing::warn!("file with invalid UUIDv7 detected: {}", file.display());
+            return None;
+        }
+        Some(id)
+    }
+
+    async fn read_task_file<P: AsRef<Path>>(id: &Uuid, file: P) -> StorageResult<Task> {
+        assert!(Self::has_valid_id(&id));
+        let file = file.as_ref();
+        assert!(file.is_file());
+        let file =
+            File::open(file).map_err(|e| StorageError::IoOpen(*id, file.to_path_buf(), e))?;
+        let reader = BufReader::new(file);
+        let task = serde_json::from_reader(reader).map_err(|e| StorageError::Json(*id, e))?;
+        Ok(task)
+    }
+
+    async fn write_task_file(&self, id: &Uuid, task: &Task) -> StorageResult<()> {
         let path = Self::filename(&self.dir, id);
         let temp_path = path.with_extension("json.tmp");
 
-        let task = serde_json::to_string_pretty(task).map_err(|e| FlushError::JsonError(*id, e))?;
+        let task = serde_json::to_string_pretty(task).map_err(|e| StorageError::Json(*id, e))?;
         fs::write(&temp_path, task)
             .await
-            .map_err(|e| FlushError::IoWriteError(*id, e))?;
+            .map_err(|e| StorageError::IoWriteTemp(*id, e))?;
         fs::rename(&temp_path, path)
             .await
-            .map_err(|e| FlushError::IoRenameError(*id, e))?;
+            .map_err(|e| StorageError::IoRename(*id, e))?;
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "ssr-test-storagefail")] {
@@ -156,26 +244,26 @@ impl TaskCache {
 
     #[cfg(feature = "ssr-test-storagefail")]
     #[allow(dead_code)]
-    fn return_error(id: &Uuid) -> FlushResult<()> {
-        Err(FlushError::TestError(*id))
+    fn return_error(id: &Uuid) -> StorageResult<()> {
+        Err(StorageError::Test(*id))
     }
 
     #[cfg(feature = "ssr-test-rand")]
     #[allow(dead_code)]
-    fn should_return_error(id: &Uuid) -> FlushResult<()> {
+    fn should_return_error(id: &Uuid) -> StorageResult<()> {
         use rand::Rng;
         let mut rng = rand::rng();
         if rng.random::<bool>() {
             Ok(())
         } else {
-            Err(FlushError::TestError(*id))
+            Err(StorageError::Test(*id))
         }
     }
 
-    async fn delete_task_file(&self, id: &Uuid) -> FlushResult<()> {
+    async fn delete_task_file(&self, id: &Uuid) -> StorageResult<()> {
         fs::remove_file(Self::filename(&self.dir, id))
             .await
-            .map_err(|e| FlushError::IoRemoveError(*id, e))?;
+            .map_err(|e| StorageError::IoRemove(*id, e))?;
         Ok(())
     }
 
