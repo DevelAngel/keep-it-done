@@ -1,5 +1,4 @@
 pub use kid_app::server::ssr::SharedTaskCache;
-use kid_types::server::StorageError;
 
 use tokio::time::{self, Duration, Instant};
 use tokio_util::sync::CancellationToken;
@@ -36,14 +35,7 @@ impl<'a> TaskCacheFlush<'a> for SharedTaskCache {
                         }
                         Err(e) => {
                             tracing::warn!("{e}");
-                            match e {
-                                StorageError::FlushErrors(failed, _, _) => {
-                                    interval.reset_after(Self::FLUSH_INTERVAL / (failed + 1) as u32);
-                                }
-                                _ => {
-                                    interval.reset_after(Self::FLUSH_INTERVAL / 2);
-                                }
-                            }
+                            interval.reset_after(Self::FLUSH_INTERVAL / (e.failed() + 1) as u32);
                             failed += 1;
                             if failed > RETRY {
                                 // reset to prevent error spamming
