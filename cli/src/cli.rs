@@ -2,6 +2,7 @@ pub use clap::Parser;
 use clap::{Args, Subcommand};
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 
 /// Family task management with assistant-friendly CLI
 #[derive(Parser, Debug)]
@@ -11,30 +12,41 @@ pub struct Cli {
     #[command(subcommand)]
     pub cmd: Commands,
 
-    #[clap(flatten)]
-    pub server: ServerArgs,
-
     #[command(flatten)]
     pub verbosity: Verbosity,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    /// Generate JSON Schema for Task
+    Schema {
+        /// pretty-printed JSON
+        #[clap(short, long, default_value_t = false)]
+        pretty: bool,
+        /// write to file instead of stdout
+        #[clap(short, long = "out")]
+        outfile: Option<PathBuf>,
+    },
+    /// List all tasks
+    List {
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
+    /// Add a new task
+    Add {
+        #[clap(flatten)]
+        server: ServerArgs,
+        /// Task summary
+        #[clap(short, long)]
+        summary: String,
+    },
 }
 
 #[derive(Debug, Args)]
 pub struct ServerArgs {
     /// Sets the server address to connect to.
-    #[clap(long = "server", global = true, default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080))]
+    #[clap(long = "server", default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080))]
     pub addr: SocketAddr,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum Commands {
-    /// List all tasks
-    List,
-    /// Add a new task
-    Add {
-        /// Task summary
-        #[clap(short, long)]
-        summary: String,
-    },
 }
 
 #[cfg(debug_assertions)]

@@ -10,6 +10,10 @@ workspace = true
 [features]
 default = []
 rpc = ["dep:tarpc"]
+cli = [
+  "rpc",
+  "dep:schemars",
+]
 ssr = [
   "rpc",
   "chrono/now",
@@ -31,6 +35,7 @@ derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, optional = true }
 miette = { version = "7.6.0", features = ["fancy", "fancy-base"] }
 rand = { workspace = true, optional = true }
+schemars = { workspace = true, features = ["std", "derive", "chrono04", "preserve_order"], optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["indexmap", "preserve_order"], optional = true }
 tarpc = { workspace = true, features = ["serde1"], optional = true }

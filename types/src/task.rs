@@ -9,6 +9,7 @@ use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Task {
     #[serde(flatten)]
     info: Infos,
@@ -17,12 +18,14 @@ pub struct Task {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Infos {
     summary: String,
     status: Status,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Details {
     priority: Option<Priority>,
     due_date: Option<DateEstimation>,
@@ -33,6 +36,7 @@ pub struct Details {
 }
 
 #[derive(Clone, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 #[display(rename_all = "lowercase")]
 pub enum Status {
     #[default]
@@ -41,6 +45,7 @@ pub enum Status {
 }
 
 #[derive(Clone, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 #[display(rename_all = "uppercase")]
 pub enum Priority {
     A,
@@ -50,6 +55,7 @@ pub enum Priority {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub enum DateEstimation {
     Guess(String),
     Precise(DateTime<FixedOffset>),
@@ -62,6 +68,7 @@ pub enum DateEstimationRef<'a, Tz: TimeZone> {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub enum TimeEstimation {
     Guess(String),
     Precise(Duration),

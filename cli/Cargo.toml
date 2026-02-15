@@ -13,12 +13,14 @@ workspace = true
 
 [dependencies.kid-types]
 path = "../types"
-features = ["rpc"]
+features = ["cli"]
 
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
 clap-verbosity-flag.workspace = true
+schemars.workspace = true
+serde_json.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = [
   "macros",
