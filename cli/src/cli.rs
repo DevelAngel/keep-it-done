@@ -1,3 +1,5 @@
+use kid_types::{TaskStatus, Uuid};
+
 pub use clap::Parser;
 use clap::{Args, Subcommand};
 
@@ -48,6 +50,17 @@ pub enum Commands {
         /// Task details as JSON string (see schema)
         #[clap(short, long)]
         details: Option<String>,
+    },
+    /// Complete task (or uncomplete it)
+    Complete {
+        #[clap(flatten)]
+        server: ServerArgs,
+        /// Task ID
+        #[clap(short, long)]
+        id: Uuid,
+        /// New task status
+        #[clap(short, long, default_value_t = TaskStatus::Done)]
+        status: TaskStatus,
     },
 }
 

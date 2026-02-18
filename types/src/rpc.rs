@@ -1,4 +1,4 @@
-use crate::{Task, Uuid};
+use crate::{Task, TaskStatus, Uuid};
 
 use tarpc::service;
 
@@ -6,4 +6,5 @@ use tarpc::service;
 pub trait TaskService {
     async fn list() -> Vec<(Uuid, Task)>;
     async fn add(task: Task);
+    async fn complete(id: Uuid, status: TaskStatus);
 }

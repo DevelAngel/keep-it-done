@@ -1,7 +1,7 @@
 use crate::SharedTaskCache;
 
 pub use kid_types::rpc::TaskService;
-use kid_types::{Task, Uuid};
+use kid_types::{Task, TaskInfos, TaskStatus, Uuid};
 
 use futures::{future, prelude::*};
 use miette::{IntoDiagnostic, Result};
@@ -78,5 +78,15 @@ impl TaskService for RpcService {
     async fn add(self, _: context::Context, task: Task) {
         let mut task_cache = self.task_cache.write().await;
         task_cache.add(task);
+    }
+
+    async fn complete(self, _: context::Context, id: Uuid, status: TaskStatus) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id) {
+            match status {
+                TaskStatus::ToDo => task.mark_todo(),
+                TaskStatus::Done => task.mark_done(),
+            }
+        }
     }
 }

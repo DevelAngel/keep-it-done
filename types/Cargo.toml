@@ -13,6 +13,7 @@ rpc = ["dep:tarpc"]
 cli = [
   "rpc",
   "dep:schemars",
+  "dep:clap"
 ]
 ssr = [
   "rpc",
@@ -30,6 +31,7 @@ ssr-test-storagefail = []
 [dependencies]
 ahash = { workspace = true, optional = true }
 cfg-if.workspace = true
+clap = { workspace = true, features = ["derive"], optional = true }
 chrono = { workspace = true, features = ["std", "serde"] }
 derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, optional = true }

@@ -36,7 +36,8 @@ pub struct Details {
 }
 
 #[derive(Clone, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema, clap::ValueEnum))]
+#[cfg_attr(feature = "cli", clap(rename_all = "lowercase"))]
 #[display(rename_all = "lowercase")]
 pub enum Status {
     #[default]

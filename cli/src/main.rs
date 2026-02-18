@@ -1,11 +1,11 @@
 mod cli;
 mod task;
 
-use crate::cli::{Cli, Parser, ServerArgs};
+use crate::cli::{Cli, Commands, Parser, ServerArgs};
 use crate::task::{TaskDetails, TaskPrint};
 
-use kid_types::Task;
 use kid_types::rpc::TaskServiceClient;
+use kid_types::{Task, TaskStatus, Uuid};
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use schemars::SchemaGenerator;
@@ -29,20 +29,23 @@ async fn main() -> Result<()> {
         .init();
 
     match args.cmd {
-        cli::Commands::Schema { pretty, outfile } => schema(pretty, outfile.as_deref()).await?,
-        cli::Commands::List {
+        Commands::Schema { pretty, outfile } => schema(pretty, outfile.as_deref()).await?,
+        Commands::List {
             server,
             json,
             pretty,
         } => {
             list(&server, json, pretty).await?;
         }
-        cli::Commands::Add {
+        Commands::Add {
             server,
             summary,
             details,
         } => {
             add(&server, summary, details.as_deref()).await?;
+        }
+        Commands::Complete { server, id, status } => {
+            complete(&server, &id, &status).await?;
         }
     }
     Ok(())
@@ -125,6 +128,17 @@ async fn add(server: &ServerArgs, summary: String, details: Option<&str>) -> Res
         .await
         .into_diagnostic()
         .wrap_err("failed to add task")?;
+    Ok(())
+}
+
+async fn complete(server: &ServerArgs, id: &Uuid, status: &TaskStatus) -> Result<()> {
+    tracing::warn!("task({id}): {status}");
+    let client = connect(&server.addr).await?;
+    client
+        .complete(context::current(), *id, status.clone())
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to set the task status to {status}"))?;
     Ok(())
 }
 

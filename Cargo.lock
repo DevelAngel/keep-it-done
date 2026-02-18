@@ -1583,6 +1583,7 @@ dependencies = [
  "assert_fs",
  "cfg-if",
  "chrono",
+ "clap",
  "derive_more",
  "indexmap",
  "miette",
