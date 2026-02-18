@@ -5,13 +5,11 @@ use kid_types::{Task, TaskInfos, TaskStatus, Uuid};
 
 use futures::{future, prelude::*};
 use miette::{IntoDiagnostic, Result};
-use rand::Rng;
 use tarpc::context;
 use tarpc::serde_transport::tcp;
 use tarpc::server::{self, Channel};
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpListener;
-use tokio::time::{Duration, sleep};
 use tokio_util::sync::CancellationToken;
 
 pub struct RpcServer;
@@ -61,13 +59,6 @@ struct RpcService {
 
 impl TaskService for RpcService {
     async fn list(self, _: context::Context) -> Vec<(Uuid, Task)> {
-        let sleep_time = {
-            let mut rng = rand::rng();
-            let sleep_time = rng.random_range(1..10);
-            Duration::from_millis(sleep_time)
-        };
-        sleep(sleep_time).await;
-
         let task_cache = self.task_cache.read().await;
         task_cache
             .iter()
