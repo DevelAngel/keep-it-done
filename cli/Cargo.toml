@@ -20,6 +20,7 @@ clap.workspace = true
 clap-verbosity-flag.workspace = true
 miette = { version = "7.6.0", features = ["fancy", "serde"] }
 schemars.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 thiserror.workspace = true

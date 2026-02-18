@@ -30,8 +30,12 @@ async fn main() -> Result<()> {
 
     match args.cmd {
         cli::Commands::Schema { pretty, outfile } => schema(pretty, outfile.as_deref()).await?,
-        cli::Commands::List { server } => {
-            list(&server).await?;
+        cli::Commands::List {
+            server,
+            json,
+            pretty,
+        } => {
+            list(&server, json, pretty).await?;
         }
         cli::Commands::Add {
             server,
@@ -68,7 +72,7 @@ async fn schema(pretty: bool, outfile: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-async fn list(server: &ServerArgs) -> Result<()> {
+async fn list(server: &ServerArgs, json: bool, pretty: bool) -> Result<()> {
     let client = connect(&server.addr).await?;
     let task_list = async move {
         // Send the request twice, just to be safe! ;)
@@ -83,12 +87,26 @@ async fn list(server: &ServerArgs) -> Result<()> {
     .wrap_err("failed to fetch the task list")?;
 
     // Print task list to standard out
-    task_list
-        .iter()
-        .map(TaskPrint)
-        .enumerate()
-        .map(|(i, task)| (i + 1, task))
-        .for_each(|(n, task)| println!("{n:>3}: {task}"));
+    if json {
+        let task_list: Vec<_> = task_list
+            .iter()
+            .map(|(id, task)| TaskPrint::new(id, task))
+            .collect();
+        let stdout = io::stdout().lock();
+        let writer = BufWriter::new(stdout);
+        if pretty {
+            serde_json::to_writer_pretty(writer, &task_list).into_diagnostic()?;
+        } else {
+            serde_json::to_writer(writer, &task_list).into_diagnostic()?;
+        }
+    } else {
+        task_list
+            .iter()
+            .map(|(id, task)| TaskPrint::new(id, task))
+            .enumerate()
+            .map(|(i, task)| (i + 1, task))
+            .for_each(|(n, task)| println!("{n:>3}: {task}"));
+    }
 
     Ok(())
 }

@@ -31,6 +31,12 @@ pub enum Commands {
     List {
         #[clap(flatten)]
         server: ServerArgs,
+        /// printed in JSON
+        #[clap(short, long, default_value_t = false)]
+        json: bool,
+        /// pretty-printed JSON
+        #[clap(short, long, default_value_t = false, requires("json"))]
+        pretty: bool,
     },
     /// Add a new task
     Add {

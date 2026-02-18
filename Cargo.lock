@@ -1529,6 +1529,7 @@ dependencies = [
  "kid-types",
  "miette",
  "schemars",
+ "serde",
  "serde_json",
  "tarpc",
  "thiserror 2.0.18",
