@@ -1524,13 +1524,14 @@ dependencies = [
 name = "kid-cli"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
  "clap-verbosity-flag",
  "kid-types",
+ "miette",
  "schemars",
  "serde_json",
  "tarpc",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -1923,6 +1924,7 @@ dependencies = [
  "cfg-if",
  "miette-derive",
  "owo-colors",
+ "serde",
  "supports-color",
  "supports-hyperlinks",
  "supports-unicode",

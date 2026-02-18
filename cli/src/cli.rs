@@ -39,6 +39,9 @@ pub enum Commands {
         /// Task summary
         #[clap(short, long)]
         summary: String,
+        /// Task details as JSON string (see schema)
+        #[clap(short, long)]
+        details: Option<String>,
     },
 }
 

@@ -1,13 +1,13 @@
 mod cli;
 mod task;
 
-use crate::cli::{Cli, Parser};
-use crate::task::TaskPrint;
+use crate::cli::{Cli, Parser, ServerArgs};
+use crate::task::{TaskDetails, TaskPrint};
 
 use kid_types::Task;
 use kid_types::rpc::TaskServiceClient;
 
-use anyhow::{Context, Result};
+use miette::{IntoDiagnostic, Result, WrapErr};
 use schemars::SchemaGenerator;
 use tarpc::client;
 use tarpc::context;
@@ -22,6 +22,7 @@ use std::path::Path;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_miette_report();
     let args = Cli::parse();
     tracing_subscriber::fmt()
         .with_max_level(args.verbosity)
@@ -30,41 +31,45 @@ async fn main() -> Result<()> {
     match args.cmd {
         cli::Commands::Schema { pretty, outfile } => schema(pretty, outfile.as_deref()).await?,
         cli::Commands::List { server } => {
-            let client = connect(&server.addr).await?;
-            list(client).await?;
+            list(&server).await?;
         }
-        cli::Commands::Add { server, summary } => {
-            let client = connect(&server.addr).await?;
-            add(client, summary).await?;
+        cli::Commands::Add {
+            server,
+            summary,
+            details,
+        } => {
+            add(&server, summary, details.as_deref()).await?;
         }
     }
     Ok(())
 }
 
 async fn schema(pretty: bool, outfile: Option<&Path>) -> Result<()> {
+    use crate::task::Details as TaskDetails;
     let generator = SchemaGenerator::default();
-    let schema = generator.into_root_schema_for::<Task>();
+    let schema = generator.into_root_schema_for::<TaskDetails>();
     if let Some(outfile) = outfile {
-        let file = File::create(outfile)?;
+        let file = File::create(outfile).into_diagnostic()?;
         let writer = BufWriter::new(file);
         if pretty {
-            serde_json::to_writer_pretty(writer, &schema)?;
+            serde_json::to_writer_pretty(writer, &schema).into_diagnostic()?;
         } else {
-            serde_json::to_writer(writer, &schema)?;
+            serde_json::to_writer(writer, &schema).into_diagnostic()?;
         }
     } else {
         let stdout = io::stdout().lock();
         let writer = BufWriter::new(stdout);
         if pretty {
-            serde_json::to_writer_pretty(writer, &schema)?;
+            serde_json::to_writer_pretty(writer, &schema).into_diagnostic()?;
         } else {
-            serde_json::to_writer(writer, &schema)?;
+            serde_json::to_writer(writer, &schema).into_diagnostic()?;
         }
     };
     Ok(())
 }
 
-async fn list(client: TaskServiceClient) -> Result<()> {
+async fn list(server: &ServerArgs) -> Result<()> {
+    let client = connect(&server.addr).await?;
     let task_list = async move {
         // Send the request twice, just to be safe! ;)
         tokio::select! {
@@ -74,7 +79,8 @@ async fn list(client: TaskServiceClient) -> Result<()> {
     }
     .instrument(tracing::info_span!("Two Task Lists"))
     .await
-    .context("failed to fetch the task list")?;
+    .into_diagnostic()
+    .wrap_err("failed to fetch the task list")?;
 
     // Print task list to standard out
     task_list
@@ -87,12 +93,20 @@ async fn list(client: TaskServiceClient) -> Result<()> {
     Ok(())
 }
 
-async fn add(client: TaskServiceClient, summary: String) -> Result<()> {
-    let task = Task::new(summary);
+async fn add(server: &ServerArgs, summary: String, details: Option<&str>) -> Result<()> {
+    let mut task = Task::new(summary);
+    if let Some(details) = details {
+        let details: TaskDetails = details.parse()?;
+        task = task.with_details(details.into());
+    }
+    tracing::debug!("task created:\n{task:#?}");
+
+    let client = connect(&server.addr).await?;
     client
         .add(context::current(), task)
         .await
-        .context("failed to add the new task")?;
+        .into_diagnostic()
+        .wrap_err("failed to add task")?;
     Ok(())
 }
 
@@ -100,7 +114,28 @@ async fn connect(addr: &SocketAddr) -> Result<TaskServiceClient> {
     tracing::info!("CLI will connect to {}", addr);
     let mut transport = tcp::connect(addr, Json::default);
     transport.config_mut().max_frame_length(usize::MAX);
-    let transport = transport.await.context("failed to connect")?;
+    let transport = transport
+        .await
+        .into_diagnostic()
+        .wrap_err("failed to connect")?;
+
     let client = TaskServiceClient::new(client::Config::default(), transport).spawn();
     Ok(client)
+}
+
+fn init_miette_report() {
+    use miette::{GraphicalTheme, MietteHandlerOpts};
+    let _ = miette::set_hook(Box::new(|_| {
+        Box::new(
+            MietteHandlerOpts::new()
+                .force_graphical(true)
+                .graphical_theme(GraphicalTheme::unicode())
+                .terminal_links(true)
+                .unicode(true)
+                .context_lines(3)
+                .tab_width(4)
+                .break_words(true)
+                .build(),
+        )
+    }));
 }

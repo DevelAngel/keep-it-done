@@ -376,6 +376,11 @@ impl Task {
         Self { info, details }
     }
 
+    pub fn with_details(mut self, details: Details) -> Self {
+        self.details = details;
+        self
+    }
+
     pub fn info(&self) -> &Infos {
         &self.info
     }
