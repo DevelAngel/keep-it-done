@@ -1,0 +1,13 @@
+[build.env]
+passthrough = [
+    "LEPTOS_OUTPUT_NAME",
+    "LEPTOS_SITE_ROOT",
+    "LEPTOS_SITE_PKG_DIR",
+    "LEPTOS_SITE_ADDR",
+    "LEPTOS_RELOAD_PORT",
+    "LEPTOS_LIB_DIR",
+    "LEPTOS_BIN_DIR",
+    "LEPTOS_JS_MINIFY",
+    "LEPTOS_HASH_FILES",
+    "RUSTFLAGS",
+]
