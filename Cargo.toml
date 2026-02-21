@@ -43,7 +43,7 @@ leptos_router = "0.8.2"
 leptos_axum = "0.8.2"
 miette = "7.6.0"
 predicates = "3.1.4"
-rand = "0.9.2"
+rand = "0"
 schemars = { version = "1.2.1", default-features = false }
 serde = "1.0.228"
 serde_json = "1.0.149"
