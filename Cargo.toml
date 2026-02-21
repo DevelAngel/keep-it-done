@@ -41,6 +41,7 @@ leptos = { version = "0.8.2", features = ["tracing"] }
 leptos_meta = "0.8.2"
 leptos_router = "0.8.2"
 leptos_axum = "0.8.2"
+miette = "7.6.0"
 predicates = "3.1.4"
 rand = "0.9.2"
 schemars = { version = "1.2.1", default-features = false }
