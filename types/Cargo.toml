@@ -24,6 +24,7 @@ ssr = [
   "dep:indexmap",
   "dep:miette",
   "dep:tokio",
+  "dep:rkyv",
   "dep:serde_json",
 ]
 ssr-test-rand = ["dep:rand"]
@@ -38,6 +39,7 @@ derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, optional = true }
 miette = { workspace = true, features = ["fancy-no-syscall"], optional = true }
 rand = { workspace = true, optional = true }
+rkyv = { workspace = true, optional = true }
 schemars = { workspace = true, features = ["std", "derive", "chrono04", "preserve_order"], optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["indexmap", "preserve_order"], optional = true }
