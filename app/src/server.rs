@@ -21,7 +21,7 @@ use leptos::prelude::*;
 * ```
 */
 
-#[server]
+#[server(endpoint = "fetch_tasks")]
 pub async fn fetch_task_list() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
     tracing::info!("fetch task list");
     let cache = self::ssr::use_task_cache();
@@ -33,7 +33,7 @@ pub async fn fetch_task_list() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError
     Ok(list)
 }
 
-#[server]
+#[server(endpoint = "fetch_task_details")]
 pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), ServerFnError> {
     tracing::info!("fetch details for task id {id}");
     let cache = self::ssr::use_task_cache();
@@ -44,7 +44,7 @@ pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), Serve
     Ok((id, task.details().to_owned()))
 }
 
-#[server]
+#[server(endpoint = "add_task")]
 pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
     use kid_types::Task;
     tracing::info!("add task with summary {summary}");
@@ -57,7 +57,7 @@ pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
     Ok(())
 }
 
-#[server]
+#[server(endpoint = "delete_task")]
 pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     tracing::info!("delete task with id {id}");
     let cache = self::ssr::use_task_cache();
@@ -68,7 +68,7 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     Ok(())
 }
 
-#[server]
+#[server(endpoint = "complete_task")]
 pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
     tracing::info!("change status for task with id {id}");
     let cache = self::ssr::use_task_cache();
