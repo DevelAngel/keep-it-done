@@ -1,9 +1,11 @@
-# Build Instructions
+# Build Instructions for Linux
 
 ## Requirements
 
 ```console
 $ cargo binstall cargo-leptos
+$ cargo binstall cargo-generate
+$ rustup target add wasm32-unknown-unknown
 ```
 
 ### For cross-compilation
@@ -15,7 +17,7 @@ $ cargo binstall ripgrep
 
 and:
 
-- podman or docker
+- `podman` or `docker`
 
 ## x86_64 (native compilation)
 
