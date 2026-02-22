@@ -22,7 +22,7 @@ and:
 ### kid-cli
 
 ```console
-$ cargo build -p kid-cli --release
+$ cargo build -p kid-cli --release --locked
    Compiling ...
     Finished `release` profile [optimized] target(s) in 56.47s
 
@@ -40,7 +40,7 @@ $ ldd target/release/kid
 ### kid-server incl. kid-frontend
  
 ```console
-$ cargo leptos build --release
+$ cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
 
 $ file target/release/kid-server
 target/release/kid-server: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, BuildID[sha1]=e2b921aff4669b57dcfca8d089a37c892ba89092, not stripped
@@ -58,7 +58,7 @@ $ ldd target/release/kid-server
 ### Build kid-cli
 
 ```console
-$ cross build --target x86_64-unknown-linux-gnu -p kid-cli --locked --release
+$ cross build --target x86_64-unknown-linux-gnu -p kid-cli --release --locked
 info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 
   stable-x86_64-unknown-linux-gnu unchanged - rustc 1.93.1 (01f6ddf75 2026-02-11)
@@ -84,11 +84,11 @@ $ ldd target/x86_64-unknown-linux-gnu/release/kid
 ### Build kid-frontend
 
 ```console
-$ cargo leptos build --release --frontend-only
+$ cargo leptos build --frontend-only --release --lib-cargo-args="--locked"
     Metadata keys ["env", "watch"] from metadata.leptos are not recognized and will be ignored
    Compiling ...
     Finished `release` profile [optimized] target(s) in 2m 23s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -112,10 +112,10 @@ $ env | rg LEPTOS
 LEPTOS_BIN_CARGO_COMMAND=cross
 LEPTOS_BIN_TARGET_TRIPLE=x86_64-unknown-linux-gnu
 
-$ cargo leptos build --release
+$ cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
     Metadata keys ["env", "watch"] from metadata.leptos are not recognized and will be ignored
     Finished `release` profile [optimized] target(s) in 0.28s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/var/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/var/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -131,7 +131,7 @@ info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 info: checking for self-update
    Compiling ...
     Finished `release` profile [optimized] target(s) in 3m 59s
-       Cargo finished cross build --package=kid-server --bin=kid-server --target=x86_64-unknown-linux-gnu --no-default-features --release
+       Cargo finished cross build --package=kid-server --bin=kid-server --target=x86_64-unknown-linux-gnu --no-default-features --locked --release
 
 $ file target/x86_64-unknown-linux-gnu/release/kid-server
 target/x86_64-unknown-linux-gnu/release/kid-server: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.6.32, BuildID[sha1]=8da923ff354b46aed4d6532985e98b07eca240ab, not stripped
@@ -152,7 +152,7 @@ $ ldd target/x86_64-unknown-linux-gnu/release/kid-server
 ### Build kid-cli
 
 ```console
-$ cross build --target x86_64-unknown-linux-musl -p kid-cli --locked --release
+$ cross build --target x86_64-unknown-linux-musl -p kid-cli --release --locked
 info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 
   stable-x86_64-unknown-linux-gnu unchanged - rustc 1.93.1 (01f6ddf75 2026-02-11)
@@ -171,11 +171,11 @@ $ ldd target/x86_64-unknown-linux-musl/release/kid
 ### Build kid-frontend
 
 ```console
-$ cargo leptos build --release --frontend-only
+$ cargo leptos build --frontend-only --release --lib-cargo-args="--locked"
     Metadata keys ["env", "watch"] from metadata.leptos are not recognized and will be ignored
    Compiling ...
     Finished `release` profile [optimized] target(s) in 2m 23s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -199,10 +199,10 @@ $ env | rg LEPTOS
 LEPTOS_BIN_CARGO_COMMAND=cross
 LEPTOS_BIN_TARGET_TRIPLE=x86_64-unknown-linux-musl
 
-$ cargo leptos build --release
+$ cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
     Metadata keys ["env", "watch"] from metadata.leptos are not recognized and will be ignored
     Finished `release` profile [optimized] target(s) in 0.28s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/var/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/var/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -218,7 +218,7 @@ info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 info: checking for self-update
    Compiling ...
     Finished `release` profile [optimized] target(s) in 3m 29s
-       Cargo finished cross build --package=kid-server --bin=kid-server --target=x86_64-unknown-linux-musl --no-default-features --release
+       Cargo finished cross build --package=kid-server --bin=kid-server --target=x86_64-unknown-linux-musl --no-default-features --locked --release
 
 $ file target/x86_64-unknown-linux-musl/release/kid-server
 target/x86_64-unknown-linux-musl/release/kid-server: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), static-pie linked, not stripped
@@ -232,7 +232,7 @@ $ ldd target/x86_64-unknown-linux-musl/release/kid-server
 ### Build kid-cli
 
 ```console
-$ cross build --target aarch64-unknown-linux-gnu -p kid-cli --locked --release
+$ cross build --target aarch64-unknown-linux-gnu -p kid-cli --release --locked
 info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 
   stable-x86_64-unknown-linux-gnu unchanged - rustc 1.93.1 (01f6ddf75 2026-02-11)
@@ -240,7 +240,7 @@ info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 info: checking for self-update
    Compiling ...
     Finished `release` profile [optimized] target(s) in 1m 24s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -257,11 +257,11 @@ target/aarch64-unknown-linux-gnu/release/kid: ELF 64-bit LSB pie executable, ARM
 ### Build kid-frontend
 
 ```console
-$ cargo leptos build --release --frontend-only
+$ cargo leptos build --frontend-only --release --lib-cargo-args="--locked"
     Metadata keys ["env", "watch"] from metadata.leptos are not recognized and will be ignored
    Compiling ...
     Finished `release` profile [optimized] target(s) in 2m 23s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -285,10 +285,10 @@ $ env | rg LEPTOS
 LEPTOS_BIN_CARGO_COMMAND=cross
 LEPTOS_BIN_TARGET_TRIPLE=aarch64-unknown-linux-gnu
 
-$ cargo leptos build --release
+$ cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
     Metadata keys ["env", "watch"] from metadata.leptos are not recognized and will be ignored
     Finished `release` profile [optimized] target(s) in 0.29s
-       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/var/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --release
+       Cargo finished cargo build --package=kid-frontend --lib --target-dir=/var/home/develangel/workspace3/rust/keep-it-done/target/front --target=wasm32-unknown-unknown --no-default-features --locked --release
        Front generating JS/WASM with wasm-bindgen
        Using wasm-bindgen version 0.2.108 detected in project
 [swc_ecma_transforms_optimization] tree-shaker; pass=0
@@ -304,7 +304,7 @@ info: syncing channel updates for 'stable-x86_64-unknown-linux-gnu'
 info: checking for self-update
    Compiling ...
     Finished `release` profile [optimized] target(s) in 4m 17s
-       Cargo finished cross build --package=kid-server --bin=kid-server --target=aarch64-unknown-linux-gnu --no-default-features --release
+       Cargo finished cross build --package=kid-server --bin=kid-server --target=aarch64-unknown-linux-gnu --no-default-features --locked --release
 
 $ file target/aarch64-unknown-linux-gnu/release/kid-server
 target/aarch64-unknown-linux-gnu/release/kid-server: ELF 64-bit LSB pie executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 3.7.0, BuildID[sha1]=93f1386c3f51b31beb5dc96391e0195d1a9de6d7, not stripped
