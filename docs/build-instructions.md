@@ -231,6 +231,9 @@ $ ldd target/x86_64-unknown-linux-musl/release/kid-server
 
 ## aarch64 (cross compilation)
 
+Note that the targets `aarch64-unknown-linux-gnu` and `aarch64-unknown-linux-musl`
+seem to produce similar results.
+
 ### Build kid-cli
 
 ```console
