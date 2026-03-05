@@ -67,7 +67,7 @@ pub enum Commands {
 #[derive(Debug, Args)]
 pub struct ServerArgs {
     /// Sets the server address to connect to.
-    #[clap(long = "server", default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080))]
+    #[clap(long = "server", default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9000))]
     pub addr: SocketAddr,
 }
 
