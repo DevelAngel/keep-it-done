@@ -16,7 +16,7 @@ path = "../types"
 features = ["cli"]
 
 [dependencies]
-clap.workspace = true
+clap = { workspace = true, features = ["env"] }
 clap-verbosity-flag.workspace = true
 miette = { workspace = true, features = ["fancy"] }
 schemars.workspace = true
