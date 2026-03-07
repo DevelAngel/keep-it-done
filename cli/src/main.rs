@@ -51,6 +51,13 @@ async fn main() -> Result<()> {
         } => {
             rename(&server, &id, summary).await?;
         }
+        Commands::Update {
+            server,
+            id,
+            details,
+        } => {
+            update(&server, &id, details).await?;
+        }
         Commands::Complete { server, id, status } => {
             complete(&server, &id, &status).await?;
         }
@@ -145,6 +152,17 @@ async fn rename(server: &ServerArgs, id: &Uuid, summary: String) -> Result<()> {
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to rename the task {id}"))?;
+    Ok(())
+}
+
+async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
+    let details: TaskDetails = details.parse()?;
+    let client = connect(&server.addr).await?;
+    client
+        .update(context::current(), *id, details.into())
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to update details of the task {id}"))?;
     Ok(())
 }
 

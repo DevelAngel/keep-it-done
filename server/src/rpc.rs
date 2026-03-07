@@ -1,6 +1,7 @@
 use crate::SharedTaskCache;
 
 pub use kid_types::rpc::TaskService;
+use kid_types::task::Details as TaskDetails;
 use kid_types::{Task, TaskInfos, TaskStatus, Uuid};
 
 use futures::{future, prelude::*};
@@ -75,6 +76,13 @@ impl TaskService for RpcService {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             task.rename(summary);
+        }
+    }
+
+    async fn update(self, _: context::Context, id: Uuid, details: TaskDetails) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id) {
+            task.set_details(details);
         }
     }
 

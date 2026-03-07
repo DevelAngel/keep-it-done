@@ -398,6 +398,10 @@ impl Task {
     pub fn details(&self) -> &Details {
         &self.details
     }
+
+    pub fn set_details(&mut self, details: Details) {
+        self.details = details;
+    }
 }
 
 impl Infos {
