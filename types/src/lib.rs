@@ -31,6 +31,7 @@ pub trait TaskId<'a> {
 
 pub trait TaskInfos<'a> {
     fn summary(&'a self) -> Cow<'a, str>;
+    fn rename<T: ToString>(&'a mut self, summary: T);
     fn status(&'a self) -> &'a TaskStatus;
     fn change_status(&'a mut self, status: TaskStatus);
 

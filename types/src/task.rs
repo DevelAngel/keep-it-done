@@ -97,6 +97,9 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
     fn summary(&'a self) -> Cow<'a, str> {
         self.1.summary()
     }
+    fn rename<T: ToString>(&'a mut self, summary: T) {
+        self.1.rename(summary);
+    }
     fn status(&'a self) -> &'a Status {
         self.1.status()
     }
@@ -109,6 +112,9 @@ impl<'a> TaskInfos<'a> for Task {
     fn summary(&'a self) -> Cow<'a, str> {
         self.info.summary()
     }
+    fn rename<T: ToString>(&'a mut self, summary: T) {
+        self.info.rename(summary);
+    }
     fn status(&'a self) -> &'a Status {
         self.info.status()
     }
@@ -120,6 +126,9 @@ impl<'a> TaskInfos<'a> for Task {
 impl<'a> TaskInfos<'a> for Infos {
     fn summary(&'a self) -> Cow<'a, str> {
         Cow::Borrowed(&self.summary)
+    }
+    fn rename<T: ToString>(&'a mut self, summary: T) {
+        self.summary = summary.to_string();
     }
     fn status(&'a self) -> &'a Status {
         &self.status

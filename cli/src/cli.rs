@@ -53,6 +53,21 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+    /// Rename the summary of a task
+    #[clap(
+        after_help = "The summary is the task identity. Explicit command prevents accidental changes. AI assistant must consciously choose rename vs update."
+    )]
+    Rename {
+        /// Task ID
+        #[clap(short, long)]
+        id: Uuid,
+        /// New summary
+        #[clap(short, long)]
+        summary: String,
+        /// server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
     /// Complete task (or uncomplete it)
     Complete {
         /// Task ID

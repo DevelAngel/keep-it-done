@@ -44,6 +44,13 @@ async fn main() -> Result<()> {
         } => {
             add(&server, summary, details.as_deref()).await?;
         }
+        Commands::Rename {
+            server,
+            id,
+            summary,
+        } => {
+            rename(&server, &id, summary).await?;
+        }
         Commands::Complete { server, id, status } => {
             complete(&server, &id, &status).await?;
         }
@@ -131,6 +138,16 @@ async fn add(server: &ServerArgs, summary: String, details: Option<&str>) -> Res
     Ok(())
 }
 
+async fn rename(server: &ServerArgs, id: &Uuid, summary: String) -> Result<()> {
+    let client = connect(&server.addr).await?;
+    client
+        .rename(context::current(), *id, summary)
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to rename the task {id}"))?;
+    Ok(())
+}
+
 async fn complete(server: &ServerArgs, id: &Uuid, status: &TaskStatus) -> Result<()> {
     tracing::warn!("task({id}): {status}");
     let client = connect(&server.addr).await?;
@@ -138,7 +155,7 @@ async fn complete(server: &ServerArgs, id: &Uuid, status: &TaskStatus) -> Result
         .complete(context::current(), *id, status.clone())
         .await
         .into_diagnostic()
-        .wrap_err_with(|| format!("failed to set the task status to {status}"))?;
+        .wrap_err_with(|| format!("failed to change the status of task {id} to {status}"))?;
     Ok(())
 }
 

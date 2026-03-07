@@ -71,6 +71,13 @@ impl TaskService for RpcService {
         task_cache.add(task);
     }
 
+    async fn rename(self, _: context::Context, id: Uuid, summary: String) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id) {
+            task.rename(summary);
+        }
+    }
+
     async fn complete(self, _: context::Context, id: Uuid, status: TaskStatus) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
