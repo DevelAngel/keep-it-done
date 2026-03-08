@@ -68,7 +68,19 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
-    /// Update details of a task
+    /// Replace all details of a task
+    Replace {
+        /// Task ID
+        #[clap(short, long)]
+        id: Uuid,
+        /// New task details as JSON string (see schema)
+        #[clap(short, long)]
+        details: String,
+        /// server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
+    /// Update some details of a task
     Update {
         /// Task ID
         #[clap(short, long)]

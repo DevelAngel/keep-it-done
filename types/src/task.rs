@@ -1,8 +1,18 @@
 use crate::{TaskDetails, TaskId, TaskInfos, Uuid};
 
+#[cfg(any(feature = "rpc"))]
+use kid_types_derive::GeneratePatch;
+
+#[cfg(feature = "ssr")]
+use kid_types_derive::Patchable;
+
 use chrono::{DateTime, FixedOffset, Offset, TimeZone};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
+
+#[cfg(feature = "rpc")]
+use serde_with::rust::double_option;
 
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
@@ -26,6 +36,10 @@ pub struct Infos {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "rpc", derive(GeneratePatch))]
+#[cfg_attr(feature = "ssr", derive(Patchable))]
+#[cfg_attr(feature = "ssr", patch_type(DetailsPatch))]
+#[skip_serializing_none]
 pub struct Details {
     priority: Option<Priority>,
     due_date: Option<DateEstimation>,
@@ -401,6 +415,11 @@ impl Task {
 
     pub fn set_details(&mut self, details: Details) {
         self.details = details;
+    }
+
+    #[cfg(feature = "ssr")]
+    pub fn patch_details(&mut self, details: DetailsPatch) {
+        self.details.apply_patch(details);
     }
 }
 

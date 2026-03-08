@@ -47,6 +47,7 @@ rand = "0"
 schemars = { version = "1.2.1", default-features = false }
 serde = "1.0.228"
 serde_json = "1.0.149"
+serde_with = "3.17.0"
 tarpc = "0.37.0"
 thiserror = "2.0.12"
 tokio = "1.40.0"

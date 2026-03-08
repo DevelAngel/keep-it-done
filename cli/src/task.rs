@@ -1,4 +1,4 @@
-pub use kid_types::task::Details;
+pub use kid_types::task::{Details, DetailsPatch};
 use kid_types::{TaskId, TaskInfos};
 
 use miette::{Diagnostic, Result, SourceOffset};
@@ -28,7 +28,11 @@ impl<'a, T: TaskId<'a>, U: TaskInfos<'a>> Display for TaskPrint<'a, T, U> {
     }
 }
 
+#[derive(Debug)]
 pub struct TaskDetails(Details);
+
+#[derive(Debug)]
+pub struct TaskDetailsPatch(DetailsPatch);
 
 impl FromStr for TaskDetails {
     type Err = ParsingError;
@@ -38,8 +42,22 @@ impl FromStr for TaskDetails {
     }
 }
 
+impl FromStr for TaskDetailsPatch {
+    type Err = ParsingError;
+    fn from_str(val: &str) -> ParsingResult<Self> {
+        let val = serde_json::from_str(val).map_err(|e| ParsingError::from_serde_error(val, e))?;
+        Ok(TaskDetailsPatch(val))
+    }
+}
+
 impl From<TaskDetails> for Details {
     fn from(src: TaskDetails) -> Self {
+        src.0
+    }
+}
+
+impl From<TaskDetailsPatch> for DetailsPatch {
+    fn from(src: TaskDetailsPatch) -> Self {
         src.0
     }
 }

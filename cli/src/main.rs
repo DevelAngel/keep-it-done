@@ -2,7 +2,7 @@ mod cli;
 mod task;
 
 use crate::cli::{Cli, Commands, Parser, ServerArgs};
-use crate::task::{TaskDetails, TaskPrint};
+use crate::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
 use kid_types::rpc::TaskServiceClient;
 use kid_types::{Task, TaskStatus, Uuid};
@@ -50,6 +50,13 @@ async fn main() -> Result<()> {
             summary,
         } => {
             rename(&server, &id, summary).await?;
+        }
+        Commands::Replace {
+            server,
+            id,
+            details,
+        } => {
+            replace(&server, &id, details).await?;
         }
         Commands::Update {
             server,
@@ -155,11 +162,28 @@ async fn rename(server: &ServerArgs, id: &Uuid, summary: String) -> Result<()> {
     Ok(())
 }
 
-async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
+async fn replace(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
     let details: TaskDetails = details.parse()?;
     let client = connect(&server.addr).await?;
     client
-        .update(context::current(), *id, details.into())
+        .replace(context::current(), *id, details.into())
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to replace details of the task {id}"))?;
+    Ok(())
+}
+
+async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
+    let details: TaskDetailsPatch = details.parse()?;
+    tracing::debug!("Update task: {details:#?}");
+    let details = details.into();
+    tracing::debug!(
+        "Details as json: {}",
+        &serde_json::to_string_pretty(&details).unwrap()
+    );
+    let client = connect(&server.addr).await?;
+    client
+        .update(context::current(), *id, details)
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to update details of the task {id}"))?;
