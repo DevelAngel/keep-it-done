@@ -1643,7 +1643,7 @@ dependencies = [
 
 [[package]]
 name = "kid-app"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "cfg-if",
  "chrono",
@@ -1660,7 +1660,7 @@ dependencies = [
 
 [[package]]
 name = "kid-cli"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "clap-verbosity-flag",
@@ -1678,7 +1678,7 @@ dependencies = [
 
 [[package]]
 name = "kid-frontend"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -1691,7 +1691,7 @@ dependencies = [
 
 [[package]]
 name = "kid-server"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1715,7 +1715,7 @@ dependencies = [
 
 [[package]]
 name = "kid-types"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "ahash",
  "assert_fs",
@@ -1742,7 +1742,7 @@ dependencies = [
 
 [[package]]
 name = "kid-types-derive"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
