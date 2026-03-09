@@ -25,6 +25,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="icon" href="favicon.ico"/>
                 <link rel="icon" type="image/png" href="favicon-16x16.png"/>
                 <link rel="icon" type="image/png" href="favicon-32x32.png"/>
+                <link rel="icon" type="image/png" href="favicon-64x46.png"/>
+                <link rel="icon" type="image/png" href="favicon-128x128.png"/>
                 <AutoReload options=options.clone()/>
                 <HydrationScripts options/>
                 <MetaTags/>
