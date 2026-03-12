@@ -37,9 +37,15 @@ pub struct LoadErrors {
     failed: usize,
     all: usize,
     #[related]
-    fs_errors: VecDeque<FsError>,
-    #[related]
-    task_errors: VecDeque<TaskError>,
+    errors: VecDeque<LoadError>,
+}
+
+#[derive(Error, Diagnostic, Debug)]
+pub enum LoadError {
+    #[error("failed to access file system")]
+    Fs(#[from] FsError),
+    #[error("failed to load task")]
+    Task(#[from] TaskError),
 }
 
 #[derive(Error, Diagnostic, Debug)]
@@ -187,20 +193,18 @@ impl TaskCache {
 
     pub async fn load(&mut self) -> TaskLoadResult<usize> {
         let mut num = 0;
-        let mut fs_errors = VecDeque::new();
-        let mut task_errors = VecDeque::new();
+        let mut errors = VecDeque::new();
         let dir = fs::read_dir(self.dir.as_path())
             .map_err(|e| FsError::ReadDir(self.dir.clone(), e))
             .map_err(|e| LoadErrors {
                 failed: 0,
                 all: 0,
-                fs_errors: [e].into(),
-                task_errors: [].into(),
+                errors: [e.into()].into(),
             })?;
         for entry in dir {
             let Ok(entry) = entry.map_err(|e| {
                 let e = FsError::ReadDirEntry(self.dir.clone(), e);
-                fs_errors.push_back(e);
+                errors.push_back(e.into());
                 ()
             }) else {
                 continue;
@@ -213,7 +217,7 @@ impl TaskCache {
             };
 
             let Ok(task) = Self::read_task_file(&id, &entry).await.map_err(|e| {
-                task_errors.push_back(e);
+                errors.push_back(e.into());
                 ()
             }) else {
                 continue;
@@ -223,14 +227,13 @@ impl TaskCache {
             num += 1;
         }
 
-        if fs_errors.is_empty() && task_errors.is_empty() {
+        if errors.is_empty() {
             Ok(num)
         } else {
             Err(LoadErrors {
-                failed: task_errors.len(),
-                all: num + task_errors.len(),
-                fs_errors,
-                task_errors,
+                failed: errors.len(),
+                all: num + errors.len(),
+                errors,
             })
         }
     }
