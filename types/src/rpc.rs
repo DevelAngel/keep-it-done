@@ -1,6 +1,6 @@
 use crate::task::Details as TaskDetails;
 use crate::task::DetailsPatch as TaskDetailsPatch;
-use crate::{Task, TaskStatus, Uuid};
+use crate::{Task, Uuid};
 
 use tarpc::service;
 
@@ -11,5 +11,5 @@ pub trait TaskService {
     async fn rename(id: Uuid, summary: String);
     async fn replace(id: Uuid, details: TaskDetails);
     async fn update(id: Uuid, details: TaskDetailsPatch);
-    async fn complete(id: Uuid, status: TaskStatus);
+    async fn complete(id: Uuid, reopen: bool);
 }

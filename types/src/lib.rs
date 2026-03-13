@@ -38,15 +38,17 @@ pub trait TaskInfos<'a> {
     //provides
     fn is_done(&'a self) -> bool {
         match self.status() {
-            TaskStatus::ToDo => false,
-            TaskStatus::Done => true,
+            TaskStatus::ToDo { since: _ } => false,
+            TaskStatus::Done { since: _ } => true,
         }
     }
     fn mark_done(&'a mut self) {
-        self.change_status(TaskStatus::Done);
+        let since = Utc::now().fixed_offset();
+        self.change_status(TaskStatus::Done { since });
     }
     fn mark_todo(&'a mut self) {
-        self.change_status(TaskStatus::ToDo);
+        let since = Utc::now().fixed_offset();
+        self.change_status(TaskStatus::ToDo { since });
     }
 }
 

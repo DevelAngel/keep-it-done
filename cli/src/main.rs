@@ -5,7 +5,7 @@ use crate::cli::{Cli, Commands, Parser, ServerArgs};
 use crate::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
 use kid_types::rpc::TaskServiceClient;
-use kid_types::{Task, TaskStatus, Uuid};
+use kid_types::{Task, Uuid};
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use schemars::SchemaGenerator;
@@ -65,8 +65,8 @@ async fn main() -> Result<()> {
         } => {
             update(&server, &id, details).await?;
         }
-        Commands::Complete { server, id, status } => {
-            complete(&server, &id, &status).await?;
+        Commands::Complete { server, id, reopen } => {
+            complete(&server, &id, reopen).await?;
         }
     }
     Ok(())
@@ -190,14 +190,14 @@ async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
     Ok(())
 }
 
-async fn complete(server: &ServerArgs, id: &Uuid, status: &TaskStatus) -> Result<()> {
-    tracing::warn!("task({id}): {status}");
+async fn complete(server: &ServerArgs, id: &Uuid, reopen: bool) -> Result<()> {
+    tracing::warn!("task({id}): {}", if reopen { "reopened" } else { "closed" });
     let client = connect(&server.addr).await?;
     client
-        .complete(context::current(), *id, status.clone())
+        .complete(context::current(), *id, reopen)
         .await
         .into_diagnostic()
-        .wrap_err_with(|| format!("failed to change the status of task {id} to {status}"))?;
+        .wrap_err_with(|| format!("failed to change the status of task {id}"))?;
     Ok(())
 }
 

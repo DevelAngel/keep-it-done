@@ -6,8 +6,9 @@ use kid_types_derive::GeneratePatch;
 #[cfg(feature = "ssr")]
 use kid_types_derive::Patchable;
 
-use chrono::{DateTime, FixedOffset, Offset, TimeZone};
+use chrono::{DateTime, FixedOffset, Offset, TimeZone, Timelike, Utc};
 use derive_more::Display;
+use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
@@ -34,12 +35,12 @@ pub struct Infos {
     status: Status,
 }
 
+#[skip_serializing_none]
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "rpc", derive(GeneratePatch))]
 #[cfg_attr(feature = "ssr", derive(Patchable))]
 #[cfg_attr(feature = "ssr", patch_type(DetailsPatch))]
-#[skip_serializing_none]
 pub struct Details {
     priority: Option<Priority>,
     due_date: Option<DateEstimation>,
@@ -49,14 +50,71 @@ pub struct Details {
     notes: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema, clap::ValueEnum))]
-#[cfg_attr(feature = "cli", clap(rename_all = "lowercase"))]
-#[display(rename_all = "lowercase")]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub enum Status {
-    #[default]
-    ToDo,
-    Done,
+    ToDo { since: DateTime<FixedOffset> },
+    Done { since: DateTime<FixedOffset> },
+}
+
+impl Status {
+    fn now() -> DateTime<FixedOffset> {
+        Utc::now().with_nanosecond(0).unwrap().fixed_offset()
+    }
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        let since = Self::now();
+        Self::ToDo { since }
+    }
+}
+
+impl<'de> Deserialize<'de> for Status {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum StatusVariant {
+            StructLike(SLStatus),
+            UnitLike(ULStatus),
+        }
+
+        #[derive(Deserialize)]
+        pub enum SLStatus {
+            ToDo { since: DateTime<FixedOffset> },
+            Done { since: DateTime<FixedOffset> },
+        }
+
+        // Be backward compatible
+        #[derive(Deserialize)]
+        enum ULStatus {
+            ToDo,
+            Done,
+        }
+
+        let status = StatusVariant::deserialize(deserializer)?;
+        match status {
+            StatusVariant::StructLike(SLStatus::ToDo { since }) => Ok(Status::ToDo { since }),
+            StatusVariant::StructLike(SLStatus::Done { since }) => Ok(Status::Done { since }),
+            StatusVariant::UnitLike(ULStatus::ToDo) => Ok(Status::ToDo { since: Self::now() }),
+            StatusVariant::UnitLike(ULStatus::Done) => Ok(Status::Done { since: Self::now() }),
+        }
+    }
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ToDo { since } => {
+                let since = since.to_rfc2822();
+                write!(f, "todo since {since}")
+            }
+            Self::Done { since } => {
+                let since = since.to_rfc2822();
+                write!(f, "done since {since}")
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq)]
@@ -429,5 +487,147 @@ impl Infos {
             summary: summary.to_string(),
             status: Status::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::SecondsFormat;
+
+    const SUMMARY: &str = "ABC";
+    const TIME_Z: &str = "2026-03-13T20:00:00Z";
+
+    // STATUS - SERIALIZE
+
+    #[test]
+    fn serialize_status_todo() {
+        let since = DateTime::parse_from_rfc3339(TIME_Z).unwrap();
+        let status = Status::ToDo { since };
+        let status = serde_json::to_string(&status).expect("serialization");
+        assert_eq!(status, format!(r#"{{"ToDo":{{"since":"{TIME_Z}"}}}}"#));
+    }
+
+    #[test]
+    fn serialize_status_done() {
+        let since = DateTime::parse_from_rfc3339(TIME_Z).unwrap();
+        let status = Status::Done { since };
+        let status = serde_json::to_string(&status).expect("serialization");
+        assert_eq!(status, format!(r#"{{"Done":{{"since":"{TIME_Z}"}}}}"#));
+    }
+
+    // STATUS - DESERIALIZE
+
+    #[test]
+    fn deserialize_status_todo() {
+        let status = format!(r#"{{"ToDo":{{"since":"{TIME_Z}"}}}}"#);
+        let status: Status = serde_json::from_str(&status).expect("deserialization");
+        let since = DateTime::parse_from_rfc3339(TIME_Z).unwrap();
+        assert_eq!(status, Status::ToDo { since });
+    }
+
+    #[test]
+    fn deserialize_status_done() {
+        let status = format!(r#"{{"Done":{{"since":"{TIME_Z}"}}}}"#);
+        let status: Status = serde_json::from_str(&status).expect("deserialization");
+        let since = DateTime::parse_from_rfc3339(TIME_Z).unwrap();
+        assert_eq!(status, Status::Done { since });
+    }
+
+    #[test]
+    fn deserialize_status_todo_without_since() {
+        let status = format!(r#""ToDo""#);
+        let status: Status = serde_json::from_str(&status).expect("deserialization");
+        let since = Status::now(); // maybe instable
+        assert_eq!(status, Status::ToDo { since });
+    }
+
+    #[test]
+    fn deserialize_status_done_without_since() {
+        let status = format!(r#""Done""#);
+        let status: Status = serde_json::from_str(&status).expect("deserialization");
+        let since = Status::now(); // maybe instable
+        assert_eq!(status, Status::Done { since });
+    }
+
+    // TASK - SERIALIZE
+
+    #[test]
+    fn serialize_minimal_task_todo() {
+        let task = Task::new(SUMMARY);
+        let task = serde_json::to_string(&task).expect("serialization");
+        let since = Status::now(); // maybe instable
+        let since = since.to_rfc3339_opts(SecondsFormat::Secs, true);
+        let task_expected =
+            format!(r#"{{"summary":"{SUMMARY}","status":{{"ToDo":{{"since":"{since}"}}}}}}"#);
+        assert_eq!(task, task_expected);
+    }
+
+    // TASK - DESERIALIZE
+
+    #[test]
+    fn deserialize_minimal_task_todo() {
+        let task =
+            format!(r#"{{"summary":"{SUMMARY}","status":{{"ToDo":{{"since":"{TIME_Z}"}}}}}}"#);
+        let task: Task = serde_json::from_str(&task).expect("deserialization");
+        assert!(matches!(
+            task,
+            Task {
+                info: Infos {
+                    summary: _,
+                    status: Status::ToDo { since: _ },
+                },
+                details: Details { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn deserialize_minimal_task_done() {
+        let task =
+            format!(r#"{{"summary":"{SUMMARY}","status":{{"Done":{{"since":"{TIME_Z}"}}}}}}"#);
+        let task: Task = serde_json::from_str(&task).expect("deserialization");
+        assert!(matches!(
+            task,
+            Task {
+                info: Infos {
+                    summary: _,
+                    status: Status::Done { since: _ },
+                },
+                details: Details { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn deserialize_minimal_task_todo_without_since() {
+        let task = format!(r#"{{"summary":"{SUMMARY}","status":"ToDo"}}"#);
+        let task: Task = serde_json::from_str(&task).expect("deserialization");
+        assert!(matches!(
+            task,
+            Task {
+                info: Infos {
+                    summary: _,
+                    status: Status::ToDo { since: _ },
+                },
+                details: Details { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn deserialize_minimal_task_done_without_since() {
+        let task = format!(r#"{{"summary":"{SUMMARY}","status":"Done"}}"#);
+        let task: Task = serde_json::from_str(&task).expect("deserialization");
+        assert!(matches!(
+            task,
+            Task {
+                info: Infos {
+                    summary: _,
+                    status: Status::Done { since: _ },
+                },
+                details: Details { .. }
+            }
+        ));
     }
 }

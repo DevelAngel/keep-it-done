@@ -3,7 +3,7 @@ use crate::SharedTaskCache;
 pub use kid_types::rpc::TaskService;
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskInfos, TaskStatus, Uuid};
+use kid_types::{Task, TaskInfos, Uuid};
 
 use futures::{future, prelude::*};
 use miette::{IntoDiagnostic, Result};
@@ -95,12 +95,13 @@ impl TaskService for RpcService {
         }
     }
 
-    async fn complete(self, _: context::Context, id: Uuid, status: TaskStatus) {
+    async fn complete(self, _: context::Context, id: Uuid, reopen: bool) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
-            match status {
-                TaskStatus::ToDo => task.mark_todo(),
-                TaskStatus::Done => task.mark_done(),
+            if reopen {
+                task.mark_todo();
+            } else {
+                task.mark_done();
             }
         }
     }

@@ -1,4 +1,4 @@
-use kid_types::{TaskStatus, Uuid};
+use kid_types::Uuid;
 
 pub use clap::Parser;
 use clap::{Args, Subcommand};
@@ -92,14 +92,14 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
-    /// Complete task (or uncomplete it)
+    /// Complete task (or reopen it)
     Complete {
         /// Task ID
         #[clap(short, long)]
         id: Uuid,
-        /// New task status
-        #[clap(short, long, default_value_t = TaskStatus::Done)]
-        status: TaskStatus,
+        /// Reopen the task instead of completing it
+        #[clap(short, long, default_value_t = false)]
+        reopen: bool,
         /// server options
         #[clap(flatten)]
         server: ServerArgs,
