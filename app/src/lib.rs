@@ -245,9 +245,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             <div class={format!(
                                                 "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-slate-900 shadow flex items-center justify-center {}",
                                                 match priority {
-                                                    TaskPriority::A => "bg-red-700",
+                                                    TaskPriority::A => "bg-red-500",
                                                     TaskPriority::B => "bg-amber-500",
-                                                    TaskPriority::C => "bg-green-300",
+                                                    TaskPriority::C => "bg-sky-400",
                                                 }
                                             )}>
                                                 <span class="text-white text-xs font-bold">{priority.to_string()}</span>
@@ -255,9 +255,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             <div class={format!(
                                                 "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
                                                 match priority {
-                                                    TaskPriority::A => "text-red-500",
+                                                    TaskPriority::A => "text-red-400",
                                                     TaskPriority::B => "text-amber-500",
-                                                    TaskPriority::C => "text-green-400",
+                                                    TaskPriority::C => "text-sky-400",
                                                 }
                                             )}>"Priority"</div>
                                             <div class="text-sm text-slate-200">{
@@ -282,12 +282,12 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {start_date.map(|start_date| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-600 border-4 border-slate-900 shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-sky-500 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-0.5">"Start Date"</div>
+                                            <div class="text-xs font-semibold text-sky-400 uppercase tracking-wide mb-0.5">"Start Date"</div>
                                             <div class="text-sm text-slate-200">{start_date}</div>
                                         </div>
                                     })}
@@ -317,12 +317,12 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {notes.map(|notes| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-500 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Notes"</div>
+                                            <div class="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1">"Notes"</div>
                                             <div class="text-sm text-slate-300 leading-relaxed bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-sm whitespace-pre-wrap">
                                                 {notes}
                                             </div>
