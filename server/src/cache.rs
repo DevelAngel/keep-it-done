@@ -63,7 +63,11 @@ impl<'a> TaskCacheFlush<'a> for SharedTaskCache {
         while start.elapsed() < Self::FLUSH_TIMEOUT {
             match cache.flush().await {
                 Ok(num) => {
-                    tracing::info!("flush task cache.. {num} tasks successfully flushed.");
+                    if num > 0 {
+                        tracing::info!("{num} tasks successfully flushed");
+                    } else {
+                        tracing::info!("no tasks need to be flushed");
+                    }
                     return;
                 }
                 Err(e) => {

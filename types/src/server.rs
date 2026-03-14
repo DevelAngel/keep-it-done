@@ -10,7 +10,6 @@ use std::collections::VecDeque;
 use std::env;
 use std::fs::{self, File};
 use std::io;
-use std::io::BufReader;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 
@@ -191,8 +190,9 @@ impl TaskCache {
         })
     }
 
-    pub async fn load(&mut self) -> TaskLoadResult<usize> {
-        let mut num = 0;
+    pub async fn load(&mut self) -> TaskLoadResult<(usize, usize)> {
+        let mut num_loaded = 0;
+        let mut num_to_migrate = 0;
         let mut errors = VecDeque::new();
         let dir = fs::read_dir(self.dir.as_path())
             .map_err(|e| FsError::ReadDir(self.dir.clone(), e))
@@ -216,23 +216,28 @@ impl TaskCache {
                 continue;
             };
 
-            let Ok(task) = Self::read_task_file(&id, &entry).await.map_err(|e| {
+            let Ok((task, needs_migration)) = Self::read_task_file(&id, &entry).await.map_err(|e| {
                 errors.push_back(e.into());
                 ()
             }) else {
                 continue;
             };
+            
+            if needs_migration {             
+                self.dirty.insert(id);
+                num_to_migrate += 1;
+            }
 
             self.tasks.insert(id, task);
-            num += 1;
+            num_loaded += 1;
         }
 
         if errors.is_empty() {
-            Ok(num)
+            Ok((num_loaded, num_to_migrate))
         } else {
             Err(LoadErrors {
                 failed: errors.len(),
-                all: num + errors.len(),
+                all: num_loaded + errors.len(),
                 errors,
             })
         }
@@ -311,22 +316,34 @@ impl TaskCache {
         Some(id)
     }
 
-    async fn read_task_file<P: AsRef<Path>>(id: &Uuid, path: P) -> TaskResult<Task> {
+    async fn read_task_file<P: AsRef<Path>>(id: &Uuid, path: P) -> TaskResult<(Task, bool)> {
         assert!(Self::has_valid_id(&id));
         let path = path.as_ref();
         assert!(path.is_file());
-        let file = File::open(path).map_err(|e| TaskError::OpenFile {
+        let raw = fs::read_to_string(path).map_err(|e| TaskError::OpenFile {
             id: *id,
             path: path.to_path_buf(),
             error: e,
         })?;
-        let task =
-            serde_json::from_reader(BufReader::new(file)).map_err(|e| TaskError::ReadJsonFile {
-                id: *id,
-                path: path.to_path_buf(),
-                error: e,
-            })?;
-        Ok(task)
+        let needs_migration = Self::detect_legacy_format(&raw);
+        let task = serde_json::from_str(&raw).map_err(|e| TaskError::ReadJsonFile {
+            id: *id,
+            path: path.to_path_buf(),
+            error: e,
+        })?;
+        Ok((task, needs_migration))
+    }
+
+    fn detect_legacy_format(json_str: &str) -> bool {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) else {
+            return false;
+        };
+
+        // Check for legacy format:
+        // - "status" is a blank string instead of an object with field "since"
+        v.get("status")
+            .map(|s| s.is_string())
+            .unwrap_or(false)
     }
 
     async fn write_task_file(&self, id: &Uuid, task: &Task) -> TaskResult<()> {

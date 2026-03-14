@@ -27,9 +27,12 @@ async fn main() -> Result<()> {
     let rpc_addr = args.server.addr;
 
     let task_cache = SharedTaskCache::default();
-    task_cache.write().await.load().await.and_then(|num| {
-        if num > 0 {
-            tracing::info!("{num} tasks loaded");
+    task_cache.write().await.load().await.and_then(|(num_loaded, num_to_migrate)| {
+        if num_loaded > 0 {
+            tracing::info!("{num_loaded} tasks loaded");
+            if num_to_migrate > 0 {
+                tracing::info!("{num_to_migrate} tasks has to be migrated with next flush");
+            }
         } else {
             tracing::warn!("no tasks loaded");
         }
