@@ -250,7 +250,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                                     TaskPriority::C => "bg-sky-400",
                                                 }
                                             )}>
-                                                <span class="text-white text-xs font-bold">{priority.to_string()}</span>
+                                                <span class={format!(
+                                                    "text-xs font-bold {}",
+                                                    match priority {
+                                                        TaskPriority::A => "text-white",
+                                                        TaskPriority::B => "text-slate-900",
+                                                        TaskPriority::C => "text-slate-900",
+                                                    }
+                                                )}>{priority.to_string()}</span>
                                             </div>
                                             <div class={format!(
                                                 "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
@@ -271,7 +278,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {due_date.map(|due_date| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-500 border-4 border-slate-900 shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/>
                                                 </svg>
@@ -282,7 +289,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {start_date.map(|start_date| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-sky-500 border-4 border-slate-900 shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-sky-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
                                                 </svg>
@@ -294,7 +301,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     {time_estimate.map(|time_estimate| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-md bg-amber-500 border-4 border-slate-900 shadow flex items-center justify-center">
-                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <svg class="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M6 2a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-.293.707L12 5.414V7a1 1 0 01-.293.707L10 9.414l-1.707-1.707A1 1 0 018 7V5.414L6.293 3.707A1 1 0 016 3V2zm0 16a1 1 0 001 1h6a1 1 0 001-1v-1a1 1 0 00-.293-.707L12 14.586V13a1 1 0 00-.293-.707L10 10.586l-1.707 1.707A1 1 0 008 13v1.586l-1.707 1.707A1 1 0 006 17v1z"/>
                                                 </svg>
                                             </div>
@@ -304,7 +311,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {context.map(|context| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-500 border-4 border-slate-900 shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
                                                 </svg>
@@ -317,7 +324,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {notes.map(|notes| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-500 border-4 border-slate-900 shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
                                                 </svg>
@@ -335,7 +342,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                 </Suspense>
                 // Created
                 <div class="relative">
-                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-500 border-4 border-slate-900 shadow flex items-center justify-center">
+                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-700 border-4 border-slate-900 shadow flex items-center justify-center">
                         <div class="w-2 h-2 rounded-full bg-white"></div>
                     </div>
                     <div class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-0.5">"Created"</div>
