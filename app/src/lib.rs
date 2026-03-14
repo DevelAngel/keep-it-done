@@ -83,14 +83,14 @@ fn TaskList() -> impl IntoView {
             <label>"Add a Task" <input type="text" name="summary"/></label>
             <input type="submit" value="Add"/>
         </MultiActionForm>
-        <div class="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600">
-            <div class="max-w-2xl mx-auto min-h-screen bg-white shadow-2xl">
-                <header class="px-6 py-8 bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+        <div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900">
+            <div class="max-w-2xl mx-auto min-h-screen bg-slate-900 shadow-2xl">
+                <header class="px-6 py-8 bg-gradient-to-br from-cyan-600 to-teal-700 text-white">
                     <h1 class="text-3xl font-semibold mb-1">"My Day"</h1>
                 </header>
                 <div class="py-2">
                     <Suspense fallback=move || view! {
-                        <div class="px-6 py-6 text-center text-gray-500">"Loading tasks..."</div>
+                        <div class="px-6 py-6 text-center text-slate-400">"Loading tasks..."</div>
                     }>
                         <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
                             {move || {
@@ -166,17 +166,17 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
     view! {
         <div
-            class="border-b border-gray-100 transition-colors"
-            class:bg-indigo-50=is_expanded
+            class="border-b border-slate-700 transition-colors"
+            class:bg-slate-800=is_expanded
         >
             <div
-                class="flex items-center px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                class="flex items-center px-6 py-4 hover:bg-slate-800 transition-colors cursor-pointer"
                 on:click=handle_task_click
             >
                 // Checkbox
                 <input
                     type="checkbox"
-                    class="w-5 h-5 rounded-full border-2 border-gray-300 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br checked:from-indigo-500 checked:to-purple-600 checked:border-indigo-500 relative"
+                    class="w-5 h-5 rounded-full border-2 border-slate-600 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br checked:from-cyan-500 checked:to-teal-600 checked:border-cyan-500 relative"
                     prop:checked=move || checked.get()
                     prop:disabled=move || complete_task.pending().get()
                     on:click=move |ev| ev.stop_propagation()
@@ -190,9 +190,9 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 // Summary
                 <div class="flex-1">
                     <span class=move || if checked.get() {
-                        "text-gray-900 line-through opacity-50"
+                        "text-slate-100 line-through opacity-50"
                     } else {
-                        "text-gray-900"
+                        "text-slate-100"
                     }>
                         {summary}
                     </span>
@@ -201,8 +201,8 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 <Show when=move || complete_task.pending().get()>
                     <div class="ml-4 flex-shrink-0">
                         <div class="relative w-5 h-5">
-                            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 opacity-75 animate-ping"></div>
-                            <div class="relative rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 w-5 h-5 animate-spin border-2 border-white border-t-transparent"></div>
+                            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 opacity-75 animate-ping"></div>
+                            <div class="relative rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 w-5 h-5 animate-spin border-2 border-slate-900 border-t-transparent"></div>
                         </div>
                     </div>
                 </Show>
@@ -223,11 +223,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
 
     view! {
-        <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-white via-indigo-50 to-white">
+        <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
                 // Vertical line
-                <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300"></div>
+                <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500"></div>
                 <Suspense>
                     {move || {
                         Suspend::new(async move {
@@ -243,10 +243,10 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                         // Priority badge with color coding
                                         <div class="relative">
                                             <div class={format!(
-                                                "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-white shadow flex items-center justify-center {}",
+                                                "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-slate-900 shadow flex items-center justify-center {}",
                                                 match priority {
                                                     TaskPriority::A => "bg-red-700",
-                                                    TaskPriority::B => "bg-orange-500",
+                                                    TaskPriority::B => "bg-amber-500",
                                                     TaskPriority::C => "bg-green-300",
                                                 }
                                             )}>
@@ -255,12 +255,12 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             <div class={format!(
                                                 "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
                                                 match priority {
-                                                    TaskPriority::A => "text-red-700",
-                                                    TaskPriority::B => "text-orange-600",
+                                                    TaskPriority::A => "text-red-500",
+                                                    TaskPriority::B => "text-amber-500",
                                                     TaskPriority::C => "text-green-400",
                                                 }
                                             )}>"Priority"</div>
-                                            <div class="text-sm text-gray-900">{
+                                            <div class="text-sm text-slate-200">{
                                                 match priority {
                                                     TaskPriority::A => "Critical",
                                                     TaskPriority::B => "Important",
@@ -271,59 +271,59 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                     })}
                                     {due_date.map(|due_date| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-500 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Due Date"</div>
-                                            <div class="text-sm text-gray-900">{due_date}</div>
+                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Due Date"</div>
+                                            <div class="text-sm text-slate-200">{due_date}</div>
                                         </div>
                                     })}
                                     {start_date.map(|start_date| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-600 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-0.5">"Start Date"</div>
-                                            <div class="text-sm text-gray-900">{start_date}</div>
+                                            <div class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-0.5">"Start Date"</div>
+                                            <div class="text-sm text-slate-200">{start_date}</div>
                                         </div>
                                     })}
                                     {time_estimate.map(|time_estimate| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-md bg-orange-500 border-4 border-white shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-md bg-amber-500 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M6 2a1 1 0 011-1h6a1 1 0 011 1v1a1 1 0 01-.293.707L12 5.414V7a1 1 0 01-.293.707L10 9.414l-1.707-1.707A1 1 0 018 7V5.414L6.293 3.707A1 1 0 016 3V2zm0 16a1 1 0 001 1h6a1 1 0 001-1v-1a1 1 0 00-.293-.707L12 14.586V13a1 1 0 00-.293-.707L10 10.586l-1.707 1.707A1 1 0 008 13v1.586l-1.707 1.707A1 1 0 006 17v1z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-0.5">"Estimate"</div>
-                                            <div class="text-sm text-gray-900">{time_estimate}</div>
+                                            <div class="text-xs font-semibold text-amber-500 uppercase tracking-wide mb-0.5">"Estimate"</div>
+                                            <div class="text-sm text-slate-200">{time_estimate}</div>
                                         </div>
                                     })}
                                     {context.map(|context| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-500 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Context"</div>
-                                            <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500 text-white shadow-sm">
+                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Context"</div>
+                                            <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
                                                 {context}
                                             </div>
                                         </div>
                                     })}
                                     {notes.map(|notes| view! {
                                         <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-gray-500 border-4 border-white shadow flex items-center justify-center">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">"Notes"</div>
-                                            <div class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-200 shadow-sm whitespace-pre-wrap">
+                                            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Notes"</div>
+                                            <div class="text-sm text-slate-300 leading-relaxed bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-sm whitespace-pre-wrap">
                                                 {notes}
                                             </div>
                                         </div>
@@ -335,11 +335,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                 </Suspense>
                 // Created
                 <div class="relative">
-                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-white shadow flex items-center justify-center">
+                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-500 border-4 border-slate-900 shadow flex items-center justify-center">
                         <div class="w-2 h-2 rounded-full bg-white"></div>
                     </div>
-                    <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-0.5">"Created"</div>
-                    <div class="text-sm text-gray-900">{created}</div>
+                    <div class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-0.5">"Created"</div>
+                    <div class="text-sm text-slate-200">{created}</div>
                 </div>
             </div>
         </div>
