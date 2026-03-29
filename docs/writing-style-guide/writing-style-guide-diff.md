@@ -3,42 +3,52 @@
 ## Key Differences
 
 ### Sentence Length
+
 - **German**: Longer, more complex sentences are acceptable and common in academic writing. Nested subordinate clauses are traditional.
 - **English**: Shorter sentences are default. Complex nesting is avoided. Clarity through brevity.
 
 ### Voice Preference
+
 - **German**: Passive voice more accepted in academic contexts ("Es wurde festgestellt").
 - **English**: Active voice strongly preferred ("We found"). Passive voice considered weaker writing.
 
 ### Direct Address
+
 - **German**: Using "Sie" (you) in academic/scientific writing is relatively innovative and breaks with tradition.
 - **English**: "You" is already standard in popular science and increasingly common in academic writing. Less of a stylistic break.
 
 ### Em-dashes/Gedankenstriche
+
 - **German**: Frequent use is acceptable and adds conversational tone effectively.
 - **English**: Use more sparingly. Too many em-dashes can seem informal or disorganized.
 
 ### Sentence Rhythm Strategy
+
 - **German**: Long build-up sentences are powerful tools. Readers expect and can process them.
 - **English**: Shorter build-ups. Get to the point faster. American readers especially value directness.
 
 ### Metaphor References
+
 - **German**: Can use locally relevant examples (e.g., "Laptop mit 4GB RAM").
 - **English**: Use internationally recognizable references (e.g., "juggling balls," "smartphone with too many apps").
 
 ### Academic Distance
+
 - **German**: Traditional academic writing maintains formal distance. Breaking this creates stronger impact.
 - **English**: Conversational academic writing is more established, especially in US contexts.
 
 ### Validation Approach
+
 - **German**: Emotional validation in academic writing is more novel and impactful.
 - **English**: Reader empathy is more expected in popular writing, though still effective when done well.
 
 ### Cultural Expectations
+
 - **German**: Readers tolerate more complexity and formal structure before demanding clarity.
 - **English**: Clarity and directness valued from the start. "Don't make me work for it."
 
 ### Confidence Expression
+
 - **German**: Strong claims need careful hedging to avoid seeming arrogant.
 - **English**: Confidence + data = credibility. Strong claims with evidence are expected, especially in American academic culture.
 

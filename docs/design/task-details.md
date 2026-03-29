@@ -18,8 +18,8 @@ This document presents four design variants for the expanded task detail view, e
 
 ## Variant 1: Card-Style with Icons
 
-**Visual Character**: Clean, modern, icon-enhanced  
-**Information Density**: Medium  
+**Visual Character**: Clean, modern, icon-enhanced\
+**Information Density**: Medium\
 **Best For**: Users who prefer visual scanning over reading
 
 ### Implementation
@@ -117,8 +117,8 @@ This document presents four design variants for the expanded task detail view, e
 
 ## Variant 2: Minimal Grid Layout
 
-**Visual Character**: Dense, information-focused, scannable  
-**Information Density**: High  
+**Visual Character**: Dense, information-focused, scannable\
+**Information Density**: High\
 **Best For**: Power users who want maximum information, minimum space
 
 ### Implementation
@@ -184,8 +184,8 @@ This document presents four design variants for the expanded task detail view, e
 
 ## Variant 3: Card with Subtle Shadows
 
-**Visual Character**: Elevated, modern, card-like  
-**Information Density**: Low-Medium  
+**Visual Character**: Elevated, modern, card-like\
+**Information Density**: Low-Medium\
 **Best For**: Users who prefer clear visual separation and breathing room
 
 ### Implementation
@@ -297,15 +297,15 @@ This document presents four design variants for the expanded task detail view, e
 
 ## Comparison Matrix
 
-| Feature | Variant 1 (Icons) | Variant 2 (Grid) | Variant 3 (Cards) | Variant 4 (Timeline) |
-|---------|-------------------|------------------|-------------------|----------------------|
-| **Visual Weight** | Medium-High | Low | High | Medium |
-| **Scanning Speed** | Fast | Very Fast | Medium | Medium |
-| **Mobile Friendly** | Excellent | Good | Good | Excellent |
-| **Information Density** | Medium | High | Low-Medium | Medium |
-| **Aesthetic** | Modern, Clean | Minimal, Dense | Elevated, Spacious | Narrative, Flow |
-| **Best For** | General use | Power users | Visual preference | Story-driven tasks |
-| **Complexity** | Medium | Low | Medium | High |
+| Feature                 | Variant 1 (Icons) | Variant 2 (Grid) | Variant 3 (Cards)  | Variant 4 (Timeline) |
+| ----------------------- | ----------------- | ---------------- | ------------------ | -------------------- |
+| **Visual Weight**       | Medium-High       | Low              | High               | Medium               |
+| **Scanning Speed**      | Fast              | Very Fast        | Medium             | Medium               |
+| **Mobile Friendly**     | Excellent         | Good             | Good               | Excellent            |
+| **Information Density** | Medium            | High             | Low-Medium         | Medium               |
+| **Aesthetic**           | Modern, Clean     | Minimal, Dense   | Elevated, Spacious | Narrative, Flow      |
+| **Best For**            | General use       | Power users      | Visual preference  | Story-driven tasks   |
+| **Complexity**          | Medium            | Low              | Medium             | High                 |
 
 ---
 

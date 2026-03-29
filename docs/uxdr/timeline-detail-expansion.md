@@ -19,6 +19,7 @@ We implement a **timeline-based detail expansion** with a vertical connecting li
 **Metaphor**: A task is not a list of properties. A task is a journey from creation to completion. The timeline visualizes this temporal dimension.
 
 **Core Elements**:
+
 - Vertical gradient line as spine (cyan → teal → cyan)
 - Circular markers with 4px `border-slate-900` rings (floating, prominent)
 - Color coding by semantic meaning (not decorative)
@@ -42,6 +43,7 @@ This sequence reads from urgent/actionable at the top to archival/contextual at 
 ### Interaction Model
 
 **Expansion**:
+
 ```
 Collapsed → Tap anywhere on task row → Timeline fades in (300ms ease-out)
                                      → Markers appear staggered (50ms delay each)
@@ -49,12 +51,14 @@ Collapsed → Tap anywhere on task row → Timeline fades in (300ms ease-out)
 ```
 
 **Collapse**:
+
 ```
 Expanded → Tap same task row → Timeline fades out (200ms ease-in)
                              → Background gradient reverses
 ```
 
 **Switching**:
+
 ```
 Task A expanded → Tap Task B → Task A collapses (200ms)
                              → Task B expands (300ms, 100ms after A collapse)
@@ -86,6 +90,7 @@ Tasks are not static data points. They emerge at a point in time. They have prio
 The timeline makes this meaning visible. It guides your eye from top to bottom, from creation to details. It creates visual hierarchy through spatial arrangement, not just through font size.
 
 **Concretely**:
+
 - Timeline: 8 seconds average scan time (own testing, 5 subjects)
 - Grid: 5 seconds average scan time
 
@@ -120,21 +125,31 @@ The intention was to stagger marker appearance with 50ms delays so the timeline 
 ```html
 <div class="relative pl-8 space-y-4">
   <!-- Vertical line (cyan → teal → cyan) -->
-  <div class="absolute left-3 top-0 bottom-0 w-0.5
-              bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500">
+  <div
+    class="
+      absolute left-3 top-0 bottom-0 w-0.5
+      bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500
+    "
+  >
   </div>
 
   <!-- Timeline node (repeated for each property) -->
   <div class="relative">
     <!-- Marker dot with border ring -->
-    <div class="absolute -left-8 mt-0.5 w-6 h-6
-                rounded-full bg-cyan-700
-                border-4 border-slate-900 shadow">
+    <div
+      class="
+        absolute -left-8 mt-0.5 w-6 h-6
+        rounded-full bg-cyan-700
+        border-4 border-slate-900 shadow
+      "
+    >
       <!-- Icon or content -->
     </div>
 
     <!-- Property content -->
-    <div class="text-xs font-semibold uppercase tracking-wide text-cyan-400">Label</div>
+    <div class="text-xs font-semibold uppercase tracking-wide text-cyan-400">
+      Label
+    </div>
     <div class="text-sm text-slate-200">Value</div>
   </div>
 </div>
@@ -157,8 +172,9 @@ No staggered animation delays are currently implemented. The container uses CSS 
 ### Accessibility Considerations
 
 **Screen Reader Experience**:
+
 ```html
-<div role="region" aria-expanded={is_expanded} aria-label="Task details">
+<div role="region" aria-expanded="{is_expanded}" aria-label="Task details">
   <!-- Timeline content -->
 </div>
 ```
@@ -166,6 +182,7 @@ No staggered animation delays are currently implemented. The container uses CSS 
 When a screen reader reaches the expanded task, it announces: "Task details, expanded, region. Created 2 hours ago. Priority A. Time estimate 2 hours..."
 
 **Keyboard Navigation**:
+
 - Tab: Focus on task row
 - Enter/Space: Toggle expansion
 - Tab within: Focus on interactive elements (if present)
@@ -187,7 +204,7 @@ When a task expands and the details would extend beyond the viewport:
 
 ```javascript
 // Scroll expanded task into view (smooth)
-element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+element.scrollIntoView({ behavior: "smooth", block: "nearest" });
 ```
 
 "Nearest" means: Scroll only if necessary. If the details would be visible anyway, everything stays in place.
@@ -197,6 +214,7 @@ element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 Timeline rendering is CSS-based (no JS animation). Browser-native transitions with GPU acceleration. Smooth even on older devices.
 
 **Benchmarks** (iPhone SE 2020, Safari):
+
 - Expansion: 60 FPS constant
 - Collapse: 60 FPS constant
 - Switching: 60 FPS constant
@@ -206,11 +224,13 @@ Timeline rendering is CSS-based (no JS animation). Browser-native transitions wi
 ### Relation to App Header
 
 The app header uses:
+
 ```css
 bg-gradient-to-br from-cyan-600 to-teal-700
 ```
 
 The timeline line uses:
+
 ```css
 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500
 ```
@@ -219,7 +239,7 @@ Same color family, same hue. The timeline is a direct echo of the header — sam
 
 ### Typography
 
-Labels: `text-xs font-semibold uppercase tracking-wide`  
+Labels: `text-xs font-semibold uppercase tracking-wide`\
 Values: `text-sm` (normal weight)
 
 Why uppercase for labels? It creates visual separation. "CREATED" is immediately recognizable as a label, "2 hours ago" as a value. No additional colors or icons needed.
@@ -296,28 +316,28 @@ Dependencies between tasks are explicitly out of scope for the current data mode
 
 ### Variant 1: Icon-Enhanced Card
 
-**Pros**: Easy to scan, icons as visual anchors  
+**Pros**: Easy to scan, icons as visual anchors\
 **Cons**: Lacks temporal dimension, icons can feel overloaded
 
 We decided against this because icons alone do not create narrative. They are visual cues, but not structure.
 
 ### Variant 2: Minimal Grid
 
-**Pros**: Maximum information density, fastest scanning  
+**Pros**: Maximum information density, fastest scanning\
 **Cons**: No visual hierarchy, all properties equally prominent
 
 We decided against this because grid layouts imply: "All properties are equally important." That is not true. Priority is more important than Context.
 
 ### Variant 3: Card with Shadows
 
-**Pros**: Clear visual separation, modern aesthetics  
+**Pros**: Clear visual separation, modern aesthetics\
 **Cons**: Nested card is visually heavy, shadows can be too subtle on mobile
 
 We decided against this because elevation (shadows) is less effective on touch screens than on desktop. Touch interfaces need clearer signals.
 
 ### Flat List (No Visual Enhancement)
 
-**Pros**: Simple, performant, minimalist  
+**Pros**: Simple, performant, minimalist\
 **Cons**: Boring, interchangeable, no visual identity
 
 We decided against this because a family task app should not be "just another todo list." It should have personality.
@@ -334,9 +354,9 @@ The app currently uses a dark theme by default (slate-900 backgrounds). If a lig
 
 ```css
 @theme {
-  --color-timeline-line: theme('colors.cyan.500');
-  --color-timeline-bg: theme('colors.slate.800');
-  --color-timeline-border: theme('colors.slate.900');
+  --color-timeline-line: theme("colors.cyan.500");
+  --color-timeline-bg: theme("colors.slate.800");
+  --color-timeline-border: theme("colors.slate.900");
 }
 ```
 

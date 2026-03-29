@@ -194,29 +194,29 @@ The cabinet research is a good fit if you're tired. Want to tackle that?"
 
 You don't fill out fields. You talk like you would to a family member:
 
-**"Add a task to fix the leaky faucet in the bathroom"**  
+**"Add a task to fix the leaky faucet in the bathroom"**\
 Not: Open app → New Task → Title: "Fix leaky faucet" → Category: Household → Location: Bathroom → Save
 
-**"Show me everything related to the kitchen project"**  
+**"Show me everything related to the kitchen project"**\
 Not: Open app → Filters → Category → Select "Kitchen" → Apply
 
-**"What can I do in 20 minutes?"**  
+**"What can I do in 20 minutes?"**\
 Not: Open app → Filter by time estimate → Select "< 30 minutes" → Sort by priority
 
 ### Intelligent Context Understanding
 
 The AI assistant remembers what you're talking about:
 
-**You**: "Create a task to clean the gutters"  
-**AI Assistant**: "Added. This is outdoor maintenance, right? How long do you think it'll take?"  
-**You**: "About 2 hours"  
-**AI Assistant**: "Got it. Priority level?"  
-**You**: "Important but not urgent, maybe B"  
+**You**: "Create a task to clean the gutters"\
+**AI Assistant**: "Added. This is outdoor maintenance, right? How long do you think it'll take?"\
+**You**: "About 2 hours"\
+**AI Assistant**: "Got it. Priority level?"\
+**You**: "Important but not urgent, maybe B"\
 **AI Assistant**: "Done. I've categorized it under Household/Maintenance, 2 hours, priority B. It's in your task list."
 
 Later:
 
-**You**: "When should I do it?"  
+**You**: "When should I do it?"\
 **AI Assistant** _(knows "it" means the gutter task)_: "Weather this week is good. You have a free Saturday morning. Want me to set a target date for then?"
 
 ### Proactive Suggestions
@@ -254,8 +254,8 @@ Five manageable chunks instead of one huge overwhelming task. Start with sorting
 
 ### 1. Talk to Your AI Assistant (Primary Method)
 
-**On your computer**: Open terminal, type natural requests  
-**Through automation**: The AI can be triggered by schedules or events  
+**On your computer**: Open terminal, type natural requests\
+**Through automation**: The AI can be triggered by schedules or events\
 **Voice interface** (future): "Hey assistant, what's next on my list?"
 
 Example using [clawdbot](https://clawd.bot/):

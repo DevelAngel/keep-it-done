@@ -103,12 +103,12 @@ kid/
 
 `kid-types` is compiled selectively via feature flags:
 
-| Feature       | Activates                                             |
-|---------------|-------------------------------------------------------|
-| `rpc`         | `tarpc` service trait                                 |
-| `cli`         | `rpc` + `schemars` + `clap` (for CLI JSON schema)    |
-| `ssr`         | `rpc` + file storage, `uuid/v7`, `ahash`, `indexmap` |
-| `ssr-test-*`  | Test helpers (random data, forced storage failures)   |
+| Feature      | Activates                                            |
+| ------------ | ---------------------------------------------------- |
+| `rpc`        | `tarpc` service trait                                |
+| `cli`        | `rpc` + `schemars` + `clap` (for CLI JSON schema)    |
+| `ssr`        | `rpc` + file storage, `uuid/v7`, `ahash`, `indexmap` |
+| `ssr-test-*` | Test helpers (random data, forced storage failures)  |
 
 ### Dependency Graph
 
@@ -367,6 +367,7 @@ Framework: Axum + Leptos (SSR + WASM hydration)
 ### RPC Layer Errors
 
 Errors at different layers:
+
 - **Transport errors**: Connection refused, wrong address → `kid` exits with miette diagnostic
 - **Serialization errors**: Invalid JSON data → tarpc returns error
 - **Business logic errors**: Task not found, validation failed → `Result<T, E>` in response
@@ -413,10 +414,12 @@ The RPC server binds to `127.0.0.1` by default, so it is only reachable from the
 ### HTTP Security
 
 For local network deployment:
+
 - No authentication (trusted network)
 - HTTPS optional (can use self-signed cert or nginx termination)
 
 For remote access:
+
 - Add authentication tokens
 - Require HTTPS
 - Rate limiting on API endpoints
@@ -447,6 +450,7 @@ All in-memory operations are sub-millisecond. File I/O is deferred to background
 ### Bottlenecks
 
 Current architecture has no bottlenecks at family scale. Theoretical limits:
+
 - Write lock contention if >100 concurrent writers
 - File I/O if >1000 tasks flushed per cycle
 - Memory if >100k tasks loaded
@@ -469,6 +473,7 @@ Each extension would follow the same pattern: add to business logic in `kid-type
 ### Migration Path
 
 If family grows beyond target scale:
+
 - Replace file storage with SQLite (still zero-infrastructure)
 - Add connection pooling for RPC
 - Implement pagination for task lists

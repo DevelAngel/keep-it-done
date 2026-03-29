@@ -9,6 +9,7 @@ Accepted
 The task management system needs a browser-based interface for family members to view and interact with tasks. The interface displays tasks as a mobile-first scrollable list, supports filtering by category, and provides responsive updates when task state changes. Family members will access this interface from various devices including desktops, tablets, and smartphones.
 
 The UI requirements include:
+
 - Mobile-first task list with expandable detail view
 - Real-time or near-real-time updates when tasks change
 - Category filtering and search
@@ -23,6 +24,7 @@ Technology options for web UIs range from server-rendered HTML with minimal Java
 We will use Leptos (https://www.leptos.dev/) as the framework for the browser-based UI. Leptos is a Rust web framework that compiles to WebAssembly for the client side and provides server functions for backend communication. It offers fine-grained reactivity similar to SolidJS, allowing efficient UI updates without virtual DOM overhead.
 
 The architecture uses Leptos in fullstack mode:
+
 - Client code compiles to WASM (`kid-frontend` crate, `cdylib`) and runs in the browser
 - Server functions provide typed API endpoints (`kid-app` crate, feature `ssr`)
 - The Leptos server integrates with the existing `kid-server` process
@@ -147,6 +149,7 @@ The approach is interesting for simpler applications but doesn't fit the interac
 ## Implementation Notes
 
 The Leptos application is split across two crates in the workspace:
+
 - `kid-app` — shared SSR + hydration logic; server functions (compiled into `kid-server` via feature `ssr`) and the WASM client (via feature `hydrate`)
 - `kid-frontend` — the `cdylib` WASM binary; thin entry point that mounts `kid-app`
 

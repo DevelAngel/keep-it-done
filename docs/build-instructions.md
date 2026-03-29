@@ -40,7 +40,7 @@ $ ldd target/release/kid
 ```
 
 ### kid-server incl. kid-frontend
- 
+
 ```console
 $ cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
 

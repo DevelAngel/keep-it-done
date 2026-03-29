@@ -9,11 +9,13 @@ Accepted
 In the task list view, each task has a checkbox. This checkbox must have a clear function: Either it marks the task as completed, or it serves another purpose (e.g., "selection for batch operation").
 
 We must decide:
+
 1. What happens when you click the checkbox?
 2. Is this the primary interaction for task completion, or are there other ways?
 3. How do checkbox and task row click interact with each other?
 
 This decision influences:
+
 - User muscle memory (from other task apps)
 - Number of clicks for frequent actions
 - Visual feedback patterns
@@ -24,6 +26,7 @@ This decision influences:
 The checkbox functions as a **direct toggle for task completion**: Clicking the checkbox switches the task status between `todo` and `done`.
 
 **Concretely**:
+
 - Checkbox unchecked (○) → Task status: `todo`
 - Checkbox checked (●) → Task status: `done`
 - Click on checkbox: Toggle between both states
@@ -36,6 +39,7 @@ This function is **not reversible** via an undo button, but through another clic
 ### Convention Over Innovation
 
 Almost every task management app uses checkboxes for completion:
+
 - Todoist
 - Microsoft To Do
 - Apple Reminders
@@ -53,13 +57,14 @@ Do we have such a reason? No.
 
 What action do you perform most frequently in a task app?
 
-**Not** "edit task" (occasionally).  
-**Not** "delete task" (rarely).  
+**Not** "edit task" (occasionally).\
+**Not** "delete task" (rarely).\
 **Not** "move task" (sometimes).
 
 **But**: "Mark task as completed" (multiple times daily).
 
 This action must be the simplest:
+
 - One click, no confirmation
 - Large touch target (checkbox is 20×20px with 4px padding → 28×28px effective)
 - Immediate visual feedback (checkbox fills, summary gets strikethrough)
@@ -69,10 +74,12 @@ If completion were a secondary workflow ("click on task → details open → but
 ### Spatial Separation
 
 Checkbox and task row have different functions:
+
 - **Checkbox**: State change (todo ↔ done)
 - **Task row**: View change (collapsed ↔ expanded)
 
 This separation is spatially clear:
+
 ```
 ┌────────────────────────────────────┐
 │ [○] Research cabinet options       │  ← Checkbox left, row right
@@ -86,11 +93,13 @@ Alternative: "Click on row toggles status, tap-and-hold opens details." This wou
 ### Visual Feedback Pattern
 
 When you click a checkbox, you expect immediate visual feedback:
+
 1. Checkbox animation (empty → filled, 150ms)
 2. Summary text gets strikethrough
 3. Text opacity reduces to 50%
 
 This feedback pattern is universal. You know it from:
+
 - Email clients (mark message as read)
 - Shopping lists (check off item)
 - Forms (select checkbox)
@@ -208,6 +217,7 @@ The checkbox executes this server function optimistically: the UI signal (`set_c
 Checkbox marks tasks for batch operations. A separate button (e.g., in expanded details) marks as done.
 
 **Rejected** because:
+
 - Completion is the most frequent action, should not be secondary
 - Batch operations are rare in family apps (no need for "delete all Kitchen tasks")
 - Additional button increases UI complexity
@@ -217,6 +227,7 @@ Checkbox marks tasks for batch operations. A separate button (e.g., in expanded 
 Swipe right over a task → marks as done.
 
 **Rejected** because:
+
 - Swipe gestures are not discoverable (users must learn them)
 - Collision with possible other swipe actions (swipe-left for delete?)
 - Accidental swipes while scrolling are more frequent than accidental checkbox clicks
@@ -226,6 +237,7 @@ Swipe right over a task → marks as done.
 Hold a task long → menu appears with "mark as done."
 
 **Rejected** because:
+
 - Slower than direct click (you must wait)
 - Hides the most frequent action behind a menu
 - Long-press is primarily for context menus (with multiple options), not for single actions
@@ -235,6 +247,7 @@ Hold a task long → menu appears with "mark as done."
 Click on the entire task row toggles between `todo` and `done`. No separate detail view.
 
 **Rejected** because:
+
 - Detail view is important (created timestamp, priority, notes)
 - Collision between "change status" and "see details" would be inevitable
 - Accidental status changes would be more frequent
@@ -248,6 +261,7 @@ The task model has exactly two states: `ToDo` ↔ `Done`. An `in-progress` state
 ### Undo Functionality
 
 If accidental completions become a problem:
+
 - Toast notification after completion: "Task completed. [Undo]"
 - Undo button in notification (visible for 3 seconds)
 - Click on undo: Reverts status
@@ -257,6 +271,7 @@ This would be a later addition, not core functionality.
 ### Recurring Tasks
 
 When a task is marked as "daily recurring":
+
 - Checkbox click marks today's instance as done
 - A new instance automatically appears for tomorrow
 
@@ -265,6 +280,7 @@ The checkbox semantics remain the same: "Mark this instance as done."
 ## Conclusion
 
 The checkbox as direct toggle for task completion is the right decision for this app because:
+
 1. It follows universal conventions
 2. It makes the most frequent action the simplest
 3. It uses spatial separation for functional clarity

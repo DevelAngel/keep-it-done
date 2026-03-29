@@ -260,6 +260,7 @@ This decision should be reviewed after:
 4. **Performance profiling**: Ensure animation quality on target device range
 
 Expected areas for adjustment:
+
 - Arrow visibility thresholds (when do they fade?)
 - Transition animation easing and duration
 - Page indicator timeout (2 seconds vs. other duration)

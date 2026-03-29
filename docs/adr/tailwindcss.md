@@ -9,6 +9,7 @@ Accepted
 The browser interface requires CSS styling for the task list, task cards, and UI components. The interface serves families who need a clean, intuitive visual experience without complexity. The system uses Leptos for the frontend with SSR/hydration workflow.
 
 Key requirements:
+
 - Fast development iteration
 - Maintainable styling as features grow
 - No complex build toolchain
@@ -60,8 +61,9 @@ Tailwind's design system (spacing scale, color palette, typography) ensures cons
 **Easy Customization**
 
 Define family-specific design tokens in `style/tailwind.css` once (Tailwind v4 CSS-first syntax):
+
 ```css
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   --color-task-priority-high: #ef4444;
@@ -69,6 +71,7 @@ Define family-specific design tokens in `style/tailwind.css` once (Tailwind v4 C
   --color-task-priority-low: #10b981;
 }
 ```
+
 Then use `bg-task-priority-high` throughout the app.
 
 **Type Safety with Leptos**
@@ -100,6 +103,7 @@ For verbose classes, extract common patterns into Leptos components that encapsu
 For class name validation, use Tailwind IntelliSense in VSCode/IDE.
 
 For conditional styling, leverage Leptos's `class:` directive:
+
 ```rust
 <div class:bg-green-100={task.is_done()}
      class:bg-gray-100={!task.is_done()}>
@@ -110,6 +114,7 @@ For conditional styling, leverage Leptos's `class:` directive:
 ### Plain CSS
 
 Traditional approach with custom stylesheets. Rejected for several reasons:
+
 - Requires managing separate CSS files
 - No automatic purging of unused styles
 - Naming conventions needed to avoid conflicts
@@ -119,6 +124,7 @@ Traditional approach with custom stylesheets. Rejected for several reasons:
 ### CSS-in-Rust (stylers, styled)
 
 Rust crates that generate CSS from Rust code. Rejected because:
+
 - Smaller ecosystem compared to Tailwind
 - Less documentation and community support
 - Still requires learning crate-specific APIs
@@ -127,6 +133,7 @@ Rust crates that generate CSS from Rust code. Rejected because:
 ### Component Libraries (Leptos UI, Yew UI)
 
 Pre-built component libraries with styling included. Rejected because:
+
 - Overkill for a simple task list
 - Harder to customize for family-specific needs
 - Adds dependency weight
@@ -135,6 +142,7 @@ Pre-built component libraries with styling included. Rejected because:
 ### Bootstrap or Bulma
 
 CSS frameworks with pre-designed components. Rejected because:
+
 - Larger bundle sizes (even with tree-shaking)
 - Less customization flexibility
 - Opinionated component designs may not fit family aesthetic
@@ -143,6 +151,7 @@ CSS frameworks with pre-designed components. Rejected because:
 ### No Styling Framework
 
 Inline styles or minimal custom CSS. Rejected because:
+
 - Inconsistent spacing and colors without design system
 - Harder to maintain responsive layouts
 - No automatic optimization
@@ -161,9 +170,10 @@ The CSS bundle is served as a static asset from `/pkg/`, cacheable by browsers.
 For the family scale (single-digit concurrent users), even non-optimized CSS loads instantly. JIT compilation ensures production builds stay minimal.
 
 Configuration example (Tailwind v4 CSS-first):
+
 ```css
 /* style/tailwind.css */
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   --color-status-todo: #f3f4f6;

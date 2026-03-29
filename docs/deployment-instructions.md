@@ -48,6 +48,7 @@ we can create the container on the target platform with systemd units
 using Podman Quadlet.
 
 `/etc/containers/systemd/kid.build`:
+
 ```systemd
 [Unit]
 Description=Keep It Done - Image Generator
@@ -60,6 +61,7 @@ ImageTag=localhost/kid-server:latest
 ```
 
 The provided `Dockerfile` requires the following file structure:
+
 ```console
 $ tree /etc/containers/build/kid
 [drwxr-x---]  /etc/containers/build/kid
@@ -79,6 +81,7 @@ $ tree /etc/containers/build/kid
 ```
 
 Create the container by running the service:
+
 ```console
 $ systemctl daemon-reload
 $ systemctl start kid-build.service
@@ -88,6 +91,7 @@ $ systemctl start kid-build.service
 ### Container Unit
 
 Create user and group for kid service:
+
 ```console
 $ groupadd --gid 2333 kid
 $ useradd --uid 2333 --gid 2333 --no-create-home --shell /bin/false kid
@@ -96,6 +100,7 @@ $ useradd --uid 2333 --gid 2333 --no-create-home --shell /bin/false kid
 To create the systemd service, we can also use Podman-Quadlet.
 
 `/etc/containers/systemd/kid.container`:
+
 ```systemd
 [Unit]
 Description=Keep It Done
@@ -136,6 +141,7 @@ WantedBy=traefik.service
 ```
 
 Start the service and check the logs:
+
 ```console
 $ systemctl daemon-reload
 $ systemctl start kid.service

@@ -11,6 +11,7 @@ The task management system requires RPC communication between the CLI tool and s
 Initial exploration considered Protocol Buffers with manual IPC implementation over Unix Domain Sockets. This approach provides language-agnostic serialization and explicit interface definitions in `.proto` files. However, it introduces external tooling dependencies (protoc compiler), requires build scripts for code generation, and creates an impedance mismatch between proto types and native Rust types.
 
 The core requirements for the RPC layer are:
+
 - Type-safe communication between CLI and server
 - Compile-time verification that both sides agree on interface
 - Support for TCP transport (enables SSH tunnelling and flexible deployment)
@@ -24,6 +25,7 @@ We will use tarpc (https://github.com/google/tarpc) for RPC communication betwee
 The RPC service interface is defined in the `kid-types` crate as a trait. Both server and CLI depend on this crate. The server implements the trait methods with actual business logic. The CLI uses the tarpc-generated client to make remote calls that look like regular async function calls.
 
 Actual service definition (`kid-types/src/rpc.rs`):
+
 ```rust
 #[tarpc::service]
 pub trait TaskService {
@@ -96,7 +98,7 @@ The manual RPC implementation over sockets is error-prone and requires careful f
 
 Use gRPC (tonic framework) which builds on Protocol Buffers and provides generated client/server code with streaming support.
 
-Rejected for several reasons. gRPC is designed for HTTP/2 and network communication, adding overhead for local IPC where Unix Domain Sockets are more efficient. The dependency stack is larger (tonic, prost, h2, hyper) increasing build times and potential version conflicts. 
+Rejected for several reasons. gRPC is designed for HTTP/2 and network communication, adding overhead for local IPC where Unix Domain Sockets are more efficient. The dependency stack is larger (tonic, prost, h2, hyper) increasing build times and potential version conflicts.
 
 Most critically, gRPC integration with Leptos for the browser interface creates unsolvable dependency conflicts. Leptos uses specific versions of wasm-bindgen and wasm-streams for browser compilation. tonic pulls in different versions of these dependencies. When both exist in the same project, the dependency resolver produces conflicts that cannot be resolved without forking dependencies. This makes the development experience fragile.
 

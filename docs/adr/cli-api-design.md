@@ -144,6 +144,7 @@ Rejected: Ambiguous field order. What if priority omitted but context provided? 
 ## Implementation Notes
 
 Clap structure (simplified):
+
 ```rust
 #[derive(Subcommand)]
 enum Commands {
@@ -166,20 +167,25 @@ Schema generation uses `schemars` on the `Details` type, producing a standard JS
 Typical task creation with 3 optional fields:
 
 **This design:**
+
 ```bash
 kid add --summary "Fix leak" --details '{"priority":"A","due_date":{"Guess":"next week"},"context":"Kitchen"}'
 ```
+
 ≈ 24 tokens
 
 **Flag-based alternative:**
+
 ```bash
 kid add --summary "Fix leak" --priority A --due-date "next week" --context "Kitchen"
 ```
+
 ≈ 30 tokens
 
 **~20% token reduction** per creation at scale.
 
 Complete (most frequent):
+
 - This design: `kid complete --id <uuid>` ≈ 8 tokens
 - Unified update approach: `kid update --id <uuid> --details '{"status":"Done"}'` ≈ 14 tokens
 - **~43% reduction**

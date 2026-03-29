@@ -23,11 +23,13 @@ Our Axum application receives only authenticated requests. It never sees the log
 ## Implementation Approach
 
 The deployment uses Podman Quadlet with systemd units:
+
 - Traefik (public-facing, ports 80/443, Docker/Podman labels)
 - Tinyauth (Podman Quadlet container with systemd)
 - kid-server (Podman Quadlet container with systemd, isolated from internet)
 
 Tinyauth configuration:
+
 - Environment variable-based user database (bcrypt hashes)
 - Stateless design: no separate session database needed
 - Session cookies with standard security flags
@@ -35,11 +37,13 @@ Tinyauth configuration:
 - Login page served at dedicated subdomain (e.g., `auth.example.com`)
 
 Access control:
+
 - Protected services (e.g., `tasks.example.com`) require authentication via Traefik middleware
 - Other services can remain publicly accessible (e.g., `www.example.com`)
 - Per-route protection via Traefik labels
 
 User management:
+
 - Users defined via `USERS` environment variable
 - Passwords hashed with bcrypt
 - Simple format: `username:$2a$10$hash`
@@ -202,4 +206,3 @@ Protected services include the authentication middleware in their Traefik config
 Example: A task management interface at `tasks.example.com` requires authentication, while a public homepage at `www.example.com` remains openly accessible.
 
 This demonstrates that the task management system can be securely deployed on public internet infrastructure with minimal operational overhead—appropriate for home lab environments while maintaining production-grade security for protected services.
-

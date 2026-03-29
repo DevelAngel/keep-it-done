@@ -92,37 +92,44 @@ Color is not arbitrary decoration. It reinforces the mental state appropriate fo
 ### Arrow Specifications
 
 **Size:**
+
 - Mobile: 24px (touch target 48×48px minimum)
 - Desktop: 18px (hover target 36×36px minimum)
 
 **Color:**
+
 - Inherits view color (purple for My Day, green for What I Finished, etc.)
 - Base opacity: 80%
 - Active state: 100%
 
 **Position:**
+
 - Left arrow: 20px from left edge
 - Right arrow: 20px from right edge
 - Vertically centered with title text
 
 **States:**
 
-*Default (new user):*
+_Default (new user):_
+
 - Opacity: 80%
 - Always visible
 - Clearly recognizable as interactive buttons
 
-*After habituation (10+ swipes):*
+_After habituation (10+ swipes):_
+
 - Opacity: 40%
 - Static
 - Fade in to 80% on touch/hover
 
-*Expert mode (50+ swipes):*
+_Expert mode (50+ swipes):_
+
 - Opacity: 20%
 - Minimal but always present
 - Full brightness on any interaction
 
-*End of sequence:*
+_End of sequence:_
+
 - Arrow grayed out (50% opacity of base color)
 - Pre-signals no further views available
 - Still responds to interaction with rubber-band
@@ -132,6 +139,7 @@ Color is not arbitrary decoration. It reinforces the mental state appropriate fo
 Essential navigation element showing current position in view sequence and enabling direct jumps.
 
 **Specifications:**
+
 - Size: 8px diameter
 - Spacing: 10px between centers
 - Active dot: Filled with view color
@@ -139,16 +147,19 @@ Essential navigation element showing current position in view sequence and enabl
 - Touch target: 36×36px per dot
 
 **Position:**
+
 - Always visible below title
 - 12px vertical spacing from title
 - Horizontally centered
 
 **Behavior:**
+
 - Static, always present
 - Provide constant orientation
 - Direct tap for random access to any view
 
 **Interaction:**
+
 - Tappable on mobile (generous touch targets)
 - Clickable on desktop
 - Direct jump to corresponding view
@@ -157,16 +168,19 @@ Essential navigation element showing current position in view sequence and enabl
 ### Title Presentation
 
 **Typography:**
+
 - Font size: 24px (mobile), 28px (desktop)
 - Font weight: 600 (semibold)
 - Letter spacing: -0.02em (slight tightening for display text)
 
 **Color:**
+
 - Changes with active view
 - Smooth transition over 300ms
 - Maintains WCAG AA contrast ratio against background
 
 **Touch/Hover State:**
+
 - Scale: 105% (mobile touch), 102% (desktop hover)
 - Transition: 100ms ease-out
 - Cursor: grab (desktop)
@@ -177,22 +191,26 @@ Essential navigation element showing current position in view sequence and enabl
 ### Swipe Gesture
 
 **Activation:**
+
 1. Touch down anywhere in header area (except menu icon)
 2. Horizontal movement > 10px within 100ms = swipe detected
 3. Vertical movement > horizontal = scroll, cancel swipe
 
 **Following:**
+
 - Current view follows finger with 1:1 relationship
 - Next/previous view preview slides in from edge
 - Rubber-band resistance at sequence boundaries (0.3 coefficient)
 
 **Completion:**
+
 - Release with velocity > 0.3 px/ms = commit to next view
 - Release with distance > 30% of screen width = commit
 - Otherwise snap back to current view
 - Threshold calculated in real-time based on gesture velocity and distance
 
 **Edge Cases:**
+
 - At first view, swipe right: rubber-band, snap back
 - At last view, swipe left: rubber-band, snap back
 - Rapid successive swipes: queue transitions, maintain order
@@ -200,15 +218,18 @@ Essential navigation element showing current position in view sequence and enabl
 ### Arrow Button Tap
 
 **Activation:**
+
 - Direct tap/click on arrow button
 - Standard button press behavior
 
 **Behavior:**
+
 - Instant transition to adjacent view (no menu, no intermediary)
 - Same slide animation as swipe gesture
 - Haptic feedback on mobile (light impact)
 
 **Visual Feedback:**
+
 - Arrow scales to 110% on touch down
 - Returns to 100% on touch up
 - Pressed state: 50ms before transition begins
@@ -217,15 +238,18 @@ Essential navigation element showing current position in view sequence and enabl
 ### Page Indicator Tap
 
 **Activation:**
+
 - Direct tap on specific dot
 
 **Behavior:**
+
 - Immediate transition to corresponding view
 - No slide animation if jumping > 1 view
 - Crossfade instead (300ms)
 - Haptic feedback on touch (if available)
 
 **Visual Feedback:**
+
 - Tapped dot grows to 8px for 100ms before transition
 - Other dots remain unchanged
 
@@ -255,25 +279,30 @@ Header background color morphs from outgoing view color to incoming view color o
 ### Touch Feedback
 
 **On Touch Down:**
+
 - Title scales to 105% (mobile) or 102% (desktop)
 - Arrows fade to 100% opacity
 - Duration: 100ms, ease-out
 
 **During Swipe:**
+
 - Views follow finger with spring physics (stiffness: 300, damping: 30)
 - Rubber-band at edges with exponential resistance
 - No haptic feedback during motion (battery consideration)
 
 **On Touch Up:**
+
 - Scale returns to 100%
 - Arrow opacity returns to contextual default
 - Duration: 150ms, ease-in
 
 **On Transition Complete:**
+
 - Single subtle haptic tap (light impact, iOS) or vibration (50ms, Android)
 - Arrows fade to contextual default after 300ms delay
 
 **On Arrow Button Tap:**
+
 - Arrow scales to 110% on touch down
 - Returns to 100% on touch up
 - Haptic feedback on touch up (confirms action)
@@ -284,6 +313,7 @@ Header background color morphs from outgoing view color to incoming view color o
 **Boundary Feedback:**
 
 When attempting to swipe beyond first/last view:
+
 - View moves only 20% of finger distance
 - Resistance increases exponentially
 - On release: spring-back animation (200ms, elastic easing)
@@ -352,6 +382,7 @@ Title is aria-live region. When view changes, screen reader announces: "Now view
 ### Keyboard Navigation
 
 **Tab Order:**
+
 1. Left arrow button
 2. Page indicator 1 (My Day)
 3. Page indicator 2 (What I Finished)
@@ -360,6 +391,7 @@ Title is aria-live region. When view changes, screen reader announces: "Now view
 6. Right arrow button
 
 **Keyboard Shortcuts:**
+
 - Arrow Left/Right: Navigate to adjacent views
 - Numbers 1-4: Jump directly to view by number
 - Home: Jump to first view (My Day)
@@ -368,6 +400,7 @@ Title is aria-live region. When view changes, screen reader announces: "Now view
 ### Reduced Motion
 
 If user has `prefers-reduced-motion` enabled:
+
 - No parallax effect (simple crossfade instead)
 - Transition duration reduced to 150ms
 - No spring physics on swipe follow
@@ -383,6 +416,7 @@ If user has `prefers-reduced-motion` enabled:
 ### Touch Target Sizes
 
 All interactive elements meet WCAG 2.1 Level AAA:
+
 - Minimum 44×44px touch targets on mobile
 - Spacing between targets minimum 8px
 - Entire header area (except menu icon) is swipeable
@@ -392,6 +426,7 @@ All interactive elements meet WCAG 2.1 Level AAA:
 ### State Management
 
 View switching state includes:
+
 - `currentViewIndex`: 0-3
 - `isTransitioning`: boolean
 - `transitionDirection`: 'left' | 'right' | 'none'
@@ -410,6 +445,7 @@ Not in DOM: [View 0]
 ```
 
 When transitioning to View 3:
+
 ```
 Remove View 1 from DOM
 Add View 4 to DOM
@@ -425,16 +461,19 @@ Swipe gesture debounced at 16ms (60fps). Faster updates discarded to prevent jan
 ### Browser Compatibility
 
 **CSS Features:**
+
 - CSS custom properties for color transitions
 - CSS transforms for animations
 - Fallback to instant transition if not supported
 
 **JavaScript Features:**
+
 - Touch events: TouchEvent API
 - Pointer events: PointerEvent API (preferred)
 - Fallback to mouse events on desktop
 
 **Testing Matrix:**
+
 - iOS Safari 14+
 - Chrome Android 90+
 - Firefox Android 90+
@@ -459,6 +498,7 @@ On app return to foreground, verify current view still valid (data may have chan
 ### Testing Scenarios
 
 **New User Flow:**
+
 1. Launch app
 2. See prominent arrows
 3. Tap arrow or swipe
@@ -467,18 +507,21 @@ On app return to foreground, verify current view still valid (data may have chan
 6. Verify page indicators appear briefly
 
 **Expert User Flow:**
+
 1. Quick swipe gesture
 2. View changes immediately
 3. No visual noise from affordances
 4. Muscle memory develops after ~10 uses
 
 **Accessibility Flow:**
+
 1. Navigate with keyboard only
 2. Use screen reader
 3. Verify all views reachable
 4. Verify announcements clear and timely
 
 **Error Handling:**
+
 1. Attempt swipe at boundary
 2. Observe rubber-band resistance
 3. Verify no crash or stuck state
@@ -491,6 +534,7 @@ Users might want to reorder views based on personal workflow. Design accommodate
 
 **Additional Views:**
 If more than 4 views needed:
+
 - Consider categorization (group related views)
 - Horizontal scrolling page indicators
 - Or switch to dropdown-only (no swipe if >6 views)

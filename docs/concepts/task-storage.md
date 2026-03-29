@@ -43,11 +43,11 @@ Each task file is a flat JSON object. The task ID is the filename, not a field i
 ```json
 {
   "summary": "Draft presentation outline for Project X",
-  "status": {"ToDo": {"since": "2024-03-01T10:00:00Z"}},
+  "status": { "ToDo": { "since": "2024-03-01T10:00:00Z" } },
   "priority": "A",
-  "due_date": {"Precise": "2024-03-15T00:00:00Z"},
-  "start_date": {"Guess": "next week"},
-  "time_estimate": {"Guess": "1 hour"},
+  "due_date": { "Precise": "2024-03-15T00:00:00Z" },
+  "start_date": { "Guess": "next week" },
+  "time_estimate": { "Guess": "1 hour" },
   "context": "Work/ProjectX",
   "notes": "Include sections on architecture and timeline"
 }
@@ -55,20 +55,20 @@ Each task file is a flat JSON object. The task ID is the filename, not a field i
 
 ### Field Reference
 
-| Field           | Type                        | Required | Notes                                     |
-|-----------------|-----------------------------|----------|-------------------------------------------|
-| `summary`       | string                      | yes      | Human-readable task description           |
-| `status`        | `ToDo`/`Done` + `since`     | yes      | Timestamp records when status was set     |
-| `priority`      | `"A"` / `"B"` / `"C"`      | no       | Defaults to `C`                           |
-| `due_date`      | `Precise` or `Guess`        | no       | Accepts RFC3339 datetime or free text     |
-| `start_date`    | `Precise` or `Guess`        | no       | Earliest date to start working on task   |
-| `time_estimate` | `Precise` (seconds) or `Guess` | no    | Accepts duration or free text             |
-| `context`       | string                      | no       | Category / project label                  |
-| `notes`         | string                      | no       | Free-form text                            |
+| Field           | Type                           | Required | Notes                                  |
+| --------------- | ------------------------------ | -------- | -------------------------------------- |
+| `summary`       | string                         | yes      | Human-readable task description        |
+| `status`        | `ToDo`/`Done` + `since`        | yes      | Timestamp records when status was set  |
+| `priority`      | `"A"` / `"B"` / `"C"`          | no       | Defaults to `C`                        |
+| `due_date`      | `Precise` or `Guess`           | no       | Accepts RFC3339 datetime or free text  |
+| `start_date`    | `Precise` or `Guess`           | no       | Earliest date to start working on task |
+| `time_estimate` | `Precise` (seconds) or `Guess` | no       | Accepts duration or free text          |
+| `context`       | string                         | no       | Category / project label               |
+| `notes`         | string                         | no       | Free-form text                         |
 
 ### Status Encoding
 
-`status` is an object that captures both the current state and *when it was set*, e.g. `{"ToDo": {"since": "2024-03-01T10:00:00Z"}}` or `{"Done": {"since": "2024-03-10T18:30:00Z"}}`.
+`status` is an object that captures both the current state and _when it was set_, e.g. `{"ToDo": {"since": "2024-03-01T10:00:00Z"}}` or `{"Done": {"since": "2024-03-10T18:30:00Z"}}`.
 
 Only two states exist: `ToDo` and `Done`. There is no "in-progress" state. The `since` field serves as both a creation timestamp (when status is `ToDo` and the task was just created) and a completion timestamp (when status is `Done`).
 
@@ -96,7 +96,7 @@ There are **no derived indexes** (no status index, no context index). Reads iter
 
 ### Dirty Tracking
 
-Mutations are tracked through a companion `IndexSet<Uuid>` called the *change set* (referred to as `dirty` in the code). Rather than writing to disk on every change (write-through), the cache defers I/O:
+Mutations are tracked through a companion `IndexSet<Uuid>` called the _change set_ (referred to as `dirty` in the code). Rather than writing to disk on every change (write-through), the cache defers I/O:
 
 ```
 Mutation path:
@@ -161,6 +161,7 @@ Load failures are non-fatal per file: the server can start with a partial cache 
 For a family managing 1000 tasks, startup takes under a second and memory usage stays under 10 MB. These numbers leave comfortable headroom.
 
 Natural limits:
+
 - Loading thousands of small files at startup becomes slow beyond ~50k tasks.
 - The `IndexMap` grows linearly with task count.
 
