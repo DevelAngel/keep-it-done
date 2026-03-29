@@ -1,7 +1,1 @@
-# Stable options
-print_misformatted_file_names = true
-style_edition = "2024"
 edition = "2024"
-max_width = 100
-hard_tabs = false
-newline_style = "Unix"
