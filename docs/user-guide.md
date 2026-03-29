@@ -18,7 +18,7 @@
    - [Smart Task Breakdown](#smart-task-breakdown)
 6. [Two Ways to Interact](#two-ways-to-interact)
    - [1. Talk to Your AI Assistant (Primary Method)](#1-talk-to-your-ai-assistant-primary-method)
-   - [2. Use the Visual Board (Supporting Method)](#2-use-the-visual-board-supporting-method)
+   - [2. Use the Task List in the Browser (Supporting Method)](#2-use-the-task-list-in-the-browser-supporting-method)
 7. [Real Conversation Examples](#real-conversation-examples)
    - [Quick Task Creation](#quick-task-creation)
    - [Finding Work](#finding-work)
@@ -55,7 +55,7 @@ Families juggle many things: school projects, household chores, home improvement
 
 - Remembering what needs doing
 - Deciding what to work on next
-- Tracking dependencies (task A must finish before task B)
+- Keeping track of what order things need to happen
 - Finding time for different types of work
 
 **The traditional solution**: You manually enter tasks into an app, manually update them, manually search through lists.
@@ -69,7 +69,7 @@ Families juggle many things: school projects, household chores, home improvement
 A simple system running on home hardware that:
 
 - Stores all tasks as organized files
-- Shows tasks on a visual Kanban board in your browser
+- Shows tasks in a mobile-friendly browser list
 - Keeps everything private on your network
 - Provides fast access to task information
 
@@ -107,12 +107,12 @@ An AI assistant (like [clawdbot](https://clawd.bot/)) that:
 **AI Assistant**: "I've created five tasks for your kitchen renovation:
 
 1. Research cabinet options (30 min, Priority B)
-2. Get contractor quotes (2 hours, Priority A) - blocks installation
+2. Get contractor quotes (2 hours, Priority A)
 3. Clear out old cabinets (4 hours, Priority B)
-4. Paint walls (3 hours, Priority B) - requires cabinets cleared
-5. Install new appliances (half day, Priority A) - requires quotes
+4. Paint walls (3 hours, Priority B) - after cabinets are cleared
+5. Install new appliances (half day, Priority A) - after quotes
 
-I've set up dependencies so you won't see 'Install appliances' as actionable until you get quotes. Want me to adjust priorities or add anything?"
+I've noted the order in the task descriptions so we can keep track. Want me to adjust priorities or add anything?"
 
 **Later that week...**
 
@@ -120,9 +120,9 @@ I've set up dependencies so you won't see 'Install appliances' as actionable unt
 
 **AI Assistant**: "Perfect timing! 'Research cabinet options' is exactly 30 minutes. I can suggest some German cabinet manufacturers to look at: Häcker, Nobilia, or Schüller. Want me to add those to the task notes?"
 
-**You**: "Yes, and mark it as in progress."
+**You**: "Yes, do that."
 
-**AI Assistant**: "Done. Task is now in progress with manufacturer names in the notes."
+**AI Assistant**: "Done. Manufacturer names added to the task notes."
 
 ### Example 2: School Project with Smart Assistance
 
@@ -131,10 +131,10 @@ I've set up dependencies so you won't see 'Install appliances' as actionable unt
 **AI Assistant**: "I've created Emma's project with a hard deadline of March 15th. Here's the timeline I suggest:
 
 - Research (March 1-3): 2 hours total
-- Create outline (March 4): 1 hour - requires research complete
-- Design slides (March 5-10): 3 hours - requires outline
-- Practice presentation (March 11-13): 2 hours - requires slides
-- Print handouts (March 14): 15 minutes - requires slides
+- Create outline (March 4): 1 hour - after research
+- Design slides (March 5-10): 3 hours - after outline
+- Practice presentation (March 11-13): 2 hours - after slides
+- Print handouts (March 14): 15 minutes - after slides
 
 This gives her buffer time before the deadline. I've set earlier tasks as target dates to keep her on track. Sound good?"
 
@@ -182,7 +182,7 @@ What's your energy level and available time today?"
 
 **AI Assistant**: "Totally fair. Here are your lighter priority B tasks:
 
-- Paint walls (Kitchen) - 3 hours, but you can't start until cabinets are cleared
+- Paint walls (Kitchen) - 3 hours, best after cabinets are cleared
 - Research cabinet options (Kitchen) - 30 minutes, you can do this now
 - Plan next week's meals - 45 minutes
 
@@ -212,7 +212,7 @@ The AI assistant remembers what you're talking about:
 **You**: "About 2 hours"  
 **AI Assistant**: "Got it. Priority level?"  
 **You**: "Important but not urgent, maybe B"  
-**AI Assistant**: "Done. I've categorized it under Household/Maintenance, 2 hours, priority B. It's in your 'To Do' column."
+**AI Assistant**: "Done. I've categorized it under Household/Maintenance, 2 hours, priority B. It's in your task list."
 
 Later:
 
@@ -224,13 +224,13 @@ Later:
 The AI assistant doesn't just respond to commands. It helps you think:
 
 **When you complete a task:**
-"Great! You finished 'Get contractor quotes.' This unblocks 'Install new appliances.' Want to schedule that now, or wait until you've cleared the cabinets?"
+"Great! You finished 'Get contractor quotes.' That clears the way for 'Install new appliances.' Want to schedule that now, or wait until you've cleared the cabinets?"
 
 **When deadlines approach:**
 "Heads up: Emma's history presentation is due in 5 days. She's completed research and outline, but still needs to design slides and practice. Want to check in with her?"
 
 **When you're stuck:**
-"I notice 'Write quarterly report' has been in progress for a week. Need help breaking it into smaller tasks? Or is something blocking you?"
+"I notice 'Write quarterly report' has been on your list for a week. Need help breaking it into smaller tasks? Or is something blocking you?"
 
 ### Smart Task Breakdown
 
@@ -243,9 +243,9 @@ The AI assistant doesn't just respond to commands. It helps you think:
 **AI Assistant**: "Perfect. I'll create tasks:
 
 1. Sort storage area - decide keep/donate/trash (4 hours)
-2. Organize kept items in storage area with labels (2 hours) - requires sorting complete
+2. Organize kept items in storage area with labels (2 hours) - after sorting
 3. Clear workshop space (2 hours)
-4. Organize tools and supplies (1 hour) - requires space cleared
+4. Organize tools and supplies (1 hour) - after space cleared
 5. Clean recreation area (1 hour)
 
 Five manageable chunks instead of one huge overwhelming task. Start with sorting the storage area?"
@@ -268,36 +268,32 @@ You: clawdbot show me kitchen tasks
 AI: [Lists all kitchen renovation tasks with status]
 
 You: clawdbot what should I work on?
-AI: [Suggests tasks based on priority, time, and dependencies]
+AI: [Suggests tasks based on priority, time, and what logically comes next]
 ```
 
-### 2. Use the Visual Board (Supporting Method)
+### 2. Use the Task List in the Browser (Supporting Method)
 
-Open your browser to see the Kanban board:
+Open your browser to see "My Day" — a scrollable task list optimized for phones and tablets:
 
 ```
-┌──────────────┬──────────────┬──────────────┐
-│   To Do      │ In Progress  │     Done     │
-├──────────────┼──────────────┼──────────────┤
-│              │              │              │
-│ ┌──────────┐ │ ┌──────────┐ │ ┌──────────┐ │
-│ │Research  │ │ │Get       │ │ │Choose    │ │
-│ │cabinets  │ │ │contractor│ │ │paint     │ │
-│ │30 min    │ │ │quotes    │ │ │color     │ │
-│ │Priority B│ │ │2 hours   │ │ │15 min    │ │
-│ └──────────┘ │ └──────────┘ │ └──────────┘ │
-│              │              │              │
-└──────────────┴──────────────┴──────────────┘
+┌────────────────────────────┐
+│  My Day                    │  ← header
+├────────────────────────────┤
+│ ○  Research cabinets       │  ← tap to expand details
+│ ○  Get contractor quotes   │
+│ ●  Choose paint color  ✓   │  ← checked = done
+│    (strikethrough)         │
+└────────────────────────────┘
 ```
 
-The board updates automatically when the AI assistant makes changes. Use it to:
+Tap any task to expand a timeline view with priority, due date, time estimate, context, and notes. The list updates automatically when the AI assistant makes changes. Use it to:
 
-- Get a visual overview of all work
-- Drag tasks between columns manually if you prefer
+- Get a quick overview of open and completed tasks
+- Check off tasks with a tap directly in the browser
 - Share the screen during family planning sessions
-- See the big picture at a glance
+- Read task details without asking the AI
 
-**Key point**: You can use either method. They work on the same task data. Some people prefer talking to the AI assistant, others like the visual board, many use both.
+**Key point**: You can use either method. They work on the same task data. Some people prefer talking to the AI assistant, others like glancing at the browser list, many use both.
 
 ## Real Conversation Examples
 
@@ -326,7 +322,7 @@ The recycling collection is tomorrow, so that's most time-sensitive. Want to sta
 **AI Assistant**: "Birthday party for April 5th - exciting! I'll create tasks with target dates working backward from the party:
 
 - Guest list (March 15): 30 min - do this first
-- Send invitations (March 18): 1 hour - requires guest list
+- Send invitations (March 18): 1 hour - after guest list
 - Order cake (March 29): 30 min
 - Buy decorations (April 2): 1 hour
 - Plan games/activities (April 2): 30 min
@@ -340,11 +336,11 @@ This gives you a 3-week runway. Too aggressive, or does that feel right?"
 
 **You**: "I can't get contractor quotes yet because I don't know what work we want done."
 
-**AI Assistant**: "Good point. Sounds like you need a task before the quotes: 'Define renovation scope - what stays, what goes.' Want me to add that as priority A and make 'Get quotes' depend on it?"
+**AI Assistant**: "Good point. Sounds like you need a task before the quotes: 'Define renovation scope - what stays, what goes.' Want me to add that as priority A and note that quotes come after?"
 
 **You**: "Yes, exactly."
 
-**AI Assistant**: "Done. 'Define renovation scope' is now the first task, and I've blocked 'Get contractor quotes' until that's finished. How long do you think scoping will take?"
+**AI Assistant**: "Done. 'Define renovation scope' is now the first task, with a note that 'Get contractor quotes' follows once scope is clear. How long do you think scoping will take?"
 
 ### Family Coordination
 
@@ -365,25 +361,21 @@ She's ahead on the history project since research is complete. The outline is du
 
 **You**: "Add her task to practice violin 30 minutes daily."
 
-**AI Assistant**: "Should this be one daily recurring task, or separate tasks for each day? Daily recurring would be cleaner."
-
-**You**: "Daily recurring."
-
-**AI Assistant**: "Added recurring task 'Practice violin' - 30 min daily, priority B. It'll show up each day in her task list."
+**AI Assistant**: "Added 'Practice violin' - 30 min, priority B. Want me to create one for each day of the week, or just a single standing reminder you can re-add as needed?"
 
 ## Why This Combination Works
 
 ### The AI Assistant Handles Complexity
 
 - **Remembers context**: You can have ongoing conversations about projects
-- **Suggests next steps**: Knows which tasks are blocked or ready
-- **Answers questions**: "When did I last work on the quarterly report?" "What's blocking the kitchen renovation?"
+- **Suggests next steps**: Knows priorities, deadlines, and what logically comes next
+- **Answers questions**: "What's still open for the kitchen renovation?" "How much is left on the quarterly report?"
 - **Adapts to your style**: Learns how you like to phrase things and what priorities matter to you
 
 ### The Task System Provides Structure
 
 - **Reliable storage**: Tasks don't disappear or get forgotten
-- **Visual overview**: See the whole picture at a glance
+- **Browser list**: See all open and completed tasks at a glance
 - **Family sharing**: Everyone can access the same task data
 - **Privacy**: Task data stays on your home network
 
@@ -412,7 +404,7 @@ She's ahead on the history project since research is complete. The outline is du
 
    ```
    You: Add task to test the system, 5 minutes
-   AI: Added "Test the system" - 5 min, priority B, in your To Do column.
+   AI: Added "Test the system" - 5 min, priority B. It's in your task list.
    ```
 
 3. **Complete it**:
@@ -444,8 +436,6 @@ AI: [Suggests tasks based on deadlines, priorities, and your schedule]
 As you work:
 
 ```
-You: Mark [task] as in progress
-...
 You: I finished [task]
 AI: Great! Moving to Done. [Suggests what to do next]
 ```
@@ -606,7 +596,7 @@ AI: [Shows only your tasks]
 ### Week 3: Advanced Use
 
 - Project planning
-- Dependency management
+- Organizing multi-step projects in order
 - Time-based filtering
 
 ### Week 4: Fluent
