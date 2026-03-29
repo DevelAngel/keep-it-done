@@ -1,47 +1,65 @@
-# ADR: CLI Argument Parsing with clap derive
+---
+status: accepted
+date: 2026-03-29
+---
 
-## Status
+# CLI Argument Parsing with clap derive
 
-Accepted
+## Context and Problem Statement
 
-## Context
+The `kid` CLI requires multiple subcommands, each with distinct arguments. How should argument parsing be implemented to ensure type safety, generate useful help output, and minimize boilerplate as the command set evolves?
 
-The application requires a command-line interface with multiple commands, each having distinct arguments. Users need accessible help texts and version information.
+## Decision Drivers
 
-## Decision
+- Compile-time type safety for parsed arguments
+- Automatic help generation from code
+- Minimal boilerplate as new commands are added
+- Rust-idiomatic approach
 
-Use `clap` with the `derive` feature for CLI parsing.
+## Considered Options
 
-**Key aspects:**
+- clap with derive macros
+- clap builder pattern
+- Manual argument parsing
 
-- Leverage derive macros for declarative argument definitions
-- Structure CLI with multiple subcommands
-- Each command defines its own argument set
-- Include comprehensive help texts
-- Provide version information output
+## Decision Outcome
 
-## Consequences
+Chosen option: "clap with derive macros", because it enforces argument types at compile time, generates help text from doc comments automatically, and maps the command hierarchy onto Rust enums cleanly — all with less boilerplate than the alternatives.
 
-**Positive:**
+### Consequences
 
-- Type-safe argument parsing at compile time
-- Reduced boilerplate compared to builder pattern
-- Automatic help generation from doc comments
-- Built-in version flag support
-- Clear command structure through Rust enums
+- Good, because argument types are enforced at compile time
+- Good, because help text is generated from doc comments automatically
+- Good, because subcommands map naturally to Rust enum variants
+- Good, because version flags work out of the box
+- Bad, because proc macros add a small compile-time overhead
+- Bad, because the `derive` feature must be explicitly enabled
 
-**Negative:**
+## Pros and Cons of the Options
 
-- Requires `derive` feature dependency
-- Slightly increased compile times due to proc macros
-- Learning curve for derive macro attributes
+### clap with derive macros
 
-## Alternatives Considered
+Subcommands are Rust enum variants annotated with `#[derive(Subcommand)]`. Each variant holds its own typed fields as named struct members.
 
-- `clap` builder pattern: More verbose, runtime configuration
-- `structopt`: Deprecated, merged into clap v3+
-- Manual parsing: Error-prone, no validation
+- Good, because argument definitions live with the types — declarative and co-located
+- Good, because renaming or removing arguments is caught by the compiler
+- Bad, because derive macro attribute syntax has a learning curve
 
-## Implementation Notes
+### clap builder pattern
 
-Subcommands are defined as Rust enum variants annotated with `#[derive(Subcommand)]`. Each variant holds its own typed fields as named struct members. The top-level `Cli` struct uses `#[command(subcommand)]` to delegate dispatch to the enum.
+Runtime configuration of commands and arguments using a fluent API.
+
+- Good, because no proc macro dependency
+- Bad, because more verbose — each argument requires explicit builder calls
+- Bad, because argument types are not enforced at compile time
+
+### Manual argument parsing
+
+Inspect `std::env::args()` directly.
+
+- Bad, because no validation, no automatic help output
+- Bad, because error-prone and requires manual maintenance
+
+## More Information
+
+Subcommands are defined as Rust enum variants annotated with `#[derive(Subcommand)]`. The top-level `Cli` struct uses `#[command(subcommand)]` to delegate dispatch to the enum. See `kid-cli/src/cli.rs` for the full definition.

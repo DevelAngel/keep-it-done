@@ -1,116 +1,112 @@
-# ADR: File-Based Task Storage with Complete In-Memory Caching
+---
+status: accepted
+date: 2026-03-29
+---
 
-## Status
+# File-Based Task Storage with Complete In-Memory Caching
 
-Accepted
+## Context and Problem Statement
 
-## Context
+A family task management system needs a persistence strategy for task cards. The target is 2–4 users managing up to a few hundred tasks. How should tasks be stored and served to meet instant read performance, simple deployment, and data integrity requirements — without database infrastructure?
 
-We need a persistence strategy for task cards in a family task management system. The system displays tasks as a mobile-first task list and supports category filtering. The target audience is families with up to four users. A key requirement is simple deployment without database infrastructure.
+## Decision Drivers
 
-Tasks contain multiple properties: summary, due date, start date, time estimate, priority, context, status, and notes. The system must efficiently support queries like "show all open tasks" or "show all tasks in the 'Work' category."
+- Zero-infrastructure deployment — no database installation required
+- Instant read performance for task list display
+- Human-readable, debuggable data format
+- Data integrity under concurrent access from a single process
+- Simple backup and recovery story
 
-## Decision
+## Considered Options
 
-We will store tasks as individual JSON files in a flat directory structure and maintain a complete in-memory cache of all tasks with all properties and derived indexes for common queries.
+- Individual JSON files with complete in-memory cache
+- SQLite database
+- Single JSON file containing all tasks
+- Category-based subdirectory structure
+- Split-file approach (summary + details per task)
+- Key-value store (Valkey/Redis)
+- Cloud storage (Firebase, Supabase)
 
-Storage implementation details:
+## Decision Outcome
 
-- Each task exists in one file: `tasks/task-{uuid}.json` (UUID v7, simple encoding)
-- The task ID is the filename — it is not stored inside the JSON document
-- All task properties live in a single JSON document
-- No splitting of task data across multiple files
-- Flat directory structure instead of category-based subdirectories
+Chosen option: "Individual JSON files with complete in-memory cache", because it provides instant reads (no disk I/O after startup), eliminates database infrastructure, and keeps task data in a human-readable format that any backup tool understands.
 
-Cache implementation details:
+Storage layout:
 
-- Full task dataset including all properties loaded into memory at startup
-- In-memory `IndexMap<Uuid, Task>` (insertion-ordered, fast `ahash` hashing)
-- No derived indexes — reads iterate the map directly (fast enough at family scale)
-- Deferred flush: mutations mark UUIDs in a dirty set; a background task flushes every 60 s
-- Final flush on graceful shutdown to prevent data loss
-- Atomic file writes using temp file + rename pattern
+- One file per task: `tasks/task-{uuid-v7}.json`
+- The task ID is the filename — not stored inside the JSON
+- Flat directory — no category subdirectories
 
-## Consequences
+Cache implementation:
 
-### Positive
+- Full dataset loaded into `IndexMap<Uuid, Task>` at startup (insertion-ordered, `ahash`)
+- No derived indexes — direct iteration is fast enough at family scale
+- Writes mark UUIDs in a dirty `IndexSet`; a background task flushes every 60 s
+- Final flush on graceful shutdown
+- Atomic writes via temp file + rename
 
-The deployment story becomes extremely simple. Users can run the application anywhere without installing databases. The entire task dataset fits in a single directory that any backup tool understands.
+### Consequences
 
-Read performance is excellent. Displaying the task list or filtering by category requires no disk I/O. The UI responds instantly because all queries hit memory. Opening task details for editing or viewing notes happens with zero latency since all data is already loaded.
+- Good, because deployment requires only a directory — no setup, no migrations
+- Good, because all reads are in-memory — instant response, no I/O on hot path
+- Good, because one-file-per-task makes individual writes atomic and isolated
+- Good, because task files are human-readable JSON — inspectable, editable, versionable with Git
+- Good, because deferred flush decouples write latency from disk I/O
+- Bad, because startup time grows with task count (reading many small files) — acceptable at family scale, not for large deployments
+- Bad, because memory usage grows with task count — negligible at family scale (~1–3 KB per task)
+- Bad, because concurrent writes from multiple application instances are not supported — the single server process owns all writes via `Arc<RwLock<TaskCache>>`
 
-Development complexity stays low. No ORM, no migration scripts, no database connection pooling. Reading and writing JSON files is straightforward in any programming language. The single-file-per-task design eliminates synchronization concerns between related data.
+## Pros and Cons of the Options
 
-Data remains human-readable and debuggable. Users can inspect task files directly, edit them in emergencies, or process them with standard text tools.
+### Individual JSON files with complete in-memory cache
 
-Version control integration works naturally. Teams or families who want task history can simply commit the tasks directory to Git.
-
-Atomic operations are straightforward. Each task file update is a single atomic rename operation, preventing partial writes or corrupted states.
-
-### Negative
-
-Startup time depends on task count. Reading hundreds of small files takes measurable time. For the target scale (families), this remains under a second, but the architecture would not scale to thousands of users.
-
-Memory usage grows with task count. Each task consumes a few kilobytes in memory. Again, acceptable for families but limiting for larger deployments. At family scale (100-200 active tasks), total memory consumption stays well under 1 MB, which is negligible.
-
-Concurrent writes from multiple application instances are not supported. The single server process serializes all writes via `Arc<RwLock<TaskCache>>`. Running multiple instances would cause conflicting writes to the filesystem without coordination.
-
-Search performance will degrade as task count grows if we implement full-text search later. The in-memory approach enables only simple indexed lookups. Complex queries might require scanning all tasks.
-
-No built-in query language exists. Advanced filtering beyond status and category requires custom code. A database would provide SQL or similar query capabilities.
-
-### Mitigations
-
-To address startup time, we can implement lazy loading if needed. Load only active tasks initially and fetch archived tasks on demand.
-
-For memory concerns, we can add task archiving. Move completed tasks older than 90 days to an archive directory that does not load at startup.
-
-If multiple instances become necessary, a coordination layer (e.g. a shared lock file, or switching to SQLite with WAL mode) would be required. This adds complexity but remains simpler than full database deployment.
-
-For search, we can add a separate search index file that builds incrementally. This trades some simplicity for search speed if the feature becomes important.
-
-## Alternatives Considered
+- Good, because zero infrastructure — copy binary and run
+- Good, because each task file is independently atomic
+- Good, because human-readable and Git-friendly
+- Neutral, because startup reads all files once — O(n) in task count, fast at family scale
+- Bad, because not suitable for large deployments or full-text search at scale
 
 ### SQLite database
 
-Would provide proper querying and transaction support. Rejected because it adds deployment complexity (file permissions, location management) and requires migration tooling for schema changes. The query power is not needed for simple task list display and category filtering.
+- Good, because proper query language and transaction support
+- Good, because single-file database is still simple to back up
+- Bad, because requires migration tooling for schema changes
+- Bad, because no advantage over file-per-task for the queries actually needed (list all, filter by category)
 
-### Single JSON file with all tasks
+### Single JSON file containing all tasks
 
-Simpler to load but problematic for concurrent access. Two users updating different tasks would conflict. File corruption risk increases because every write touches the entire dataset. Rejected due to fragility.
+- Good, because trivial to load
+- Bad, because concurrent writes from two users conflict on the same file
+- Bad, because any partial write corrupts the entire dataset
 
-### Category-based subdirectories
+### Category-based subdirectory structure
 
-Structure like `tasks/{category}/{task-id}.json` would make browsing by category easier but complicates category changes. Moving files between directories is more complex than updating a property. Rejected because filtering in-memory is already fast.
+- Neutral, because makes browsing by category possible without the app
+- Bad, because moving a task to a different category requires a filesystem rename
+- Bad, because in-memory filtering is already instant — no benefit at family scale
 
-### Split-file approach with summary and details
+### Split-file approach (summary + details per task)
 
-We considered storing tasks as two files per task: `tasks/{task-id}.summary.json` containing board-relevant properties (action, status, priority, due date) and `tasks/{task-id}.details.json` containing supplementary information (notes, detailed dependencies, timestamps). The cache would load all summaries but only recently accessed details in a ring buffer.
-
-This approach was rejected for several reasons. First, synchronization between two files becomes complex when updates can affect both files. Second, the boundary between summary and details is not clear-cut. Dependencies seem like details but are needed for detecting unblocked tasks. Time estimates might display on board cards, making them summary data.
-
-Third, and most critically, the memory savings are negligible. A complete task with all properties occupies two to three kilobytes. Even a thousand tasks consume only two to three megabytes. For a family with a hundred tasks, we are discussing 200 to 300 kilobytes, which is meaningless on modern hardware. The complexity cost of managing two files, implementing lazy loading, and handling cache misses far outweighs any theoretical benefit.
-
-Fourth, startup performance would likely degrade rather than improve. Reading 200 small files (two per task) introduces more filesystem overhead than reading 100 slightly larger files.
-
-### Separate notes files
-
-We considered extracting notes into separate files since note length varies significantly. Some tasks have no notes, others have several sentences or pasted messages. However, typical notes contain 200 to 400 characters, roughly 0.5 to 1 kilobyte in JSON.
-
-Even if every task has maximum-length notes, a hundred tasks contribute only 100 kilobytes to the cache. This is not a meaningful amount of data. The complexity of managing separate note files, handling lazy loading when users open task details, and synchronizing note updates with task updates does not justify the negligible memory savings.
-
-Additionally, separating notes would introduce latency when users open task details. All data in memory means instant response. Requiring a file read for notes creates a small but perceptible delay and necessitates loading indicators in the UI.
+- Neutral, because reduces per-read data if details are rarely needed
+- Bad, because synchronization between two files is complex when updates can affect both
+- Bad, because the boundary between summary and details is ambiguous
+- Bad, because memory savings are negligible — a full task is 2–3 KB; 200 tasks = 400–600 KB
 
 ### Key-value store (Valkey/Redis)
 
-Explicitly ruled out by requirements. Would provide excellent performance but requires infrastructure setup.
+- Good, because excellent read/write performance
+- Bad, because requires infrastructure setup — explicitly out of scope
 
 ### Cloud storage (Firebase, Supabase)
 
-Provides synchronization across devices but requires internet connectivity and account setup. Conflicts with the simple deployment goal. Suitable for a future enhancement but not the base implementation.
+- Good, because built-in multi-device sync
+- Bad, because requires internet connectivity and cloud account
+- Bad, because conflicts with the privacy-first, local-only deployment goal
 
-## Implementation Notes
+## More Information
 
-The single-file design with complete caching prioritizes simplicity and performance at the target scale. For family usage with compact task records, loading everything into memory eliminates complexity and provides instant UI response with negligible resource cost.
+The single-server-process constraint means `Arc<RwLock<TaskCache>>` is the only concurrency mechanism needed. All RPC and HTTP handlers share the same cache instance. If multiple instances become necessary later, a coordination layer (shared lock file or SQLite WAL mode) would be required.
 
-If the system later needs to support significantly larger deployments or tasks with substantial attachments, the architecture can be revisited. But for the defined use case, optimizing for problems that cannot occur at this scale would be premature optimization with real complexity costs.
+The deferred flush strategy accepts a window of potential data loss (up to 60 s) in exchange for decoupled write latency. The final flush on graceful shutdown closes this window for normal shutdowns. Abnormal termination (kill -9, power loss) can lose up to 60 s of mutations — acceptable for a family task list.
+
+See `kid-types/src/server.rs` for `TaskCache` and `TaskMutGuard`, and `kid-server/src/cache.rs` for the background flush loop.

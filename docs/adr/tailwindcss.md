@@ -1,66 +1,36 @@
-# ADR: Tailwind CSS for Browser UI Styling
+---
+status: accepted
+date: 2026-03-29
+---
 
-## Status
+# Tailwind CSS for Browser UI Styling
 
-Accepted
+## Context and Problem Statement
 
-## Context
+The browser interface needs CSS styling for the task list, task cards, and UI components. The system uses Leptos for the frontend with an SSR/hydration workflow. How should styling be implemented to enable fast iteration, avoid build tool complexity, and integrate cleanly with `cargo-leptos`?
 
-The browser interface requires CSS styling for the task list, task cards, and UI components. The interface serves families who need a clean, intuitive visual experience without complexity. The system uses Leptos for the frontend with SSR/hydration workflow.
+## Decision Drivers
 
-Key requirements:
+- No separate CSS build process — single command builds everything
+- Fast development iteration without context switching to separate CSS files
+- Minimal production bundle size
+- Consistent visual language without a hand-crafted design system
+- Responsive design for mobile and desktop
 
-- Fast development iteration
-- Maintainable styling as features grow
-- No complex build toolchain
-- Integration with Leptos SSR workflow
-- Responsive design for desktop and mobile
-- Consistent visual language
+## Considered Options
 
-## Decision
+- Tailwind CSS
+- Plain CSS
+- CSS-in-Rust (stylers, styled)
+- Component libraries (Leptos UI, Yew UI)
+- Bootstrap or Bulma
+- No styling framework (inline styles)
 
-We will use Tailwind CSS as the primary styling solution, integrated directly into the Leptos build process via `cargo-leptos`.
+## Decision Outcome
 
-Implementation details:
+Chosen option: "Tailwind CSS", because `cargo-leptos` handles Tailwind compilation automatically — no separate `npx tailwindcss` process, no extra watch command. JIT compilation produces a minimal bundle. Utility classes applied directly in Leptos view macros keep styling co-located with markup.
 
-- Tailwind CSS v4 with **CSS-first configuration** (`style/tailwind.css` contains `@import 'tailwindcss'`)
-- No `tailwind.config.js` — custom design tokens are defined via `@theme` blocks in CSS
-- No separate Tailwind CLI process needed
-- `cargo leptos build` handles CSS compilation automatically
-- Utility-first classes applied directly in Leptos view macros
-- JIT compilation for minimal CSS bundle size
-
-## Consequences
-
-### Positive
-
-**Zero Build Tool Complexity**
-
-Leptos's `cargo-leptos` handles Tailwind compilation automatically. No need to run separate `npx tailwindcss` commands, configure watch processes, or coordinate multiple build tools. Single command: `cargo leptos build`.
-
-**Fast Development Iteration**
-
-Utility classes enable rapid UI prototyping without context switching between Rust and CSS files. Change `class="bg-blue-500"` to `class="bg-green-500"` directly in the view macro.
-
-**Minimal CSS Bundle**
-
-JIT compilation includes only classes actually used in the codebase. A typical task list UI compiles to 5-10KB of CSS instead of megabytes. Critical for instant page loads on family home networks.
-
-**No CSS Naming Conflicts**
-
-Utility classes eliminate the need for naming conventions like BEM or CSS modules. No cognitive overhead deciding whether a class should be `.task-card__title` or `.card-title`.
-
-**Responsive Design Built-In**
-
-Breakpoint prefixes (`md:`, `lg:`) make responsive layouts trivial. No media query boilerplate. Example: `class="px-4 md:px-6"` adjusts padding for larger screens without a media query.
-
-**Consistent Visual Language**
-
-Tailwind's design system (spacing scale, color palette, typography) ensures consistency across components without explicit style guides. `p-4` always means 1rem padding.
-
-**Easy Customization**
-
-Define family-specific design tokens in `style/tailwind.css` once (Tailwind v4 CSS-first syntax):
+Configuration: Tailwind v4 CSS-first — custom tokens in `style/tailwind.css` via `@theme`, no `tailwind.config.js`:
 
 ```css
 @import "tailwindcss";
@@ -72,113 +42,70 @@ Define family-specific design tokens in `style/tailwind.css` once (Tailwind v4 C
 }
 ```
 
-Then use `bg-task-priority-high` throughout the app.
+### Consequences
 
-**Type Safety with Leptos**
+- Good, because `cargo leptos build` handles Tailwind — no separate tool to install or run
+- Good, because utility classes enable rapid prototyping directly in view macros
+- Good, because JIT produces 5–10 KB CSS for the task list UI (instead of megabytes)
+- Good, because Tailwind's spacing/color scale ensures consistency without an explicit design system
+- Good, because `md:` / `lg:` breakpoint prefixes make responsive layouts trivial
+- Bad, because Tailwind class names are plain strings — typos (`bg-bleu-500`) produce no error, just no styling (mitigated by Tailwind IntelliSense)
+- Bad, because complex components accumulate long class strings (mitigated by extracting Leptos components)
 
-Tailwind classes are plain strings in Rust, but Leptos's compile-time view macro catches syntax errors. Typos in class names fail compilation, not at runtime.
+## Pros and Cons of the Options
 
-### Negative
+### Tailwind CSS
 
-**String-Based Classes**
+- Good, because integrated into `cargo-leptos` — zero additional tooling
+- Good, because JIT ensures unused classes are never shipped
+- Good, because v4 CSS-first configuration removes `tailwind.config.js`
+- Bad, because no compile-time validation of class names
 
-No compile-time validation of Tailwind class names themselves. Typing `bg-bleu-500` instead of `bg-blue-500` silently produces no styling. Mitigated by Tailwind VSCode extension with IntelliSense.
+### Plain CSS
 
-**Verbose Class Strings**
+- Neutral, because full control over styles
+- Bad, because separate files to manage and keep in sync
+- Bad, because no automatic purging of unused styles
+- Bad, because naming conventions (BEM, etc.) required to avoid conflicts
 
-Complex components can accumulate long class strings, reducing readability. Mitigated by extracting reusable components or using Leptos's `class:` directive for conditional classes.
+### CSS-in-Rust (stylers, styled)
 
-**Learning Curve for CSS Experts**
+- Neutral, because Rust-native approach
+- Bad, because smaller ecosystem, less documentation
+- Bad, because no clear advantage over Tailwind for this use case
 
-Developers comfortable with traditional CSS must learn Tailwind's utility class naming. However, for a family-scale project with occasional contributions, utility classes are easier to grasp than custom CSS architectures.
+### Component libraries (Leptos UI, Yew UI)
 
-**Initial Configuration**
+- Good, because pre-built components
+- Bad, because overkill for a simple task list
+- Bad, because harder to customize for specific design tokens
+- Bad, because adds dependency weight
 
-Requires `style/tailwind.css` with `@import 'tailwindcss'` and `cargo-leptos` configured with `tailwind-input-file`. One-time setup cost, documented in project README.
+### Bootstrap or Bulma
 
-### Mitigations
+- Good, because widely known, extensive documentation
+- Bad, because larger bundle sizes even with tree-shaking
+- Bad, because opinionated component designs conflict with the app's custom gradient theme
 
-For verbose classes, extract common patterns into Leptos components that encapsulate the class string once and reuse it everywhere.
+### No styling framework
 
-For class name validation, use Tailwind IntelliSense in VSCode/IDE.
+- Good, because zero dependencies
+- Bad, because inconsistent spacing and colors without a design system
+- Bad, because responsive layouts require manual media queries
 
-For conditional styling, leverage Leptos's `class:` directive:
+## More Information
+
+Tailwind integrates with the Leptos SSR workflow in three steps:
+
+1. **Development**: `cargo leptos watch` recompiles Tailwind on file changes
+2. **Production**: `cargo leptos build --release` generates the optimized CSS bundle
+3. **Hydration**: CSS loads before WASM, preventing flash of unstyled content
+
+The CSS bundle is served from `/pkg/` as a static asset, cacheable by browsers. The `tailwind-input-file` key in `Cargo.toml` (under `[package.metadata.leptos]`) points `cargo-leptos` to `style/tailwind.css`.
+
+For conditional class application, use Leptos's `class:` directive:
 
 ```rust
 <div class:bg-green-100={task.is_done()}
      class:bg-gray-100={!task.is_done()}>
 ```
-
-## Alternatives Considered
-
-### Plain CSS
-
-Traditional approach with custom stylesheets. Rejected for several reasons:
-
-- Requires managing separate CSS files
-- No automatic purging of unused styles
-- Naming conventions needed to avoid conflicts
-- Harder to maintain as features grow
-- Slower development iteration
-
-### CSS-in-Rust (stylers, styled)
-
-Rust crates that generate CSS from Rust code. Rejected because:
-
-- Smaller ecosystem compared to Tailwind
-- Less documentation and community support
-- Still requires learning crate-specific APIs
-- No clear advantage over Tailwind for this use case
-
-### Component Libraries (Leptos UI, Yew UI)
-
-Pre-built component libraries with styling included. Rejected because:
-
-- Overkill for a simple task list
-- Harder to customize for family-specific needs
-- Adds dependency weight
-- Tailwind provides same consistency with more flexibility
-
-### Bootstrap or Bulma
-
-CSS frameworks with pre-designed components. Rejected because:
-
-- Larger bundle sizes (even with tree-shaking)
-- Less customization flexibility
-- Opinionated component designs may not fit family aesthetic
-- Tailwind's utility-first approach more aligned with Leptos's component model
-
-### No Styling Framework
-
-Inline styles or minimal custom CSS. Rejected because:
-
-- Inconsistent spacing and colors without design system
-- Harder to maintain responsive layouts
-- No automatic optimization
-- Slower development for UI features
-
-## Implementation Notes
-
-Tailwind integrates seamlessly with Leptos's SSR workflow:
-
-1. **Development**: `cargo leptos watch` compiles Tailwind on file changes
-2. **Production**: `cargo leptos build --release` generates optimized CSS bundle
-3. **Hydration**: CSS loads before WASM, preventing flash of unstyled content
-
-The CSS bundle is served as a static asset from `/pkg/`, cacheable by browsers.
-
-For the family scale (single-digit concurrent users), even non-optimized CSS loads instantly. JIT compilation ensures production builds stay minimal.
-
-Configuration example (Tailwind v4 CSS-first):
-
-```css
-/* style/tailwind.css */
-@import "tailwindcss";
-
-@theme {
-  --color-status-todo: #f3f4f6;
-  --color-status-done: #d1fae5;
-}
-```
-
-No separate CSS files, no naming conflicts, instant styling.
