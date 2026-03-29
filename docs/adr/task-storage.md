@@ -2,13 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
 We need a persistence strategy for task cards in a family task management system. The system displays tasks on Kanban boards and supports category filtering. The target audience is families with up to four users. A key requirement is simple deployment without database infrastructure.
 
-Tasks contain multiple properties: action description, due date, time estimate, priority, context, status, dependencies, and notes. The system must efficiently support queries like "show all tasks in the 'todo' column" or "show all tasks in the 'Work' category."
+Tasks contain multiple properties: summary, due date, start date, time estimate, priority, context, status, and notes. The system must efficiently support queries like "show all open tasks" or "show all tasks in the 'Work' category."
 
 ## Decision
 
@@ -16,7 +16,8 @@ We will store tasks as individual JSON files in a flat directory structure and m
 
 Storage implementation details:
 
-- Each task exists in one file: `tasks/{task-id}.json`
+- Each task exists in one file: `tasks/task-{uuid}.json` (UUID v7, simple encoding)
+- The task ID is the filename — it is not stored inside the JSON document
 - All task properties live in a single JSON document
 - No splitting of task data across multiple files
 - Flat directory structure instead of category-based subdirectories
@@ -24,10 +25,11 @@ Storage implementation details:
 Cache implementation details:
 
 - Full task dataset including all properties loaded into memory at startup
-- In-memory map from task ID to complete task object
-- Derived indexes for status (Kanban columns) and context (categories)
-- Write-through caching: updates go to memory and disk simultaneously
-- Atomic file writes using temp file and rename pattern
+- In-memory `IndexMap<Uuid, Task>` (insertion-ordered, fast `ahash` hashing)
+- No derived indexes — reads iterate the map directly (fast enough at family scale)
+- Deferred flush: mutations mark UUIDs in a dirty set; a background task flushes every 60 s
+- Final flush on graceful shutdown to prevent data loss
+- Atomic file writes using temp file + rename pattern
 
 ## Consequences
 
@@ -51,7 +53,7 @@ Startup time depends on task count. Reading hundreds of small files takes measur
 
 Memory usage grows with task count. Each task consumes a few kilobytes in memory. Again, acceptable for families but limiting for larger deployments. At family scale (100-200 active tasks), total memory consumption stays well under 1 MB, which is negligible.
 
-Concurrent writes from multiple application instances require external coordination. The optimistic concurrency approach (checking modification times) works for rare conflicts but does not prevent them. Running multiple instances would need file watchers or explicit reload triggers.
+Concurrent writes from multiple application instances are not supported. The single server process serializes all writes via `Arc<RwLock<TaskCache>>`. Running multiple instances would cause conflicting writes to the filesystem without coordination.
 
 Search performance will degrade as task count grows if we implement full-text search later. The in-memory approach enables only simple indexed lookups. Complex queries might require scanning all tasks.
 
@@ -63,7 +65,7 @@ To address startup time, we can implement lazy loading if needed. Load only acti
 
 For memory concerns, we can add task archiving. Move completed tasks older than 90 days to an archive directory that does not load at startup.
 
-If multiple instances become necessary, we can add a simple file watcher that reloads tasks when external changes are detected. This adds complexity but remains simpler than database deployment.
+If multiple instances become necessary, a coordination layer (e.g. a shared lock file, or switching to SQLite with WAL mode) would be required. This adds complexity but remains simpler than full database deployment.
 
 For search, we can add a separate search index file that builds incrementally. This trades some simplicity for search speed if the feature becomes important.
 

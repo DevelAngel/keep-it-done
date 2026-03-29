@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -22,11 +22,11 @@ We will use Tailwind CSS as the primary styling solution, integrated directly in
 
 Implementation details:
 
-- Tailwind CSS configured through `tailwind.config.js`
+- Tailwind CSS v4 with **CSS-first configuration** (`style/tailwind.css` contains `@import 'tailwindcss'`)
+- No `tailwind.config.js` — custom design tokens are defined via `@theme` blocks in CSS
 - No separate Tailwind CLI process needed
 - `cargo leptos build` handles CSS compilation automatically
 - Utility-first classes applied directly in Leptos view macros
-- Custom design tokens defined in Tailwind config
 - JIT compilation for minimal CSS bundle size
 
 ## Consequences
@@ -59,16 +59,14 @@ Tailwind's design system (spacing scale, color palette, typography) ensures cons
 
 **Easy Customization**
 
-Define family-specific design tokens in `tailwind.config.js` once:
-```javascript
-theme: {
-  extend: {
-    colors: {
-      'task-priority-high': '#ef4444',
-      'task-priority-medium': '#f59e0b',
-      'task-priority-low': '#10b981'
-    }
-  }
+Define family-specific design tokens in `style/tailwind.css` once (Tailwind v4 CSS-first syntax):
+```css
+@import 'tailwindcss';
+
+@theme {
+  --color-task-priority-high: #ef4444;
+  --color-task-priority-medium: #f59e0b;
+  --color-task-priority-low: #10b981;
 }
 ```
 Then use `bg-task-priority-high` throughout the app.
@@ -97,7 +95,7 @@ Developers comfortable with traditional CSS must learn Tailwind's utility class 
 
 **Initial Configuration**
 
-Requires `tailwind.config.js` and ensuring `cargo-leptos` is properly configured. One-time setup cost, documented in project README.
+Requires `style/tailwind.css` with `@import 'tailwindcss'` and `cargo-leptos` configured with `tailwind-input-file`. One-time setup cost, documented in project README.
 
 ### Mitigations
 
@@ -117,8 +115,8 @@ For class name validation, use Tailwind IntelliSense in VSCode/IDE.
 
 For conditional styling, leverage Leptos's `class:` directive:
 ```rust
-<div class:bg-green-100={task.status == "done"}
-     class:bg-yellow-100={task.status == "in_progress"}>
+<div class:bg-green-100={task.is_done()}
+     class:bg-gray-100={!task.is_done()}>
 ```
 
 ## Alternatives Considered
@@ -176,20 +174,14 @@ The CSS bundle is served as a static asset from `/pkg/`, cacheable by browsers.
 
 For the family scale (single-digit concurrent users), even non-optimized CSS loads instantly. JIT compilation ensures production builds stay minimal.
 
-Configuration example:
-```javascript
-// tailwind.config.js
-module.exports = {
-  content: ["./src/**/*.rs"],
-  theme: {
-    extend: {
-      colors: {
-        'kanban-todo': '#f3f4f6',
-        'kanban-progress': '#fef3c7',
-        'kanban-done': '#d1fae5'
-      }
-    }
-  }
+Configuration example (Tailwind v4 CSS-first):
+```css
+/* style/tailwind.css */
+@import 'tailwindcss';
+
+@theme {
+  --color-status-todo: #f3f4f6;
+  --color-status-done: #d1fae5;
 }
 ```
 

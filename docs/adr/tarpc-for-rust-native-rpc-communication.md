@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -13,8 +13,7 @@ Initial exploration considered Protocol Buffers with manual IPC implementation o
 The core requirements for the RPC layer are:
 - Type-safe communication between CLI and server
 - Compile-time verification that both sides agree on interface
-- Efficient binary serialization for local IPC
-- Support for Unix Domain Sockets as transport
+- Support for TCP transport (enables SSH tunnelling and flexible deployment)
 - Minimal external dependencies and tooling
 - Idiomatic Rust on both client and server
 
@@ -22,20 +21,22 @@ The core requirements for the RPC layer are:
 
 We will use tarpc (https://github.com/google/tarpc) for RPC communication between CLI and server. tarpc is a Rust-native RPC framework that defines service interfaces directly in Rust code using procedural macros. The service definition is a Rust trait annotated with `#[tarpc::service]`, and tarpc generates client and server code automatically at compile time.
 
-The RPC service interface will be defined in the `task-types` crate as a trait. Both server and CLI depend on this crate. The server implements the trait methods with actual business logic. The CLI uses the tarpc-generated client to make remote calls that look like regular async function calls.
+The RPC service interface is defined in the `kid-types` crate as a trait. Both server and CLI depend on this crate. The server implements the trait methods with actual business logic. The CLI uses the tarpc-generated client to make remote calls that look like regular async function calls.
 
-Example service definition:
+Actual service definition (`kid-types/src/rpc.rs`):
 ```rust
 #[tarpc::service]
 pub trait TaskService {
-    async fn list_tasks(filter: Option<TaskFilter>) -> Vec<Task>;
-    async fn create_task(action: String, status: TaskStatus) -> Result<Task, TaskError>;
-    async fn update_task(id: String, updates: TaskUpdate) -> Result<Task, TaskError>;
-    async fn delete_task(id: String) -> Result<(), TaskError>;
+    async fn list() -> Vec<(Uuid, Task)>;
+    async fn add(task: Task);
+    async fn rename(id: Uuid, summary: String);
+    async fn replace(id: Uuid, details: TaskDetails);
+    async fn update(id: Uuid, details: TaskDetailsPatch);
+    async fn complete(id: Uuid, reopen: bool);
 }
 ```
 
-tarpc will handle serialization using serde with bincode (efficient binary format) by default. The transport will be Unix Domain Sockets for maximum performance on local IPC. tarpc provides built-in support for this through its transport abstraction layer.
+tarpc handles serialization using **JSON** (`tokio_serde::formats::Json`) over **TCP**. The default listen address is `127.0.0.1:9000`, configurable via `--listen`. TCP was chosen over Unix Domain Sockets to support SSH tunnelling and remote access without additional proxying.
 
 ## Consequences
 
@@ -53,9 +54,9 @@ tarpc will handle serialization using serde with bincode (efficient binary forma
 
 **Async/await native support**: tarpc is built on tokio and uses async/await throughout. Service methods are async functions that integrate seamlessly with the server's async runtime. This matches the idiomatic Rust async ecosystem and allows natural composition of async operations within RPC handlers.
 
-**Flexible serialization**: While tarpc defaults to bincode, it can be configured to use JSON, MessagePack, or custom serialization formats. This flexibility allows optimization for different trade-offs (human readability vs binary efficiency) without changing the service interface.
+**Flexible serialization**: tarpc supports JSON, bincode, MessagePack, or custom formats. We use JSON for human-readable wire traffic and easier debugging; switching to bincode later for performance would not require changing the service interface.
 
-**Transport abstraction**: tarpc supports multiple transports through a trait-based abstraction. Unix Domain Sockets work for local IPC, but if we later need TCP for remote access or in-process channels for testing, the service definition remains unchanged. Only the transport configuration changes.
+**Transport abstraction**: tarpc supports multiple transports through a trait-based abstraction. We use TCP, which enables both local and remote (SSH-tunnelled) access. Switching to Unix Domain Sockets or in-process channels for testing leaves the service definition unchanged.
 
 ### Negative
 
@@ -73,7 +74,7 @@ tarpc will handle serialization using serde with bincode (efficient binary forma
 
 ### Mitigations
 
-For the Rust-only limitation, we accept this as appropriate for the current architecture where all components are Rust. If polyglot support becomes necessary, we can add a parallel Protocol Buffers or gRPC interface that delegates to the same business logic in `task-service`. The RPC layer would be one of multiple interfaces to the core logic.
+For the Rust-only limitation, we accept this as appropriate for the current architecture where all components are Rust. If polyglot support becomes necessary, we can add a parallel Protocol Buffers or gRPC interface that delegates to the same business logic. The RPC layer would be one of multiple interfaces to the core logic.
 
 For the smaller ecosystem, we rely on the fact that tarpc is maintained by Google and used in production systems. The library is stable and well-documented. For debugging, we can enable verbose logging and use tokio-console for async runtime inspection.
 
@@ -109,9 +110,7 @@ Rejected because the Rust implementation (capnp-rpc) is less mature than tarpc. 
 
 Use JSON-RPC protocol over HTTP, which is simple and human-readable with extensive tooling.
 
-Rejected because HTTP adds unnecessary overhead for local IPC. JSON serialization is slower and larger than binary formats for structured data. JSON-RPC is more appropriate for public APIs or browser integration, not for internal process communication where we control both ends.
-
-The browser interface already uses HTTP, so JSON-RPC would make sense there, but for CLI-to-server communication where both are Rust and local, binary RPC over Unix sockets is more efficient.
+Rejected because HTTP adds unnecessary overhead compared to a direct TCP connection. JSON-RPC is more appropriate for public APIs or browser integration. The browser interface already uses Leptos server functions over HTTP; the CLI path benefits from the lighter tarpc TCP channel.
 
 ### Direct function calls with shared library
 
@@ -123,10 +122,8 @@ Additionally, shared libraries on Unix/Linux have versioning and symbol resoluti
 
 ## Implementation Notes
 
-The tarpc integration will be straightforward. The service trait goes in `task-types/src/lib.rs` alongside the Task and related types. The server implements the trait in `task-server/src/rpc_service.rs`, delegating to `task-service` business logic. The CLI creates a tarpc client in `task-cli/src/main.rs` and calls methods as if they were local async functions.
+The service trait lives in `kid-types/src/rpc.rs` alongside the `Task` and related types (behind the `rpc` feature flag). The server implements the trait in `kid-server/src/rpc.rs`, delegating to the `SharedTaskCache`. The CLI creates a tarpc client in `kid-cli/src/main.rs` and calls methods as if they were local async functions.
 
-Transport configuration for Unix Domain Sockets uses tarpc's serde_transport module with a UnixStream. The server binds to the socket path, the CLI connects to it. tarpc handles all serialization, framing, and multiplexing automatically.
+Transport uses `tarpc::serde_transport::tcp` with `tokio_serde::formats::Json`. The server binds a `TcpListener`, the CLI connects to the configured `SocketAddr`. tarpc handles all serialization, framing, and multiplexing automatically.
 
-Error handling benefits from Rust's Result type. Server methods return `Result<T, TaskError>` where TaskError is a custom enum. tarpc serializes errors back to the client where they can be matched and handled appropriately.
-
-This architecture provides the type safety and efficiency we need while remaining idiomatic Rust throughout the stack.
+The current service methods do not return `Result` — errors are handled via tarpc's transport-level error and logging. Mutations succeed silently; the dirty-tracking cache handles persistence asynchronously.

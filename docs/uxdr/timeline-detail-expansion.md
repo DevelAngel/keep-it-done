@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -19,23 +19,25 @@ We implement a **timeline-based detail expansion** with a vertical connecting li
 **Metaphor**: A task is not a list of properties. A task is a journey from creation to completion. The timeline visualizes this temporal dimension.
 
 **Core Elements**:
-- Vertical gradient line as spine (indigo → purple → indigo)
-- Circular markers with 4px white border rings (floating, prominent)
+- Vertical gradient line as spine (cyan → teal → cyan)
+- Circular markers with 4px `border-slate-900` rings (floating, prominent)
 - Color coding by semantic meaning (not decorative)
-- White-to-indigo background gradient (subtle highlighting of expanded area)
-- Staggered vertical spacing (16px between elements)
+- Slate-gradient background (`from-slate-900 via-slate-800 to-slate-900`)
+- Consistent vertical spacing (16px between elements, `space-y-4`)
 
 ### Information Architecture
 
-Properties appear in this sequence:
+Properties appear in this sequence (optional fields shown only when set):
 
-1. **Created** (Indigo marker) → Temporal origin
-2. **Priority** (Red marker) → Urgency
-3. **Time Estimate** (Blue marker) → Resource requirement
-4. **Context** (Purple marker) → Categorical assignment
-5. **Notes** (Gray marker) → Contextual details
+1. **Priority** (Red/Amber/Sky marker) → Urgency — A=Critical, B=Important, C=Routine
+2. **Due Date** (Teal marker) → Deadline
+3. **Start Date** (Sky marker) → Earliest start
+4. **Time Estimate** (Amber marker, rounded square) → Resource requirement
+5. **Context** (Teal marker) → Categorical assignment
+6. **Notes** (Slate marker) → Supplementary details
+7. **Created** (Cyan marker, always present) → Temporal origin — always last
 
-This sequence is not random. It tells a story: "When did this task originate? How important is it? How much time does it need? Where does it belong? What else must I know?"
+This sequence reads from urgent/actionable at the top to archival/contextual at the bottom. "Created" anchors the bottom as the fixed foundation — the task's origin.
 
 ### Interaction Model
 
@@ -64,13 +66,14 @@ Why these timing values? 300ms is perceptible enough to signal "something is hap
 
 Colors carry meaning:
 
-- **Indigo** (#6366F1) → Temporal dimension, neutrality, past
-- **Red** (#EF4444) → Priority, attention, urgency
-- **Blue** (#3B82F6) → Time, measurement, planning
-- **Purple** (#9333EA) → Categorization, organization, structure
-- **Gray** (#6B7280) → Supplementary information, notes
+- **Red** (`bg-red-500`) → Priority A — Critical, danger, immediate attention
+- **Amber** (`bg-amber-500`) → Priority B / Time Estimate — Important, caution, resource cost
+- **Sky** (`bg-sky-400` / `bg-sky-700`) → Priority C / Start Date — Routine, informational
+- **Teal** (`bg-teal-700`) → Due Date / Context — Temporal boundary, structure
+- **Cyan** (`bg-cyan-700`) → Created — Origin, neutral, the baseline
+- **Slate** (`bg-slate-600`) → Notes — Background, supplementary
 
-Each color is deliberately chosen. Red for Priority signals immediately: "Attention, important." Blue for Time Estimate associates measurement and clarity. Purple for Context conveys order.
+Each color aligns with the app's cyan/teal palette (see header gradient `from-cyan-600 to-teal-700`). The timeline is a visual echo of the app's identity, not a separate design language.
 
 ## Design Rationale
 
@@ -90,34 +93,25 @@ The timeline is slower. But it is also clearer. It creates spatial memory – "P
 
 ### Why Gradient Background?
 
-The background gradient (white → indigo-50 → white) is not decoration. It is functional:
+The background gradient (`from-slate-900 via-slate-800 to-slate-900`) is not decoration. It is functional:
 
-1. **Visual Separation**: Expanded task stands out without border or shadow
+1. **Visual Separation**: Expanded task stands out against the task list without a border or shadow
 2. **Depth Illusion**: Gradient suggests "zooming into" the task
-3. **Brand Consistency**: Indigo is the app's color (see header gradient)
+3. **Brand Consistency**: Slate is the app's surface color; the slight lightening in the middle signals "active area"
 
-You could argue: A simple `bg-gray-50` would have sufficed. True. But the gradient is a subtle signal: "This area is different, without shouting about it."
+You could argue: A simple `bg-slate-800` would have sufficed. True. But the gradient is a subtle signal: "This area is different, without shouting about it."
 
 ### Why Border Rings on Markers?
 
-The 4px white border rings around the timeline markers are critical:
+The 4px `border-slate-900` rings around the timeline markers are critical. Without them, the markers optically merge with the timeline line. With the rings, they "float" above the line — they become independent anchor points.
 
-```css
-border: 4px solid white
-shadow: shadow-sm
-```
-
-Without these rings, the markers optically merge with the timeline line. With the rings, they "float" above the line – they become independent anchor points.
-
-This is not accident. It is deliberate design of visual hierarchy. The line connects. The markers mark. The white ring separates and highlights.
+The ring color matches the page background (`slate-900`), creating the illusion that the marker punches through the line. The line connects. The markers mark. The ring separates and highlights.
 
 ### Why Staggered Animation Delays?
 
-When you expand a task, the timeline markers do not all appear simultaneously. They appear staggered, with 50ms delay between each marker.
+The intention was to stagger marker appearance with 50ms delays so the timeline "builds itself" from top to bottom. This would create rhythm — you see the information unfold rather than appear all at once.
 
-Why? Because simultaneous appearance feels like "suddenly there." Staggered appearance creates rhythm – you see the timeline build itself, from top to bottom, like a story being told.
-
-This is a subtle decision. 50ms is barely consciously perceptible. But unconsciously you register: "This information is unfolding." That is more satisfying than: "This information simply exists now."
+**Current state**: Not implemented. All markers currently appear simultaneously via a single `transition-all duration-300` on the container. Staggered delays remain a planned enhancement.
 
 ## Implementation Details
 
@@ -125,45 +119,40 @@ This is a subtle decision. 50ms is barely consciously perceptible. But unconscio
 
 ```html
 <div class="relative pl-8 space-y-4">
-  <!-- Vertical line (gradient) -->
-  <div class="absolute left-3 top-0 bottom-0 w-0.5 
-              bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300">
+  <!-- Vertical line (cyan → teal → cyan) -->
+  <div class="absolute left-3 top-0 bottom-0 w-0.5
+              bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500">
   </div>
-  
+
   <!-- Timeline node (repeated for each property) -->
   <div class="relative">
     <!-- Marker dot with border ring -->
-    <div class="absolute -left-8 mt-0.5 w-6 h-6 
-                rounded-full bg-indigo-500 
-                border-4 border-white shadow">
+    <div class="absolute -left-8 mt-0.5 w-6 h-6
+                rounded-full bg-cyan-700
+                border-4 border-slate-900 shadow">
       <!-- Icon or content -->
     </div>
-    
+
     <!-- Property content -->
-    <div class="text-xs font-semibold uppercase">Label</div>
-    <div class="text-sm">Value</div>
+    <div class="text-xs font-semibold uppercase tracking-wide text-cyan-400">Label</div>
+    <div class="text-sm text-slate-200">Value</div>
   </div>
 </div>
 ```
 
-### CSS Animation (Leptos Signals)
+### Expansion (Leptos Signals)
 
 ```rust
-// Expansion state
+// Expansion state — one task expanded at a time
 let is_expanded = move || expanded_task_id.get() == Some(task_id);
 
-// Timeline container with transition classes
-class="transition-all duration-300 ease-out"
-class:opacity-0=move || !is_expanded()
-class:opacity-100=is_expanded
-
-// Individual markers with staggered delays
-style="animation-delay: 0ms"    // Created
-style="animation-delay: 50ms"   // Priority
-style="animation-delay: 100ms"  // Time Estimate
-style="animation-delay: 150ms"  // Context
-style="animation-delay: 200ms"  // Notes
+// Timeline shown/hidden via Leptos <Show>
+<Show when=is_expanded>
+    <TaskDetails task=id/>
+</Show>
 ```
+
+No staggered animation delays are currently implemented. The container uses CSS `transition-all` for the expand/collapse effect.
 
 ### Accessibility Considerations
 
@@ -218,15 +207,15 @@ Timeline rendering is CSS-based (no JS animation). Browser-native transitions wi
 
 The app header uses:
 ```css
-bg-gradient-to-br from-indigo-500 to-purple-600
+bg-gradient-to-br from-cyan-600 to-teal-700
 ```
 
 The timeline line uses:
 ```css
-bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300
+bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500
 ```
 
-Same color family, lighter variant. This is deliberate. The timeline is an echo of the header – visually related, but not identical.
+Same color family, same hue. The timeline is a direct echo of the header — same identity, applied at a smaller scale.
 
 ### Typography
 
@@ -267,17 +256,7 @@ The timeline can visually position chronological events. "Created" at the beginn
 
 ### Dependency Chains
 
-When tasks depend on each other:
-
-```rust
-// Branching timeline
-<div class="absolute left-3 ... bg-amber-300"
-     style="width: 2px; transform: rotate(45deg)">
-</div>
-// Arrow pointing to dependent task
-```
-
-The timeline can branch, can visualize connections between tasks. This is harder with grid layouts.
+Dependencies between tasks are explicitly out of scope for the current data model (see `task-card.md`). If added in the future, the timeline could branch to visualize connected tasks — this would be a natural extension of the existing structure.
 
 ## Consequences
 
@@ -347,53 +326,21 @@ We decided against this because a family task app should not be "just another to
 
 ### Rust/Leptos Specifics
 
-```rust
-// Timeline marker component (reusable)
-#[component]
-fn TimelineMarker(
-    color: String,           // bg-indigo-500, bg-red-500, etc.
-    label: String,           // "Created", "Priority"
-    value: View,             // Reactive value content
-    #[prop(optional)] icon: Option<View>,
-) -> impl IntoView {
-    view! {
-        <div class="relative">
-            <div class=format!(
-                "absolute -left-8 mt-0.5 w-6 h-6 rounded-full {} border-4 border-white shadow",
-                color
-            )>
-                {icon}
-            </div>
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-0.5">
-                {label}
-            </div>
-            <div class="text-sm text-gray-900">
-                {value}
-            </div>
-        </div>
-    }
-}
-```
+Markers are currently implemented inline within `TaskDetails` rather than as a reusable `TimelineMarker` component. Each marker is a `<div class="relative">` with an absolutely positioned circle and label/value beneath it. Extracting a reusable component is a planned refactor.
 
 ### CSS Variables for Theming
 
-When dark mode comes later:
+The app currently uses a dark theme by default (slate-900 backgrounds). If a light mode is added later, CSS variables can centralize the color tokens:
 
 ```css
-:root {
-  --timeline-line: theme('colors.indigo.300');
-  --timeline-bg-start: theme('colors.white');
-  --timeline-bg-end: theme('colors.indigo.50');
-}
-
-.dark {
-  --timeline-line: theme('colors.indigo.600');
-  --timeline-bg-start: theme('colors.gray.900');
-  --timeline-bg-end: theme('colors.gray.800');
+@theme {
+  --color-timeline-line: theme('colors.cyan.500');
+  --color-timeline-bg: theme('colors.slate.800');
+  --color-timeline-border: theme('colors.slate.900');
 }
 ```
 
-The timeline structure remains, only colors change.
+The timeline structure stays constant; only the token values change per theme.
 
 ## Conclusion
 

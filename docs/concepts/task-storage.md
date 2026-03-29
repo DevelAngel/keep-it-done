@@ -2,105 +2,177 @@
 
 ## Abstract
 
-This concept defines the storage architecture for a family-oriented task management system. The design prioritizes simplicity and zero-infrastructure setup while supporting efficient Kanban board displays and category filtering. The solution uses file-based storage with a complete in-memory cache layer, storing all task properties in single atomic files.
+This concept defines the storage architecture for a family-oriented task management system. The design prioritizes simplicity and zero-infrastructure setup while supporting efficient task board displays and category filtering. The solution uses file-based storage with a complete in-memory cache layer, storing all task properties in single atomic files.
 
 ## Context
 
-The system serves small family groups (up to 4 users) and must be deployable without database infrastructure. Tasks need to appear on Kanban boards, support category filtering, and contain the properties defined in the task card concept: action description, due date, time estimate, priority, context/category, dependencies, and notes.
+The system serves small family groups (up to 4 users) and must be deployable without database infrastructure. Tasks need to appear on task boards, support category filtering, and contain the core properties: action summary, due date, start date, time estimate, priority, context/category, and notes.
 
 ## Storage Strategy
 
-The persistence layer uses plain JSON files on the filesystem. Each task exists as a single, self-contained JSON document within a directory structure. This approach eliminates the need for database setup while remaining human-readable and version-control friendly.
+The persistence layer uses plain JSON files on the filesystem. Each task exists as a single, self-contained JSON document within a flat directory: `tasks/task-{uuid}.json`. Each file contains all task properties as one atomic unit. This approach eliminates the need for database setup while remaining human-readable and version-control friendly.
 
-Tasks are stored in a flat directory structure: `tasks/{task-id}.json`. Each file contains all task properties as one atomic unit. This design keeps related information together, avoiding the complexity of splitting task data across multiple files.
+The flat structure works well for the expected scale (hundreds to low thousands of tasks for a family). While categories could organize tasks into subdirectories, the flat approach simplifies searching and filtering, and prevents issues when task categories change.
 
-The flat structure works well for the expected scale (hundreds to low thousands of tasks for a family). While categories could organize tasks into subdirectories, the flat approach simplifies searching, filtering, and prevents issues when task categories change.
+## Task Identifiers
+
+Tasks are identified by **UUID v7**. The UUID is encoded in the filename in simple (non-hyphenated) format:
+
+```
+tasks/task-019c500fe59875a19bd9286e3d82cd04.json
+```
+
+UUID v7 is time-ordered, so files naturally sort by creation time. The ID is not stored inside the JSON file — the filename is the authoritative identifier. At load time the server parses the UUID from the filename and rejects any file whose name does not contain a valid UUID v7.
 
 ## Single-File Design Rationale
 
-The decision to keep all task properties in a single file deserves careful consideration, as we explored several alternative approaches during design.
+All task properties are kept in a single file. We explored splitting tasks into a summary file (board-visible fields) and a details file (notes, extended fields), but rejected it for three reasons:
 
-We considered splitting tasks into two files: a summary file with board-relevant information (action, status, priority, due date) and a details file with supplementary information (notes, detailed dependencies, timestamps). The theory was that the board view only needs summary data, so loading only summaries would reduce memory usage and improve startup time.
+1. **Synchronization complexity.** When a task changes, determining which file(s) to update is non-trivial. Some changes affect both files (e.g. status transitions that also touch timestamps).
 
-However, this approach introduces several problems. First, maintaining synchronization between two files becomes complex. When a user edits a task, you must determine which file to update, and some changes might affect both files. The modified timestamp, for instance, logically belongs to both files but can only be stored once without risking inconsistency.
+2. **Fuzzy boundary.** The distinction between "summary" and "details" is unstable. A field that seems like a detail today (time estimate) might need to appear on a board card tomorrow. Premature splitting locks in a boundary that may change.
 
-Second, the boundary between summary and details proves surprisingly fuzzy. Dependencies seem like details at first, but if you want to highlight tasks that become unblocked when another task completes, you need dependency information in the cache. Time estimates might display as badges on board cards, making them summary data rather than details.
+3. **Negligible savings.** A complete task with all optional fields occupies roughly 1–3 KB in memory. Even 1000 tasks total under 3 MB — less than a single medium-resolution photograph. The complexity cost of split files vastly outweighs any theoretical memory benefit.
 
-Third, the memory savings are negligible at family scale. A complete task with all properties occupies roughly two to three kilobytes in memory. Even a thousand tasks would consume only two to three megabytes, less than a single medium-resolution photograph. For a family with a hundred active tasks, we are discussing 200 to 300 kilobytes, which is essentially free on modern hardware.
-
-Fourth, two files per task means double the file operations at startup. Instead of reading 100 files, the system reads 200. Modern filesystems handle small files well, but each file access has overhead. The split approach could actually slow down startup while trying to optimize memory usage.
-
-We also considered extracting notes into separate files, as notes can vary significantly in size. Some tasks have no notes, others have several sentences, and occasionally users might paste longer messages. At three to five sentences, a typical note contains 200 to 400 characters, which translates to roughly 0.5 to 1 kilobyte in JSON format.
-
-Even if every task has maximum-length notes, a hundred tasks would contribute only 100 kilobytes to the cache. This is not a meaningful amount of data on any system capable of running a web application. The complexity cost of managing separate note files, handling synchronization, and implementing lazy loading far outweighs any theoretical benefit.
-
-The single-file approach provides atomicity, simplicity, and performance. When you read a task file, you get everything. When you write a task file, one atomic operation updates all properties. There are no partially loaded tasks, no synchronization concerns between related files, and no complex cache invalidation logic.
+The single-file approach provides atomicity, simplicity, and predictability. Reading a file gives you everything. Writing a file updates all properties in one operation.
 
 ## File Format
 
-Each task file follows this structure:
+Each task file is a flat JSON object. The task ID is the filename, not a field inside the document.
 
 ```json
 {
-  "id": "task-2024-001",
-  "action": "Draft presentation outline for Project X",
-  "dueDate": "2024-03-15",
-  "dueDateType": "hard",
-  "timeEstimate": "1 hour",
+  "summary": "Draft presentation outline for Project X",
+  "status": {"ToDo": {"since": "2024-03-01T10:00:00Z"}},
   "priority": "A",
+  "due_date": {"Precise": "2024-03-15T00:00:00Z"},
+  "start_date": {"Guess": "next week"},
+  "time_estimate": {"Guess": "1 hour"},
   "context": "Work/ProjectX",
-  "status": "todo",
-  "dependencies": ["task-2024-000"],
-  "notes": "Include sections on architecture and timeline",
-  "createdAt": "2024-03-01T10:00:00Z",
-  "modifiedAt": "2024-03-05T14:30:00Z"
+  "notes": "Include sections on architecture and timeline"
 }
 ```
 
-The status property supports Kanban columns like "todo", "in-progress", "done". The context property enables category filtering. Timestamps help with synchronization and conflict detection.
+### Field Reference
+
+| Field           | Type                        | Required | Notes                                     |
+|-----------------|-----------------------------|----------|-------------------------------------------|
+| `summary`       | string                      | yes      | Human-readable task description           |
+| `status`        | `ToDo`/`Done` + `since`     | yes      | Timestamp records when status was set     |
+| `priority`      | `"A"` / `"B"` / `"C"`      | no       | Defaults to `C`                           |
+| `due_date`      | `Precise` or `Guess`        | no       | Accepts RFC3339 datetime or free text     |
+| `start_date`    | `Precise` or `Guess`        | no       | Earliest date to start working on task   |
+| `time_estimate` | `Precise` (seconds) or `Guess` | no    | Accepts duration or free text             |
+| `context`       | string                      | no       | Category / project label                  |
+| `notes`         | string                      | no       | Free-form text                            |
+
+### Status Encoding
+
+`status` is an object that captures both the current state and *when it was set*:
+
+```json
+{"ToDo": {"since": "2024-03-01T10:00:00Z"}}
+{"Done": {"since": "2024-03-10T18:30:00Z"}}
+```
+
+Only two states exist: `ToDo` and `Done`. There is no "in-progress" state. The `since` field serves as both a creation timestamp (when status is `ToDo` and the task was just created) and a completion timestamp (when status is `Done`).
+
+### Date and Time Fields
+
+Both `due_date` and `start_date` use a two-variant encoding to accommodate imprecise user input:
+
+- `{"Precise": "<RFC3339 datetime>"}` — machine-readable, enables sorting and filtering
+- `{"Guess": "<free text>"}` — human-entered string like `"next week"` or `"sometime in April"`
+
+`time_estimate` follows the same pattern:
+
+- `{"Precise": <seconds as integer>}` — machine-readable
+- `{"Guess": "<free text>"}` — e.g. `"about an hour"`
+
+### Legacy Format Compatibility
+
+Earlier versions stored `status` as a plain string (`"ToDo"`, `"Done"`). On load, the server detects this legacy format and re-serializes the file using the current format (with embedded `since` timestamp). The file is marked dirty so it will be rewritten on the next flush.
 
 ## Caching Architecture
 
-Given the small user count and modest data volumes, the system maintains a complete in-memory cache of all tasks with all their properties. When the application starts, it reads all task files into memory in a single operation. This happens once at startup, taking negligible time for family-scale data.
+The system maintains a complete in-memory cache of all tasks. At startup it reads every `task-*.json` file from the tasks directory into an `IndexMap<Uuid, Task>` (insertion-ordered, using `ahash` for fast hashing). This happens once before the server accepts requests.
 
-The cache structure is a simple map from task ID to task object. For efficient Kanban display and filtering, the system builds indexes from this map:
+There are **no derived indexes** (no status index, no context index). Reads iterate the `IndexMap` directly. For family-scale data (≤1000 tasks) a linear scan completes in microseconds and is simpler to maintain than a set of indexes that must be kept consistent on every write.
 
-- Status index: groups tasks by their Kanban column
-- Context index: groups tasks by category
-- Dependency graph: tracks which tasks block others
+### Dirty Tracking
 
-These indexes are derived data, rebuilt whenever the task map changes. Building them is fast because the total task count remains small.
+Mutations are tracked through a companion `IndexSet<Uuid>` called the *change set* (referred to as `dirty` in the code). Rather than writing to disk on every change (write-through), the cache defers I/O:
 
-We considered implementing a ring buffer cache for task details, loading full task data only when users open specific tasks. This pattern works well for systems with large per-record data or thousands of concurrent users. However, for family-scale usage with compact task records, it adds complexity without meaningful benefit. The entire task dataset fits comfortably in memory, and loading everything at startup eliminates any latency when users interact with tasks.
+```
+Mutation path:
+  add / get_mut / remove → marks UUID in dirty set
 
-## Read and Write Operations
+Flush path (background task, every 60 s):
+  for each UUID in dirty:
+    if task exists  → write_task_file (atomic rename)
+    if task deleted → delete_task_file
+  clear dirty set on full success
+  on partial failure: retain only failed UUIDs in dirty set
+```
 
-Read operations (displaying the Kanban board, filtering by category) work entirely from memory. No disk access occurs, making the UI instantly responsive.
+The deferred approach batches I/O, reduces disk pressure, and keeps mutation latency below 1 ms even on slow storage.
 
-Write operations (creating, updating, deleting tasks) follow a write-through pattern. The system updates the in-memory cache immediately and writes the changed task file to disk. This ensures the cache and filesystem stay synchronized while keeping the UI responsive.
+### TaskMutGuard
 
-For write operations, the system uses atomic file writes: write to a temporary file, then rename it over the original. This prevents corruption if the process crashes mid-write. The rename operation is atomic on most filesystems.
+`get_mut()` returns a `TaskMutGuard` instead of a plain `&mut Task`. The guard holds a mutable reference to the task and a reference to the dirty set. When the guard is dropped (end of scope), it automatically inserts the UUID into the dirty set. This makes it impossible to mutate a task without recording the change — no call site needs to remember to mark dirty manually.
 
-## Handling Concurrent Access
+### Shared Cache
 
-With only four users, true concurrent writes to the same task are extremely rare. The system uses file modification timestamps to detect conflicts. When saving a task, it checks whether the file on disk has a newer timestamp than the cached version. If so, the system rejects the write and asks the user to refresh and retry.
+The cache is wrapped in `Arc<RwLock<TaskCache>>` (`SharedTaskCache`) and shared between:
 
-This optimistic concurrency approach works well for low-contention scenarios and avoids the complexity of file locking.
+- The **RPC handler** (CLI access)
+- The **HTTP handler** (browser/Leptos server functions)
+- The **background flush task**
 
-## Initial Load and Cache Invalidation
+Multiple readers can hold the read lock concurrently. Writers acquire an exclusive lock for the duration of the mutation (typically microseconds).
 
-At startup, the application scans the tasks directory and loads all JSON files. It builds the in-memory map and indexes. This happens before the UI becomes available, so users always see complete data.
+## Atomic Writes
 
-The system does not need cache invalidation because it typically runs as a single instance. If deploying with multiple application instances (unusual for a family system), a file watcher can detect external changes and reload affected tasks.
+Each task file is written atomically:
+
+1. Serialize task to `task-{uuid}.json.tmp`
+2. `rename()` the temp file over the final path
+
+The `rename()` syscall is atomic on POSIX filesystems. If the process crashes mid-write, only the temp file is left behind — the previous version of the task file remains intact. The temp file is ignored at startup (only `task-*.json` files are loaded).
+
+## Flush on Shutdown
+
+On SIGTERM or SIGINT the server performs a `final_flush()` before exiting, draining the dirty set synchronously. This ensures no data is lost for in-flight mutations that have not yet reached the background flush interval.
+
+## Concurrency
+
+`SharedTaskCache` uses `tokio::sync::RwLock`. All mutation operations acquire the write lock, serializing concurrent writes. This is appropriate for the target user count (≤4 users). Concurrent reads are fully parallel. There is no optimistic locking or file modification timestamp checking — the in-memory cache is the single source of truth, and the server is the sole writer to the filesystem.
+
+## Initial Load and Error Handling
+
+At startup the server calls `TaskCache::load()`, which:
+
+1. Creates the `tasks/` directory if it does not exist.
+2. Scans the directory for `task-*.json` files.
+3. Parses the UUID from each filename; skips files with invalid or non-v7 UUIDs.
+4. Reads and deserializes each file.
+5. Detects and migrates legacy format files (marks them dirty for rewrite).
+6. Returns `(num_loaded, num_to_migrate)` on success, or `LoadErrors` listing every failed file.
+
+Load failures are non-fatal per file: the server can start with a partial cache and log the errors.
 
 ## Scalability Considerations
 
-This architecture serves families well but has natural limits. Reading thousands of small files at startup becomes slow. The in-memory cache grows with task count. These constraints are acceptable for the target use case but would need revision for larger deployments.
+For a family managing 1000 tasks, startup takes under a second and memory usage stays under 10 MB. These numbers leave comfortable headroom.
 
-For a family managing 1000 tasks (an extreme case), startup takes under a second, and memory usage stays under 10 MB. These numbers leave comfortable headroom.
+Natural limits:
+- Loading thousands of small files at startup becomes slow beyond ~50k tasks.
+- The `IndexMap` grows linearly with task count.
+
+For significantly larger deployments, SQLite would be a natural replacement for the file layer while keeping the same in-memory `IndexMap` cache structure.
 
 ## Backup and Recovery
 
-Plain JSON files integrate naturally with standard backup tools. Users can simply copy the tasks directory. Version control systems like Git work well for tracking task history if desired.
+Plain JSON files integrate naturally with standard backup tools. Copying the `tasks/` directory is sufficient for a full backup. Git works well for tracking task history if desired.
 
-Recovery is trivial: restore the tasks directory from backup. No database restoration or migration steps are needed.
+Recovery is trivial: restore the `tasks/` directory. No database restoration or migration steps are needed.

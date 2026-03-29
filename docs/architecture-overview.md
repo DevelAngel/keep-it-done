@@ -2,7 +2,7 @@
 
 ## Abstract
 
-This document provides a comprehensive overview of the family task management system architecture. The system serves two distinct user groups through separate interfaces: an AI assistant accessing tasks via CLI over IPC, and family members viewing tasks through a browser interface. Both interfaces share a common business logic layer and task storage.
+This document provides a comprehensive overview of the family task management system architecture. The system serves two distinct user groups through separate interfaces: an AI assistant accessing tasks via CLI over RPC, and family members viewing tasks through a browser interface. Both interfaces share a common business logic layer and task storage.
 
 ## System Context
 
@@ -16,37 +16,39 @@ This document provides a comprehensive overview of the family task management sy
          │                                      │
          ▼                                      ▼
 ┌─────────────────┐                    ┌──────────────────┐
-│   task-cli      │                    │   Web Browser    │
-│   (CLI Tool)    │                    │                  │
+│   kid (CLI)     │                    │   Web Browser    │
+│                 │                    │                  │
 └────────┬────────┘                    └────────┬─────────┘
          │                                      │
-         │ IPC (Unix Socket)                    │ HTTP
-         │ Binary RPC Protocol                  │ REST/Server Functions
+         │ TCP RPC (tarpc + JSON)               │ HTTP
+         │ default: 127.0.0.1:9000             │ Leptos Server Functions
          │                                      │
          └──────────────┬───────────────────────┘
                         │
                         ▼
             ┌──────────────────────┐
-            │   task-server        │
+            │   kid-server         │
             │   (Web Server)       │
             │                      │
             │  ┌────────────────┐  │
-            │  │  IPC Handler   │  │
+            │  │  RPC Handler   │  │
             │  └────────┬───────┘  │
             │           │          │
             │  ┌────────▼───────┐  │
             │  │ Business Logic │  │
-            │  │ (task-service) │  │
+            │  │ (kid-types/    │  │
+            │  │  kid-app)      │  │
             │  └────────┬───────┘  │
             │           │          │
             │  ┌────────▼───────┐  │
-            │  │  Task Storage  │  │
+            │  │  TaskCache     │  │
             │  │  (In-Memory    │  │
-            │  │   + Files)     │  │
+            │  │   + Dirty      │  │
+            │  │   Tracking)    │  │
             │  └────────────────┘  │
             └──────────────────────┘
                         │
-                        │ File I/O
+                        │ File I/O (periodic flush)
                         ▼
             ┌──────────────────────┐
             │   Filesystem         │
@@ -58,44 +60,72 @@ This document provides a comprehensive overview of the family task management sy
 
 ### Crate Organization
 
-The system uses a Cargo workspace with four crates, each with a specific responsibility:
+The system uses a Cargo workspace with the following crates:
 
 ```
-task-manager/
-├── task-types/          # Shared type definitions and RPC service
+kid/
+├── types/               # kid-types: shared types, RPC trait, storage logic
+│   ├── derive/          # kid-types-derive: proc-macro helpers
 │   └── src/
-│       └── lib.rs       # Task, Status, RPC trait definition
+│       ├── lib.rs       # Task, Status, traits (TaskId, TaskInfos, TaskDetails)
+│       ├── task.rs      # Task struct and related types
+│       ├── rpc.rs       # tarpc TaskService trait definition (feature=rpc)
+│       └── server.rs    # TaskCache, load/flush, error types (feature=ssr)
 │
-├── task-service/        # Pure business logic, transport-agnostic
+├── app/                 # kid-app: Leptos app (shared SSR + WASM)
 │   └── src/
-│       └── lib.rs       # TaskStorage, domain operations
+│       ├── lib.rs       # App component, shell
+│       ├── server.rs    # SharedTaskCache, server functions (feature=ssr)
+│       ├── cache.rs     # Frontend cache / reactive state
+│       └── error_template.rs
 │
-├── task-server/         # Server process with dual interfaces
+├── frontend/            # kid-frontend: WASM binary (cdylib)
 │   └── src/
-│       ├── main.rs      # Server initialization
-│       ├── ipc_handler.rs    # Unix Socket RPC server
-│       └── http_handler.rs   # HTTP/Leptos endpoints
+│       └── lib.rs       # WASM entry point (feature=hydrate)
 │
-└── task-cli/            # CLI tool for AI assistant
+├── server/              # kid-server: server binary
+│   └── src/
+│       ├── main.rs      # Server initialization, graceful shutdown
+│       ├── builder.rs   # ServerBuilder (composes RPC + HTTP listeners)
+│       ├── cache.rs     # SharedTaskCache + background flush logic
+│       ├── cli.rs       # CLI args (--listen addr)
+│       ├── rpc.rs       # tarpc TCP server (JSON transport)
+│       └── http.rs      # Axum + Leptos HTTP server
+│
+└── cli/                 # kid-cli: CLI binary (`kid`)
     └── src/
-        └── main.rs      # Command parsing, RPC client, JSON output
+        ├── main.rs      # Command parsing, tarpc TCP client, JSON output
+        ├── cli.rs       # Clap definitions
+        └── task.rs      # Task display / patch helpers
 ```
+
+### Feature Flags (`kid-types`)
+
+`kid-types` is compiled selectively via feature flags:
+
+| Feature       | Activates                                             |
+|---------------|-------------------------------------------------------|
+| `rpc`         | `tarpc` service trait                                 |
+| `cli`         | `rpc` + `schemars` + `clap` (for CLI JSON schema)    |
+| `ssr`         | `rpc` + file storage, `uuid/v7`, `ahash`, `indexmap` |
+| `ssr-test-*`  | Test helpers (random data, forced storage failures)   |
 
 ### Dependency Graph
 
 ```
-    task-cli          task-server
-         │                 │
-         └────┬────────────┘
-              │
-              ▼
-         task-types
-              │
-              ▼
-        task-service
-```
+    kid-cli            kid-server
+        │                   │
+        │ (feature=cli)      │ (feature=ssr)
+        └────────┬───────────┘
+                 │
+                 ▼
+            kid-types
+                 │
+            kid-types-derive
 
-All crates depend on `task-types` for shared data structures and the RPC service definition. The server and CLI have no direct dependency on each other, ensuring clean separation.
+    kid-server ──(feature=ssr)──> kid-app ──> kid-types
+    kid-frontend ─(feature=hydrate)> kid-app
+```
 
 ## Data Flow
 
@@ -104,87 +134,66 @@ All crates depend on `task-types` for shared data structures and the RPC service
 ```
 AI Assistant                                          Server
      │                                                   │
-     │  1. Invoke: task-cli list                        │
+     │  1. Invoke: kid list                             │
      ├──────────────────────────────────────────────────┤
      │                                                   │
-task-cli                                                │
-     │  2. Connect to Unix Socket                       │
+   kid                                                  │
+     │  2. Connect to TCP socket (127.0.0.1:9000)       │
      ├──────────────────────────────────────────────────>
      │                                                   │
-     │  3. Serialize ListTasksRequest                   │
-     │     Send binary RPC message                      │
+     │  3. tarpc call: list()                           │
+     │     JSON over TCP                                │
      ├──────────────────────────────────────────────────>
      │                                                   │
-     │                                         ipc_handler
+     │                                          rpc handler
      │                                                   │
-     │                                  4. Deserialize request
-     │                                     Call task_service
+     │                                  4. Acquire read lock
+     │                                     on SharedTaskCache
      │                                                   │
-     │                                         task_service
+     │                                  5. Return Vec<(Uuid, Task)>
      │                                                   │
-     │                                  5. Read from in-memory
-     │                                     cache (TaskStorage)
-     │                                                   │
-     │                                  6. Return Vec<Task>
-     │                                                   │
-     │                                         ipc_handler
-     │                                                   │
-     │  7. Serialize ListTasksResponse                  │
-     │     Send binary RPC message                      │
+     │  6. tarpc response                               │
      <───────────────────────────────────────────────────┤
      │                                                   │
-task-cli                                                │
-     │  8. Deserialize response                         │
-     │     Convert to JSON                              │
+   kid                                                  │
+     │  7. Format as JSON / table                       │
      │                                                   │
-     │  9. Print JSON to stdout                         │
+     │  8. Print to stdout                              │
      ├──────────────────────────────────────────────────┤
      │                                                   │
 AI Assistant                                            │
-     │  10. Parse JSON output                           │
+     │  9. Parse output                                 │
      │                                                   │
 ```
 
-### Write Operation (Create Task)
+### Write Operation (Add Task)
 
 ```
 AI Assistant                                          Server
      │                                                   │
-     │  1. Invoke: task-cli add "Do something"          │
+     │  1. Invoke: kid add "Do something"               │
      ├──────────────────────────────────────────────────┤
      │                                                   │
-task-cli                                                │
-     │  2. CreateTaskRequest via RPC                    │
+   kid                                                  │
+     │  2. tarpc call: add(task)                        │
      ├──────────────────────────────────────────────────>
      │                                                   │
-     │                                         ipc_handler
+     │                                          rpc handler
      │                                                   │
-     │                                  3. Call task_service
-     │                                     create_task()
+     │                                  3. Acquire write lock
+     │                                     on SharedTaskCache
      │                                                   │
-     │                                         task_service
+     │                                  4. Insert task, mark dirty
      │                                                   │
-     │                                  4. Update in-memory
-     │                                     cache
-     │                                                   │
-     │                                  5. Write task file
-     │                                     to filesystem
-     │                                     (atomic write)
-     │                                                   │
-     │                                  6. Return new Task
-     │                                                   │
-     │                                         ipc_handler
-     │                                                   │
-     │  7. CreateTaskResponse                           │
+     │  5. tarpc response (ack)                         │
      <───────────────────────────────────────────────────┤
      │                                                   │
-task-cli                                                │
-     │  8. Format as JSON                               │
-     │                                                   │
-AI Assistant                                            │
-     │  9. Receive confirmation                         │
+   kid                                                  │
+     │  6. Print confirmation JSON                      │
      │                                                   │
 ```
+
+Dirty tasks are persisted to disk by the background flush task (every 60 s) or on graceful shutdown.
 
 ### Browser Access (Concurrent with CLI)
 
@@ -194,28 +203,23 @@ Browser                                              Server
    │  1. HTTP GET /                                    │
    ├───────────────────────────────────────────────────>
    │                                                    │
-   │                                          http_handler
+   │                                          http handler
    │                                                    │
-   │  2. Serve Leptos app (WASM)                       │
+   │  2. Serve Leptos SSR + WASM hydration             │
    <────────────────────────────────────────────────────┤
    │                                                    │
-   │  3. Leptos Server Function: get_tasks()           │
+   │  3. Leptos Server Function (e.g. get_tasks)       │
    ├───────────────────────────────────────────────────>
    │                                                    │
-   │                                          http_handler
+   │                                          http handler
    │                                                    │
-   │                                  4. Call task_service
-   │                                     (same as IPC path)
+   │                                  4. Reads SharedTaskCache
+   │                                     (same cache as RPC)
    │                                                    │
-   │                                         task_service
-   │                                                    │
-   │                                  5. Read from same
-   │                                     in-memory cache
-   │                                                    │
-   │  6. Return tasks as JSON/Response                 │
+   │  5. Return tasks in response                      │
    <────────────────────────────────────────────────────┤
    │                                                    │
-   │  7. Leptos renders UI reactively                  │
+   │  6. Leptos renders UI reactively (WASM)           │
    │                                                    │
 ```
 
@@ -225,209 +229,152 @@ Browser                                              Server
 
 ```
 tasks/
-├── task-2024-001.json    # Individual task files
-├── task-2024-002.json
-├── task-2024-003.json
+├── <uuid-v7>.json    # One file per task
+├── <uuid-v7>.json
 └── ...
 ```
 
-Each task exists as a self-contained JSON file with all properties.
+Each task is a self-contained JSON file. The UUID v7 filename encodes the creation timestamp.
 
 ### In-Memory Cache Structure
 
 ```
-┌─────────────────────────────────────┐
-│        TaskStorage                  │
-├─────────────────────────────────────┤
-│                                     │
-│  Primary Cache:                     │
-│  ┌──────────────────────────────┐   │
-│  │ HashMap<TaskId, Task>        │   │
-│  │                              │   │
-│  │ "task-001" -> Task { ... }   │   │
-│  │ "task-002" -> Task { ... }   │   │
-│  │ "task-003" -> Task { ... }   │   │
-│  └──────────────────────────────┘   │
-│                                     │
-│  Derived Indexes (built on demand): │
-│  ┌──────────────────────────────┐   │
-│  │ Status Index                 │   │
-│  │   "todo" -> ["task-002"]     │   │
-│  │   "in_progress" -> [...]     │   │
-│  │   "done" -> ["task-003"]     │   │
-│  └──────────────────────────────┘   │
-│                                     │
-│  ┌──────────────────────────────┐   │
-│  │ Context Index                │   │
-│  │   "Work" -> [...]            │   │
-│  │   "Personal" -> [...]        │   │
-│  └──────────────────────────────┘   │
-│                                     │
-└─────────────────────────────────────┘
+┌───────────────────────────────────────┐
+│           TaskCache                   │
+├───────────────────────────────────────┤
+│                                       │
+│  tasks: DataMap                       │
+│  ┌────────────────────────────────┐   │
+│  │ IndexMap<Uuid, Task>           │   │
+│  │ (insertion-ordered, ahash)     │   │
+│  │                                │   │
+│  │ uuid-001 -> Task { ... }       │   │
+│  │ uuid-002 -> Task { ... }       │   │
+│  └────────────────────────────────┘   │
+│                                       │
+│  dirty: ChangeSet                     │
+│  ┌────────────────────────────────┐   │
+│  │ IndexSet<Uuid>                 │   │
+│  │ (tasks modified since last     │   │
+│  │  flush)                        │   │
+│  └────────────────────────────────┘   │
+│                                       │
+└───────────────────────────────────────┘
 ```
 
-### Cache Consistency
+### Cache Consistency and Flush Strategy
 
-Since only the server process accesses the task storage directly, cache consistency is guaranteed. The CLI never touches files directly.
+`SharedTaskCache` is an `Arc<RwLock<TaskCache>>` shared between the RPC and HTTP handlers.
 
 ```
 Write Path:
-CLI -> RPC -> Server -> update_cache() -> write_file()
-                              │
-                              └──> Both operations or neither
-                                   (write-through cache)
+CLI/Browser -> RPC/HTTP -> write lock -> mutate cache -> mark dirty
+                                                 │
+                              background flush (every 60s) or final_flush()
+                                                 │
+                                          write_file() for each dirty task
+                                          (atomic write)
 
 Read Path:
-CLI -> RPC -> Server -> read_cache()
-                              │
-                              └──> Always consistent with disk
-                                   (server is single source of truth)
+CLI/Browser -> RPC/HTTP -> read lock -> read from IndexMap
+                                     (always consistent; server is sole writer)
 ```
+
+The background flush retries on failure with an exponential back-off interval.
 
 ## Communication Protocols
 
-### IPC Protocol (CLI ↔ Server)
+### RPC Protocol (CLI ↔ Server)
 
-Transport: Unix Domain Socket at `/tmp/task-server.sock`
+Transport: TCP socket, configurable via `--listen` (default `127.0.0.1:9000`)
 
-Message Format (with tarpc):
+Framework: `tarpc` with JSON serialization (`tokio_serde::formats::Json`)
+
 ```
-┌──────────────────────────────────┐
-│  tarpc Frame Header              │
-│  (managed by tarpc framework)    │
-├──────────────────────────────────┤
-│  Method ID (which RPC method)    │
-├──────────────────────────────────┤
-│  Serialized Arguments            │
-│  (bincode binary format)         │
-│                                  │
-│  Example for list_tasks():       │
-│  - No arguments                  │
-│                                  │
-│  Example for create_task():      │
-│  - action: String                │
-│  - status: TaskStatus            │
-└──────────────────────────────────┘
+RPC service (kid-types/src/rpc.rs):
 
-Response:
-┌──────────────────────────────────┐
-│  tarpc Frame Header              │
-├──────────────────────────────────┤
-│  Serialized Return Value         │
-│  (bincode binary format)         │
-│                                  │
-│  Example: Vec<Task> or           │
-│           Result<Task, Error>    │
-└──────────────────────────────────┘
+  list()                             -> Vec<(Uuid, Task)>
+  add(task: Task)
+  rename(id: Uuid, summary: String)
+  replace(id: Uuid, details: TaskDetails)
+  update(id: Uuid, details: TaskDetailsPatch)
+  complete(id: Uuid, reopen: bool)
 ```
 
 ### HTTP Protocol (Browser ↔ Server)
 
-Transport: TCP port 3000 (configurable)
+Transport: TCP, port configured via Leptos config (default `127.0.0.1:3000`, reload port `3001`)
 
-Options:
-1. **Leptos Server Functions** (preferred for browser UI):
-   - Automatic client-server serialization
-   - Type-safe function calls from WASM
-   - Internal HTTP POST to generated endpoints
+Framework: Axum + Leptos (SSR + WASM hydration)
 
-2. **Plain REST API** (for maximum flexibility):
-   ```
-   GET  /api/tasks           -> List all tasks
-   POST /api/tasks           -> Create task
-   PUT  /api/tasks/:id       -> Update task
-   DELETE /api/tasks/:id     -> Delete task
-   ```
-
-Both options call the same `task-service` business logic.
+- Leptos Server Functions handle all browser ↔ server data exchange
+- Static assets served from `public/`, built site in `target/site/`
+- Tailwind CSS built from `style/tailwind.css`
 
 ## Concurrency Model
 
 ### Server Threading
 
 ```
-┌─────────────────────────────────────────┐
-│          task-server Process            │
-├─────────────────────────────────────────┤
-│                                         │
-│  Tokio Runtime (async multi-threaded)   │
-│                                         │
-│  ┌─────────────────┐  ┌──────────────┐ │
-│  │ IPC Listener    │  │ HTTP Listener│ │
-│  │ Task            │  │ Task         │ │
-│  └────────┬────────┘  └──────┬───────┘ │
-│           │                  │         │
-│           ▼                  ▼         │
-│  ┌──────────────────────────────────┐  │
-│  │  Shared TaskStorage              │  │
-│  │  (Arc<RwLock<TaskStorage>>)      │  │
-│  │                                  │  │
-│  │  - Multiple readers OK           │  │
-│  │  - Single writer blocks all      │  │
-│  └──────────────────────────────────┘  │
-│                                         │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│             kid-server Process               │
+├──────────────────────────────────────────────┤
+│                                              │
+│  Tokio Runtime (async multi-threaded)        │
+│                                              │
+│  ┌──────────────┐  ┌─────────────────────┐  │
+│  │ RPC Listener │  │ HTTP Listener       │  │
+│  │ (TCP :9000)  │  │ (Axum/Leptos :3000) │  │
+│  └──────┬───────┘  └──────────┬──────────┘  │
+│         │                     │             │
+│         ▼                     ▼             │
+│  ┌─────────────────────────────────────┐    │
+│  │  SharedTaskCache                    │    │
+│  │  (Arc<RwLock<TaskCache>>)           │    │
+│  │                                     │    │
+│  │  - Multiple concurrent readers OK   │    │
+│  │  - Single writer blocks all         │    │
+│  └─────────────────────────────────────┘    │
+│         │                                   │
+│  ┌──────▼──────────────────────────────┐    │
+│  │  Background flush task              │    │
+│  │  (flushes dirty set every 60s)      │    │
+│  └─────────────────────────────────────┘    │
+│                                              │
+└──────────────────────────────────────────────┘
 ```
-
-Read operations (list tasks) acquire read locks and can run concurrently. Write operations (create/update/delete) acquire write locks and run exclusively.
 
 ### CLI Tool
 
 ```
 ┌─────────────────────────┐
-│   task-cli Process      │
+│   kid Process           │
 ├─────────────────────────┤
 │                         │
-│  1. Parse args          │
-│  2. Connect to socket   │
-│  3. Send RPC request    │
+│  1. Parse args (clap)   │
+│  2. Connect TCP socket  │
+│  3. tarpc RPC call      │
 │  4. Wait for response   │
-│  5. Format as JSON      │
+│  5. Format output       │
 │  6. Print and exit      │
 │                         │
 │  (Short-lived process)  │
 └─────────────────────────┘
 ```
 
-Each CLI invocation is a separate process that connects, makes one RPC call, and terminates.
-
 ## Error Handling Strategy
 
 ### RPC Layer Errors
 
-```
-Client (CLI)                Server
-    │                          │
-    │  Request                 │
-    ├─────────────────────────>│
-    │                          │
-    │                    ┌─────┴─────┐
-    │                    │ Validate  │
-    │                    │ request   │
-    │                    └─────┬─────┘
-    │                          │
-    │                    Valid │ Invalid
-    │                          │
-    │              ┌───────────┴──────────┐
-    │              ▼                      ▼
-    │        Process request      Return Error
-    │              │                      │
-    │              │                      │
-    │  Response    │         Error Response
-    │<─────────────┘              │
-    │<────────────────────────────┘
-    │                          │
-```
-
 Errors at different layers:
-- **Transport errors**: Connection failed, socket not found → CLI exits with error
-- **Serialization errors**: Invalid binary data → Server returns error response
-- **Business logic errors**: Task not found, validation failed → Result<T, E> in response
-- **Storage errors**: File write failed → Server returns error response
+- **Transport errors**: Connection refused, wrong address → `kid` exits with miette diagnostic
+- **Serialization errors**: Invalid JSON data → tarpc returns error
+- **Business logic errors**: Task not found, validation failed → `Result<T, E>` in response
+- **Storage errors**: File write failed → `FlushErrors` with per-file details, server logs warning and retries
 
 ### Browser Error Handling
 
-Leptos server functions return `Result<T, ServerFnError>`. The browser UI displays errors inline without crashing the app.
+Leptos server functions return `Result<T, ServerFnError>`. The browser UI renders errors inline without crashing.
 
 ## Deployment Model
 
@@ -435,22 +382,22 @@ Leptos server functions return `Result<T, ServerFnError>`. The browser UI displa
 
 ```
 Developer Machine
-├── Terminal 1: cargo run --bin task-server
-├── Terminal 2: cargo run --bin task-cli -- list
+├── Terminal 1: cargo leptos watch   (or: cargo run --bin kid-server)
+├── Terminal 2: cargo run --bin kid -- list
 └── Browser: http://localhost:3000
 ```
 
-All processes on localhost. Socket at `/tmp/task-server.sock`.
+RPC server listens on `127.0.0.1:9000`. HTTP on `127.0.0.1:3000`.
 
 ### Production (Family Server)
 
 ```
 Family Server (e.g., Raspberry Pi, NUC)
-├── systemd unit: task-server.service
-│   └── Socket: /var/run/task-server.sock
-│   └── HTTP: 0.0.0.0:3000 (or behind nginx)
+├── systemd unit: kid-server.service
+│   └── RPC:  127.0.0.1:9000 (local only)
+│   └── HTTP: 0.0.0.0:3000 (or behind nginx/HTTPS)
 │
-└── task-cli installed in PATH
+└── kid installed in PATH
     └── Family members can SSH and use CLI
     └── AI assistant runs CLI via automation
 ```
@@ -459,22 +406,15 @@ Nginx or similar can provide HTTPS termination and static asset caching for the 
 
 ## Security Considerations
 
-### IPC Security
+### RPC Security
 
-Unix Domain Socket permissions control access:
-```bash
-# Socket owned by task-server user
-# Group-readable for family group
--rw-rw---- 1 taskserver family /var/run/task-server.sock
-```
-
-Only local processes in the `family` group can connect.
+The RPC server binds to `127.0.0.1` by default, so it is only reachable from the same host. Override with `--listen` if SSH tunnelling is needed.
 
 ### HTTP Security
 
 For local network deployment:
 - No authentication (trusted network)
-- HTTPS optional (can use self-signed cert)
+- HTTPS optional (can use self-signed cert or nginx termination)
 
 For remote access:
 - Add authentication tokens
@@ -493,22 +433,22 @@ For remote access:
 ### Performance Characteristics
 
 ```
-Operation          Latency     Throughput
-────────────────────────────────────────────
-List tasks (IPC)   < 1ms       10000/sec
-List tasks (HTTP)  < 5ms       1000/sec
-Create task        < 10ms      100/sec
-Update task        < 10ms      100/sec
-Server startup     < 100ms     N/A
+Operation          Latency     Notes
+──────────────────────────────────────────────────
+List tasks (RPC)   < 1ms       Read lock, no I/O
+List tasks (HTTP)  < 5ms       Same cache path
+Add/update task    < 5ms       Write lock, no sync I/O
+Flush to disk      < 100ms     Only dirty tasks
+Server startup     < 200ms     Load all task files
 ```
 
-All operations are memory-bound. No database queries, no network calls except IPC/HTTP.
+All in-memory operations are sub-millisecond. File I/O is deferred to background flush.
 
 ### Bottlenecks
 
 Current architecture has no bottlenecks at family scale. Theoretical limits:
 - Write lock contention if >100 concurrent writers
-- File I/O if >1000 writes/second
+- File I/O if >1000 tasks flushed per cycle
 - Memory if >100k tasks loaded
 
 None of these are realistic for the target use case.
@@ -517,21 +457,20 @@ None of these are realistic for the target use case.
 
 ### Potential Additions
 
-1. **Real-time browser updates**: Server-Sent Events to push changes to browsers
+1. **Real-time browser updates**: Server-Sent Events or WebSockets to push changes to browsers
 2. **Multi-device sync**: CRDTs or operational transforms for offline editing
 3. **Search**: Full-text search index for task descriptions and notes
 4. **Attachments**: File uploads associated with tasks
 5. **Recurrence**: Repeating tasks with schedules
 6. **Collaboration**: Comments and mentions on tasks
 
-Each extension would follow the same pattern: add to business logic in `task-service`, expose via both IPC and HTTP interfaces.
+Each extension would follow the same pattern: add to business logic in `kid-types`/`kid-app`, expose via both RPC and HTTP interfaces.
 
 ### Migration Path
 
 If family grows beyond target scale:
 - Replace file storage with SQLite (still zero-infrastructure)
-- Add connection pooling for IPC
+- Add connection pooling for RPC
 - Implement pagination for task lists
-- Consider distributed deployment (multiple servers)
 
 The clean separation between business logic and transport makes these migrations tractable.

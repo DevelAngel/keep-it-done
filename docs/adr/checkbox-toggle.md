@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -129,16 +129,16 @@ The `stop_propagation()` is critical. Without it, a checkbox click would also tr
 ```rust
 // Checkbox CSS
 class="
-    w-5 h-5 
-    rounded-full 
-    border-2 border-gray-300 
-    cursor-pointer 
-    appearance-none 
+    w-5 h-5
+    rounded-full
+    border-2 border-slate-600
+    cursor-pointer
+    appearance-none
     transition-all
-    checked:bg-gradient-to-br 
-    checked:from-indigo-500 
-    checked:to-purple-600
-    checked:border-indigo-500
+    checked:bg-gradient-to-br
+    checked:from-cyan-500
+    checked:to-teal-600
+    checked:border-cyan-500
 "
 
 // Summary text CSS
@@ -149,27 +149,31 @@ class=move || if checked.get() {
 }
 ```
 
-**Why `rounded-full`?**  
+**Why `rounded-full`?**
 Standard checkboxes are square. Round checkboxes are unusual, but not foreign (see Apple Reminders). They are softer, friendlier, fit better with the app's gradient theme.
 
-**Why gradient when checked?**  
-The gradient (indigo → purple) matches the header gradient. It is a visual echo – the app says: "Well done, this task now belongs to the completed world."
+**Why gradient when checked?**
+The gradient (cyan → teal) matches the app's color theme. It is a visual echo – the app says: "Well done, this task now belongs to the completed world."
 
 ### Backend Persistence
 
 ```rust
-// Server function (to be implemented)
-#[server]
-async fn update_task_status(id: Uuid, status: TaskStatus) -> Result<(), ServerFnError> {
-    // 1. Load task from storage
-    // 2. Update status field
-    // 3. Write back to file
-    // 4. Update in-memory cache
+#[server(endpoint = "complete_task")]
+pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
+    let cache = use_context::<SharedTaskCache>()...;
+    let mut cache = cache.write().await;
+    if completed {
+        cache.get_mut(&id)?.mark_done();
+    } else {
+        cache.get_mut(&id)?.mark_todo();
+    }
     Ok(())
+    // dirty flag is set automatically via TaskMutGuard::drop()
+    // background flush writes to disk within ~60 s
 }
 ```
 
-The checkbox executes this server function optimistically: UI updates immediately, backend call runs asynchronously. If the backend call fails, the UI reverts (with error message).
+The checkbox executes this server function optimistically: the UI signal (`set_checked`) is updated immediately before dispatching. If the server call fails, the signal is reverted (`set_checked.set(!checked)`) and the error is logged. While the call is in flight, the checkbox is disabled (`prop:disabled=pending`) to prevent double-clicks.
 
 ## Consequences
 
@@ -195,9 +199,7 @@ The checkbox executes this server function optimistically: UI updates immediatel
 
 **Mitigation**: For a family app, batch operations are rarer. If they become necessary later, we can add a separate "Edit Mode" (like iOS Reminders).
 
-**Status Ambiguity**: What about tasks that are neither `todo` nor `done`, but `in-progress`? The checkbox can only represent two states.
-
-**Mitigation**: The checkbox toggle moves tasks between `todo` and `done`. The status `in-progress` is set via the detail view (later: via inline edit button or drag-to-column in Kanban board).
+**Two states only**: The task model intentionally has only `ToDo` and `Done` — no `in-progress`. The checkbox maps cleanly onto this binary model. There is no hidden third state that could leave the checkbox in an undefined position.
 
 ## Alternatives Considered
 
@@ -241,10 +243,7 @@ Click on the entire task row toggles between `todo` and `done`. No separate deta
 
 ### Multi-Status Support
 
-Currently: `todo` ↔ `done` via checkbox.  
-Future: `todo` → `in-progress` → `done` via Kanban-drag or status picker in detail view.
-
-The checkbox remains a simple toggle between `todo` and `done`. For `in-progress` there are other UI elements (not the checkbox).
+The task model has exactly two states: `ToDo` ↔ `Done`. An `in-progress` state was explicitly decided against to keep the model simple (see `task-card.md`). The checkbox toggle maps cleanly onto this binary model and requires no future extension for additional states.
 
 ### Undo Functionality
 

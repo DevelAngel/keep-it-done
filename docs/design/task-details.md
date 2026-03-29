@@ -245,78 +245,41 @@ This document presents four design variants for the expanded task detail view, e
 
 ---
 
-## Variant 4: Timeline-Style (Recommended)
+## Variant 4: Timeline-Style (Implemented)
 
-**Visual Character**: Narrative, timeline-like progression  
-**Information Density**: Medium  
+**Visual Character**: Narrative, timeline-like progression
+**Information Density**: Medium
 **Best For**: Tasks with temporal or sequential properties
 
 ### Implementation
 
 ```rust
 <Show when=is_expanded>
-    <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-white via-indigo-50 to-white">
-        // Vertical timeline with connecting line
+    <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
         <div class="relative pl-8 space-y-4">
-            // Vertical line
-            <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-indigo-300"></div>
+            // Vertical line (cyan → teal → cyan)
+            <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500"></div>
 
-            // Created
+            // Priority (optional, color depends on level A/B/C)
             <div class="relative">
-                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-white shadow flex items-center justify-center">
+                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-red-500 border-4 border-slate-900 shadow flex items-center justify-center">
+                    <span class="text-white text-xs font-bold">"A"</span>
+                </div>
+                <div class="text-xs font-semibold text-red-400 uppercase tracking-wide mb-0.5">"Priority"</div>
+                <div class="text-sm text-slate-200">"Critical"</div>
+            </div>
+
+            // Due Date, Start Date, Time Estimate, Context, Notes
+            // (each optional — shown only when set)
+
+            // Created (always present, always last)
+            <div class="relative">
+                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-700 border-4 border-slate-900 shadow flex items-center justify-center">
                     <div class="w-2 h-2 rounded-full bg-white"></div>
                 </div>
-                <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-0.5">"Created"</div>
-                <div class="text-sm text-gray-900">{created_display}</div>
+                <div class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-0.5">"Created"</div>
+                <div class="text-sm text-slate-200">{created_display}</div>
             </div>
-
-            // Priority
-            <div class="relative">
-                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-red-500 border-4 border-white shadow flex items-center justify-center">
-                    <span class="text-white text-xs font-bold">{mock_priority}</span>
-                </div>
-                <div class="text-xs font-semibold text-red-600 uppercase tracking-wide mb-0.5">"Priority"</div>
-                <div class="text-sm text-gray-900">"High importance"</div>
-            </div>
-
-            // Time estimate
-            <div class="relative">
-                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow flex items-center justify-center">
-                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
-                    </svg>
-                </div>
-                <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-0.5">"Estimate"</div>
-                <div class="text-sm text-gray-900">{mock_estimate}</div>
-            </div>
-
-            // Context
-            <div class="relative">
-                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-purple-500 border-4 border-white shadow flex items-center justify-center">
-                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-                    </svg>
-                </div>
-                <div class="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-0.5">"Context"</div>
-                <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500 text-white shadow-sm">
-                    {mock_context}
-                </div>
-            </div>
-
-            // Notes
-            {mock_notes.map(|notes| view! {
-                <div class="relative">
-                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-gray-500 border-4 border-white shadow flex items-center justify-center">
-                        <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"/>
-                        </svg>
-                    </div>
-                    <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">"Notes"</div>
-                    <div class="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded-lg border border-gray-200 shadow-sm whitespace-pre-wrap">
-                        {notes}
-                    </div>
-                </div>
-            })}
         </div>
     </div>
 </Show>
@@ -324,11 +287,11 @@ This document presents four design variants for the expanded task detail view, e
 
 ### Design Notes
 
-- **Timeline metaphor**: Vertical progression with connecting line
-- **Dot indicators**: Colored dots create visual anchors
-- **Border rings**: White borders separate dots from background
-- **Gradient background**: Subtle indigo wash
-- **Icon variation**: Different icons/letters in timeline dots
+- **Timeline metaphor**: Vertical progression with connecting line (cyan → teal → cyan)
+- **Dot indicators**: Colored markers per semantic meaning — red/amber/sky for priority, teal for dates, amber for estimate, slate for notes, cyan for created
+- **Border rings**: `border-slate-900` rings separate markers from background (matches page background)
+- **Gradient background**: Slate wash distinguishes expanded area from task list
+- **Created last**: Origin anchors the bottom — actionable fields first, archival last
 
 ---
 
@@ -362,25 +325,12 @@ This document presents four design variants for the expanded task detail view, e
 
 **Distinctive**: Unlike typical task apps. Memorable. Reflects the "conversation with AI" philosophy.
 
-### Adaptation Suggestion
+### Adaptation
 
-You could combine Timeline's structure with Variant 1's icon library for maximum clarity:
-
-```rust
-// Timeline dot with icon inside
-<div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-indigo-500 border-4 border-white shadow flex items-center justify-center">
-    <svg class="w-3 h-3 text-white">...</svg>
-</div>
-```
-
-This gives you timeline flow + semantic icons + minimal visual noise.
+The implemented version combines Timeline's structure with Variant 1's icon approach: each marker contains either a letter (Priority) or an SVG icon (Due Date, Start Date, Time Estimate, Context, Notes), or a white dot (Created). This gives timeline flow + semantic icons + minimal visual noise.
 
 ---
 
-## Implementation Priority
+## Implementation Decision
 
-1. **Start with Variant 2** (Grid) - quickest to implement, works well
-2. **Iterate to Variant 4** (Timeline) - if you want distinctive design
-3. **Keep Variant 1** (Icons) - as fallback if Timeline feels too complex
-
-You decide which balance between information density and visual elegance works best for your family.
+**Variant 4 (Timeline-Style) was chosen and implemented.** See `docs/uxdr/timeline-detail-expansion.md` for the full rationale. Variants 1–3 remain as historical design alternatives.

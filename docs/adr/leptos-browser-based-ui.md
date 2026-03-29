@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -22,20 +22,23 @@ Technology options for web UIs range from server-rendered HTML with minimal Java
 
 We will use Leptos (https://www.leptos.dev/) as the framework for the browser-based UI. Leptos is a Rust web framework that compiles to WebAssembly for the client side and provides server functions for backend communication. It offers fine-grained reactivity similar to SolidJS, allowing efficient UI updates without virtual DOM overhead.
 
-The architecture will use Leptos in fullstack mode:
-- Client code compiles to WASM and runs in the browser
-- Server functions provide typed API endpoints
-- The Leptos server integrates with the existing task server process
-- Server functions call the same `task-service` business logic that the RPC interface uses
+The architecture uses Leptos in fullstack mode:
+- Client code compiles to WASM (`kid-frontend` crate, `cdylib`) and runs in the browser
+- Server functions provide typed API endpoints (`kid-app` crate, feature `ssr`)
+- The Leptos server integrates with the existing `kid-server` process
+- Server functions access the same `SharedTaskCache` that the RPC interface uses
 
-Server functions are defined as async Rust functions annotated with `#[server]`. The client can call these functions as if they were local, and Leptos generates the HTTP requests automatically:
+Server functions are defined as async Rust functions annotated with `#[server]`. The client calls these as if they were local, and Leptos generates the HTTP requests automatically:
 
 ```rust
-#[server(GetTasks, "/api")]
-pub async fn get_tasks() -> Result<Vec<Task>, ServerFnError> {
-    let storage = use_context::<TaskStorage>()
-        .ok_or_else(|| ServerFnError::ServerError("Storage unavailable".into()))?;
-    Ok(task_service::list_all(&storage))
+#[server]
+pub async fn get_tasks() -> Result<Vec<(Uuid, Task)>, ServerFnError> {
+    let cache = use_context::<SharedTaskCache>()
+        .ok_or_else(|| ServerFnError::new("Storage unavailable"))?;
+    let tasks = cache.read().await.iter()
+        .map(|(id, task)| (*id, task.clone()))
+        .collect();
+    Ok(tasks)
 }
 ```
 
@@ -91,7 +94,7 @@ For the learning curve, we provide comprehensive documentation and examples. We 
 
 For server function limitations, we design coarse-grained server functions that fetch all data needed for a UI view in one call. We use Leptos resources for caching and automatic refetching. For real-time updates, we plan to add Server-Sent Events to push changes rather than polling with server functions.
 
-For dependency conflicts, we carefully audit dependencies before adding them. We avoid libraries known to conflict with Leptos's WASM compilation. For the gRPC conflict specifically, we keep the RPC layer (tarpc over Unix sockets) entirely separate from the web layer, with both calling shared business logic.
+For dependency conflicts, we carefully audit dependencies before adding them. We avoid libraries known to conflict with Leptos's WASM compilation. For the gRPC conflict specifically, we keep the RPC layer (tarpc over TCP) entirely separate from the web layer, with both accessing the shared `SharedTaskCache`.
 
 For mobile experience, we use responsive CSS design and test on mobile devices regularly. We accept that the initial version may not be perfectly optimized for mobile, with improvements coming iteratively based on actual family usage patterns.
 
@@ -143,14 +146,14 @@ The approach is interesting for simpler applications but doesn't fit the Kanban 
 
 ## Implementation Notes
 
-The Leptos application will be structured as a separate crate in the workspace (`task-web`) that integrates with the existing server. The server functions will be compiled into the server binary and expose HTTP endpoints automatically.
+The Leptos application is split across two crates in the workspace:
+- `kid-app` — shared SSR + hydration logic; server functions (compiled into `kid-server` via feature `ssr`) and the WASM client (via feature `hydrate`)
+- `kid-frontend` — the `cdylib` WASM binary; thin entry point that mounts `kid-app`
 
-The client WASM will be served as static assets. During development, trunk (a WASM bundler) will handle building and serving. In production, the server will serve the WASM files directly.
+Build tooling uses **`cargo-leptos`** (not trunk). It handles WASM compilation, asset bundling, Tailwind CSS, and the development reload server (port 3001 by default). The built site is emitted to `target/site/`.
 
-The task server's main.rs will initialize both the tarpc Unix socket listener for CLI communication and the Leptos HTTP server for browser communication. Both will share access to the same TaskStorage through Arc<RwLock<TaskStorage>>.
+`kid-server`'s `main.rs` initializes both the tarpc TCP listener for CLI communication and the Leptos/Axum HTTP server for browser communication. Both share `SharedTaskCache` through `Arc<RwLock<TaskCache>>`.
 
-Server functions will use the `use_context` API to access the shared TaskStorage. This allows typed access to shared state without global variables or manual dependency injection.
+Server functions access the shared cache via `use_context::<SharedTaskCache>()`, which is injected per-request by the Axum router. This provides typed access without global variables.
 
-The browser UI will use Leptos resources for data fetching, which provide automatic refetching and suspense integration. The Kanban board will be implemented as a component that creates cards for each task and updates reactively when task state changes.
-
-CSS will use Tailwind for utility-first styling, integrated through trunk's asset pipeline. This provides responsive design and mobile support without writing custom CSS from scratch.
+CSS uses Tailwind via `style/tailwind.css`, processed by `cargo-leptos` as part of the build pipeline.

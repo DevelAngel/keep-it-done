@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -20,75 +20,54 @@ Task struct has many optional fields. Traditional CLI flag explosion (--priority
 
 ### Command Structure
 
-Four operations with distinct intents:
+Six operations with distinct intents, all using named flags:
 
 ```bash
-kid add <summary> [JSON]           # Create task
-kid status <uuid> <status>         # Change ToDo/Done
-kid rename <uuid> <new-summary>    # Change task identity
-kid update <uuid> <JSON>           # Change metadata
-kid list                           # Output all tasks as JSON
-kid schema <command>               # Get JSON schema for command
+kid add    --summary <text> [--details <JSON>]     # Create task
+kid complete --id <uuid> [--reopen]                # Mark done (or reopen)
+kid rename --id <uuid> --summary <text>            # Change task identity
+kid replace  --id <uuid> --details <JSON>          # Replace all details
+kid update   --id <uuid> --details <JSON>          # Patch some details
+kid list     [--json] [--pretty]                   # Output all tasks
+kid schema   [--pretty] [--out <file>]             # Get JSON schema for details
 ```
+
+Server address is configured via `--server` flag or `KID_SERVER_ADDR` env var (default `127.0.0.1:9000`).
 
 ### JSON for Optional Fields
 
-`add` and `update` accept JSON for optional fields:
+`add`, `replace`, and `update` accept JSON for detail fields:
 
 ```bash
-kid add "Fix leak" '{"priority":"A","due_date":{"Guess":"next week"}}'
-kid update a1b2c3 '{"priority":"B","notes":"Rescheduled"}'
+kid add --summary "Fix leak" --details '{"priority":"A","due_date":{"Guess":"next week"}}'
+kid update --id <uuid> --details '{"priority":"B","notes":"Rescheduled"}'
 ```
 
-Empty JSON valid:
-```bash
-kid add "Quick task"  # defaults to '{}'
-```
+Omitting `--details` in `add` uses an empty `Details` (all optional fields absent).
 
 ### Command Separation Rationale
 
-**Status:** Most frequent operation. Dedicated command eliminates JSON overhead.
+**Complete:** Most frequent operation. Dedicated command with `--reopen` flag covers both directions of the `ToDo`/`Done` toggle without JSON overhead.
 
-**Rename:** Summary is task identity. Explicit command prevents accidental changes. AI must consciously choose rename vs update.
+**Rename:** Summary is task identity. Explicit command prevents accidental changes via `update`. AI must consciously choose rename vs update.
 
-**Update:** All other metadata changes. Excludes summary/status (enforced by validation).
+**Replace vs Update:** `replace` sets all detail fields to exactly the provided JSON (missing fields become `None`). `update` patches only the provided fields; omitted fields are left unchanged. Both operate on `Details`; neither can touch `summary` or `status`.
 
 ### Schema Provision
 
 ```bash
-kid schema add      # Returns schema for add JSON
-kid schema update   # Returns schema for update JSON (same as add)
-kid schema status   # Returns enum: ToDo | Done
-kid schema rename   # Returns: string (new summary)
+kid schema            # Outputs full JSON Schema for the Details struct
+kid schema --pretty   # Pretty-printed
+kid schema --out schema.json  # Write to file
 ```
 
-Schema output format:
-```json
-{
-  "optional_fields": {
-    "priority": "A | B | C",
-    "due_date": {
-      "Guess": "string",
-      "Precise": "ISO8601 datetime"
-    },
-    "time_estimate": {
-      "Guess": "string",
-      "Precise": "ISO8601 duration (PT2H)"
-    },
-    "context": "string",
-    "notes": "string"
-  },
-  "example": "kid add \"Task\" '{\"priority\":\"A\"}'"
-}
-```
-
-AI queries schema once, caches in context.
+The schema is generated at runtime from the `Details` struct using `schemars`. It covers all fields accepted by `add`, `replace`, and `update`. AI queries it once and caches in context.
 
 ## Consequences
 
 ### Positive
 
-**Token efficiency:** Status change `kid status <uuid> Done` vs `kid update <uuid> '{"status":"Done"}'` saves 33% tokens on most common operation.
+**Token efficiency:** Status change `kid complete --id <uuid>` vs `kid update --id <uuid> --details '{"status":"Done"}'` saves ~40% tokens on the most common operation.
 
 **Type safety:** JSON schema validates AI-generated payloads. Catch errors before execution.
 
@@ -96,7 +75,7 @@ AI queries schema once, caches in context.
 
 **Extensibility:** Adding task fields = schema update only. No new CLI flags.
 
-**Intent clarity:** Three update types (status/rename/update) map to distinct user intents. AI learns when to use each.
+**Intent clarity:** Four update types (complete/rename/replace/update) map to distinct user intents. AI learns when to use each.
 
 **Summary protection:** Explicit rename command prevents accidental identity changes. Adds cognitive friction by design.
 
@@ -108,7 +87,7 @@ AI queries schema once, caches in context.
 
 **Schema complexity:** DateEstimation/TimeEstimation use Guess/Precise wrappers. Adds nesting depth.
 
-**Multiple schemas:** Four schema commands vs single unified schema. AI must track which schema applies to which command.
+**Single schema:** `kid schema` outputs one schema covering `add`, `replace`, and `update`. There is no per-command schema. AI must know that `complete` and `rename` use their own flags, not JSON details.
 
 ### Mitigations
 
@@ -118,7 +97,7 @@ AI queries schema once, caches in context.
 
 **Schema complexity:** Guess variant accepts freeform strings. AI defaults to Guess for fuzzy data. Precise only when exact values available.
 
-**Multiple schemas:** Schemas share structure (add == update fields). AI learns once, applies twice. Status/rename trivial (enum/string).
+**Single schema:** One schema output covers `add`, `replace`, and `update`. `complete` and `rename` have no JSON input — their intent is expressed entirely through their flags.
 
 ## Alternatives Considered
 
@@ -164,52 +143,23 @@ Rejected: Ambiguous field order. What if priority omitted but context provided? 
 
 ## Implementation Notes
 
-Clap structure:
+Clap structure (simplified):
 ```rust
-#[derive(Parser)]
-enum Command {
-    Add {
-        summary: String,
-        #[arg(default_value = "{}")]
-        json: String,
-    },
-    Status {
-        uuid: Uuid,
-        status: Status,
-    },
-    Rename {
-        uuid: Uuid,
-        summary: String,
-    },
-    Update {
-        uuid: Uuid,
-        json: String,
-    },
-    List,
-    Schema {
-        #[arg(value_enum)]
-        command: SchemaCommand,
-    },
+#[derive(Subcommand)]
+enum Commands {
+    Schema { pretty: bool, outfile: Option<PathBuf> },
+    List   { json: bool, pretty: bool, server: ServerArgs },
+    Add    { summary: String, details: Option<String>, server: ServerArgs },
+    Rename { id: Uuid, summary: String, server: ServerArgs },
+    Replace{ id: Uuid, details: String, server: ServerArgs },
+    Update { id: Uuid, details: String, server: ServerArgs },
+    Complete{ id: Uuid, reopen: bool, server: ServerArgs },
 }
 ```
 
-Update validation:
-```rust
-fn handle_update(uuid: Uuid, json: String) {
-    let input: UpdateInput = serde_json::from_str(&json)?;
-    
-    if input.summary.is_some() {
-        return Err("Use 'kid rename' to change summary");
-    }
-    if input.status.is_some() {
-        return Err("Use 'kid status' to change status");
-    }
-    
-    // proceed
-}
-```
+All mutating commands use named flags (`--id`, `--summary`, `--details`, `--reopen`). `update` accepts a `TaskDetailsPatch` (partial — only present fields are changed). `replace` accepts a full `TaskDetails` (absent fields become `None`).
 
-Schema generation uses hand-crafted JSON for AI optimization (not full JSON Schema spec). Includes examples.
+Schema generation uses `schemars` on the `Details` type, producing a standard JSON Schema. No hand-crafted schema; the schema evolves automatically when the struct changes.
 
 ## Token Cost Analysis
 
@@ -217,21 +167,21 @@ Typical task creation with 3 optional fields:
 
 **This design:**
 ```bash
-kid add "Fix leak" '{"priority":"A","due_date":{"Guess":"next week"},"context":"Kitchen"}'
+kid add --summary "Fix leak" --details '{"priority":"A","due_date":{"Guess":"next week"},"context":"Kitchen"}'
 ```
-≈ 22 tokens
+≈ 24 tokens
 
 **Flag-based alternative:**
 ```bash
-kid add "Fix leak" --priority A --due-date "next week" --context "Kitchen"
+kid add --summary "Fix leak" --priority A --due-date "next week" --context "Kitchen"
 ```
-≈ 28 tokens
+≈ 30 tokens
 
-**27% token reduction** per operation at scale.
+**~20% token reduction** per creation at scale.
 
-Status change (most frequent):
-- This design: 8 tokens
-- Unified update: 12 tokens
-- **33% reduction**
+Complete (most frequent):
+- This design: `kid complete --id <uuid>` ≈ 8 tokens
+- Unified update approach: `kid update --id <uuid> --details '{"status":"Done"}'` ≈ 14 tokens
+- **~43% reduction**
 
 Over 1000 operations: ~6000 token savings.

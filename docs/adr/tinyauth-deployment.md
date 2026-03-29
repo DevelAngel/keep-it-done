@@ -10,7 +10,7 @@ The family task management system needs public internet access without VPN. The 
 
 The challenge: The application was designed for trusted local networks. It has no built-in authentication. Opening it to the internet creates immediate security problems.
 
-We use Traefik v3 as reverse proxy. The task server runs Axum with Leptos in hydrate mode. The RPC interface (Unix socket) remains local-only. Only the browser HTTP interface faces the internet.
+We use Traefik v3 as reverse proxy. `kid-server` runs Axum with Leptos in hydrate mode. The RPC interface (TCP `127.0.0.1:9000`) is local-only and not exposed. Only the browser HTTP interface faces the internet.
 
 ## Decision
 
@@ -25,7 +25,7 @@ Our Axum application receives only authenticated requests. It never sees the log
 The deployment uses Podman Quadlet with systemd units:
 - Traefik (public-facing, ports 80/443, Docker/Podman labels)
 - Tinyauth (Podman Quadlet container with systemd)
-- task-server (Podman Quadlet container with systemd, isolated from internet)
+- kid-server (Podman Quadlet container with systemd, isolated from internet)
 
 Tinyauth configuration:
 - Environment variable-based user database (bcrypt hashes)
@@ -77,7 +77,7 @@ User management:
 
 ### Mitigations
 
-**Simplify deployment with Podman Quadlet.** Systemd manages containers natively. `systemctl start tinyauth` and `systemctl start task-server`. Dependencies expressed in unit files. Automatic restart on failure. No orchestration layer needed.
+**Simplify deployment with Podman Quadlet.** Systemd manages containers natively. `systemctl start tinyauth` and `systemctl start kid-server`. Dependencies expressed in unit files. Automatic restart on failure. No orchestration layer needed.
 
 **Monitor both services.** Systemd provides built-in status and restart policies. Journalctl for centralized logs. Simple healthcheck scripts via systemd timers. Alert if either service is down.
 
@@ -182,7 +182,7 @@ Internet
                (Protected by ForwardAuth)
                    ↓
            ┌──────────────────┐
-           │ task-server      │
+           │ kid-server       │
            │ (Internal only)  │
            └──────────────────┘
 ```
@@ -194,8 +194,6 @@ Internet
 **Network isolation:** Containers share a common network (e.g., `traefik`). The task-server has no public ports exposed—only accessible via Traefik after authentication.
 
 **User management:** Users are defined via environment variables with bcrypt-hashed passwords. Generate hashes using Tinyauth's built-in command.
-
-**Selective Protection:**
 
 **Selective Protection:**
 
