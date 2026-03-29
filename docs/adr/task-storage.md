@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-We need a persistence strategy for task cards in a family task management system. The system displays tasks on Kanban boards and supports category filtering. The target audience is families with up to four users. A key requirement is simple deployment without database infrastructure.
+We need a persistence strategy for task cards in a family task management system. The system displays tasks as a mobile-first task list and supports category filtering. The target audience is families with up to four users. A key requirement is simple deployment without database infrastructure.
 
 Tasks contain multiple properties: summary, due date, start date, time estimate, priority, context, status, and notes. The system must efficiently support queries like "show all open tasks" or "show all tasks in the 'Work' category."
 
@@ -37,7 +37,7 @@ Cache implementation details:
 
 The deployment story becomes extremely simple. Users can run the application anywhere without installing databases. The entire task dataset fits in a single directory that any backup tool understands.
 
-Read performance is excellent. Displaying Kanban boards or filtering by category requires no disk I/O. The UI responds instantly because all queries hit memory. Opening task details for editing or viewing notes happens with zero latency since all data is already loaded.
+Read performance is excellent. Displaying the task list or filtering by category requires no disk I/O. The UI responds instantly because all queries hit memory. Opening task details for editing or viewing notes happens with zero latency since all data is already loaded.
 
 Development complexity stays low. No ORM, no migration scripts, no database connection pooling. Reading and writing JSON files is straightforward in any programming language. The single-file-per-task design eliminates synchronization concerns between related data.
 
@@ -73,7 +73,7 @@ For search, we can add a separate search index file that builds incrementally. T
 
 ### SQLite database
 
-Would provide proper querying and transaction support. Rejected because it adds deployment complexity (file permissions, location management) and requires migration tooling for schema changes. The query power is not needed for simple Kanban and category filtering.
+Would provide proper querying and transaction support. Rejected because it adds deployment complexity (file permissions, location management) and requires migration tooling for schema changes. The query power is not needed for simple task list display and category filtering.
 
 ### Single JSON file with all tasks
 

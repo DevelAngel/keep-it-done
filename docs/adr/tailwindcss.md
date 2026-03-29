@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The browser interface requires CSS styling for the Kanban board, task cards, and UI components. The interface serves families who need a clean, intuitive visual experience without complexity. The system uses Leptos for the frontend with SSR/hydration workflow.
+The browser interface requires CSS styling for the task list, task cards, and UI components. The interface serves families who need a clean, intuitive visual experience without complexity. The system uses Leptos for the frontend with SSR/hydration workflow.
 
 Key requirements:
 - Fast development iteration
@@ -43,7 +43,7 @@ Utility classes enable rapid UI prototyping without context switching between Ru
 
 **Minimal CSS Bundle**
 
-JIT compilation includes only classes actually used in the codebase. A typical task board UI compiles to 5-10KB of CSS instead of megabytes. Critical for instant page loads on family home networks.
+JIT compilation includes only classes actually used in the codebase. A typical task list UI compiles to 5-10KB of CSS instead of megabytes. Critical for instant page loads on family home networks.
 
 **No CSS Naming Conflicts**
 
@@ -51,7 +51,7 @@ Utility classes eliminate the need for naming conventions like BEM or CSS module
 
 **Responsive Design Built-In**
 
-Breakpoint prefixes (`md:`, `lg:`) make responsive layouts trivial. No media query boilerplate. Example: `class="grid grid-cols-1 md:grid-cols-3"` creates single-column mobile, three-column desktop layout.
+Breakpoint prefixes (`md:`, `lg:`) make responsive layouts trivial. No media query boilerplate. Example: `class="px-4 md:px-6"` adjusts padding for larger screens without a media query.
 
 **Consistent Visual Language**
 
@@ -127,7 +127,7 @@ Rust crates that generate CSS from Rust code. Rejected because:
 ### Component Libraries (Leptos UI, Yew UI)
 
 Pre-built component libraries with styling included. Rejected because:
-- Overkill for a simple Kanban board
+- Overkill for a simple task list
 - Harder to customize for family-specific needs
 - Adds dependency weight
 - Tailwind provides same consistency with more flexibility

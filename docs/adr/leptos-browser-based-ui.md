@@ -6,10 +6,10 @@ Accepted
 
 ## Context
 
-The task management system needs a browser-based interface for family members to view and interact with tasks. The interface must display tasks on a Kanban board, support filtering by category, and provide responsive updates when task state changes. Family members will access this interface from various devices including desktops, tablets, and smartphones.
+The task management system needs a browser-based interface for family members to view and interact with tasks. The interface displays tasks as a mobile-first scrollable list, supports filtering by category, and provides responsive updates when task state changes. Family members will access this interface from various devices including desktops, tablets, and smartphones.
 
 The UI requirements include:
-- Interactive Kanban board with drag-and-drop task movement
+- Mobile-first task list with expandable detail view
 - Real-time or near-real-time updates when tasks change
 - Category filtering and search
 - Mobile-responsive design
@@ -52,7 +52,7 @@ The client-side components use reactive signals to manage state and automaticall
 
 **Unified language and ecosystem**: Both client and server code are Rust. Developers can share types, utilities, and logic between frontend and backend. The Task struct definition is identical on both sides. Error handling uses the same Result types. This eliminates context switching between languages and allows full-stack Rust developers to be productive across the entire codebase.
 
-**Fine-grained reactivity**: Leptos uses signals and effects for reactivity. Only components that depend on changed data re-render. This is more efficient than React's virtual DOM diffing for complex UIs with many components. The Kanban board can have hundreds of task cards, but updating one task only re-renders that card, not the entire board.
+**Fine-grained reactivity**: Leptos uses signals and effects for reactivity. Only components that depend on changed data re-render. This is more efficient than React's virtual DOM diffing for complex UIs with many components. The task list can have hundreds of items, but updating one task only re-renders that item, not the entire list.
 
 **WebAssembly performance**: Client-side logic runs as WASM, which executes faster than JavaScript for compute-intensive operations. Filtering large task lists, calculating dependencies, or implementing complex UI interactions benefit from near-native performance. WASM also provides a smaller bundle size compared to equivalent JavaScript frameworks.
 
@@ -106,7 +106,7 @@ For offline support, we defer this to a future enhancement. The initial version 
 
 Use a traditional server-side framework (like Axum with Askama templates) to render HTML on the server, with minimal JavaScript for interactivity. Forms submit via POST, triggering full page reloads.
 
-Rejected because it provides a dated user experience compared to modern single-page apps. Drag-and-drop task movement on the Kanban board would be difficult without substantial JavaScript. Real-time updates require WebSocket or SSE integration with manual DOM manipulation. The development experience splits between Rust server code and vanilla JavaScript client code.
+Rejected because it provides a dated user experience compared to modern single-page apps. Interactive features like expandable task details would require substantial JavaScript. Real-time updates require WebSocket or SSE integration with manual DOM manipulation. The development experience splits between Rust server code and vanilla JavaScript client code.
 
 While this approach has deployment simplicity and works without WASM, the user experience disadvantages outweigh these benefits for an interactive app like a task manager.
 
@@ -140,9 +140,9 @@ If native desktop or mobile apps become requirements, Dioxus could be reconsider
 
 Use htmx to enhance server-rendered HTML with AJAX capabilities, keeping most logic server-side while providing interactivity without writing JavaScript.
 
-Rejected because htmx still requires server-side rendering in a templating language, splitting concerns between Rust server logic and HTML templates. Complex interactions like drag-and-drop require custom JavaScript anyway. htmx's strength is progressive enhancement, but we want a fully interactive SPA experience.
+Rejected because htmx still requires server-side rendering in a templating language, splitting concerns between Rust server logic and HTML templates. htmx's strength is progressive enhancement of mostly-static pages; a reactive task list with expandable details requires more JavaScript than htmx saves.
 
-The approach is interesting for simpler applications but doesn't fit the Kanban board interaction model well.
+The approach is interesting for simpler applications but doesn't fit the interactive task list model well.
 
 ## Implementation Notes
 
