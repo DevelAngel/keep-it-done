@@ -68,12 +68,7 @@ Each task file is a flat JSON object. The task ID is the filename, not a field i
 
 ### Status Encoding
 
-`status` is an object that captures both the current state and *when it was set*:
-
-```json
-{"ToDo": {"since": "2024-03-01T10:00:00Z"}}
-{"Done": {"since": "2024-03-10T18:30:00Z"}}
-```
+`status` is an object that captures both the current state and *when it was set*, e.g. `{"ToDo": {"since": "2024-03-01T10:00:00Z"}}` or `{"Done": {"since": "2024-03-10T18:30:00Z"}}`.
 
 Only two states exist: `ToDo` and `Done`. There is no "in-progress" state. The `since` field serves as both a creation timestamp (when status is `ToDo` and the task was just created) and a completion timestamp (when status is `Done`).
 
