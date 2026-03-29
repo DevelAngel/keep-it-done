@@ -44,17 +44,4 @@ Use `clap` with the `derive` feature for CLI parsing.
 
 ## Implementation Notes
 
-```rust
-#[derive(Parser)]
-#[command(name = "app", version, about)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    CommandA { /* args */ },
-    CommandB { /* args */ },
-}
-```
+Subcommands are defined as Rust enum variants annotated with `#[derive(Subcommand)]`. Each variant holds its own typed fields as named struct members. The top-level `Cli` struct uses `#[command(subcommand)]` to delegate dispatch to the enum.

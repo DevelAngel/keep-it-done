@@ -83,11 +83,7 @@ No compile-time validation of Tailwind class names themselves. Typing `bg-bleu-5
 
 **Verbose Class Strings**
 
-Complex components can accumulate long class strings:
-```rust
-class="flex items-center justify-between p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow"
-```
-Can reduce readability. Mitigated by extracting reusable components or using Leptos's `class:` directive for conditional classes.
+Complex components can accumulate long class strings, reducing readability. Mitigated by extracting reusable components or using Leptos's `class:` directive for conditional classes.
 
 **Learning Curve for CSS Experts**
 
@@ -99,17 +95,7 @@ Requires `style/tailwind.css` with `@import 'tailwindcss'` and `cargo-leptos` co
 
 ### Mitigations
 
-For verbose classes, extract common patterns into Leptos components:
-```rust
-#[component]
-fn TaskCard(children: Children) -> impl IntoView {
-    view! {
-        <div class="flex items-center justify-between p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
-            {children()}
-        </div>
-    }
-}
-```
+For verbose classes, extract common patterns into Leptos components that encapsulate the class string once and reuse it everywhere.
 
 For class name validation, use Tailwind IntelliSense in VSCode/IDE.
 
@@ -182,25 +168,6 @@ Configuration example (Tailwind v4 CSS-first):
 @theme {
   --color-status-todo: #f3f4f6;
   --color-status-done: #d1fae5;
-}
-```
-
-Leptos view using Tailwind:
-```rust
-#[component]
-fn KanbanColumn(title: &'static str, tasks: Vec<Task>) -> impl IntoView {
-    view! {
-        <div class="flex-1 bg-gray-50 rounded-lg p-4">
-            <h2 class="text-xl font-bold mb-4">{title}</h2>
-            <div class="space-y-3">
-                <For 
-                    each=move || tasks.clone()
-                    key=|task| task.id.clone()
-                    children=|task| view! { <TaskCard task=task /> }
-                />
-            </div>
-        </div>
-    }
 }
 ```
 
