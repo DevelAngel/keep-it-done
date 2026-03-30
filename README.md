@@ -43,6 +43,16 @@ cargo run --bin kid -- list
 open http://localhost:3000
 ```
 
+## Browser View
+
+### Task List View
+
+![Task list view: Browser view showing "My Day" with a teal header, an Add button, and a scrollable list of tasks with checkboxes and task summaries.](screenshots/task-list.png "Task list view")
+
+### Task Details Expansion
+
+![Task detail expansion: Same view with one task expanded, revealing labelled fields: priority badge, due date, start date, context badge, and a notes text block.](screenshots/task-detail-expansion.png "Task detail expansion")
+
 ## Task Fields
 
 Each task can carry: summary, priority (A/B/C), due date, start date, time estimate, context, and notes. Dates accept both precise timestamps and free-text estimates ("next Friday").
