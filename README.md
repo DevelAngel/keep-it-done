@@ -31,6 +31,17 @@ See [Mental Load Analysis](docs/analysis/mental-load-analysis-de.pdf) (in German
 - **Privacy first** — everything stays on your home network
 - **Zero infrastructure** — runs on a Raspberry Pi or any home server
 
+### A note on privacy
+
+kid itself keeps all data on your home network.
+However, task content is shared with whichever LLM your assistant uses —
+cloud models (Claude, ChatGPT) send it to an external API,
+while local models via [Ollama](https://ollama.com) keep everything on your own hardware.
+
+[OpenClaw](https://github.com/openclaw/openclaw) is a self-hosted personal assistant
+(WhatsApp, Telegram, Signal, and many more channels)
+that can front either type of LLM.
+
 ## Quick Start
 
 ```bash
