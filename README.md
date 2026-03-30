@@ -21,6 +21,8 @@ Instead of wrestling with complex task apps, talk naturally to your AI assistant
 └──────────────┘
 ```
 
+See [Mental Load Analysis](docs/analysis/mental-load-analysis-de.pdf) (in German) for the background research behind this idea.
+
 ## Features
 
 - **File-based storage** — tasks as JSON files, no database needed
