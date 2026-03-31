@@ -60,6 +60,82 @@ pub fn App() -> impl IntoView {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum View {
+    MyDay,
+    WhatIFinished,
+}
+
+impl View {
+    const COUNT: usize = 2;
+
+    fn title(self) -> &'static str {
+        match self {
+            View::MyDay => "My Day",
+            View::WhatIFinished => "What I Finished",
+        }
+    }
+
+    fn header_gradient(self) -> &'static str {
+        match self {
+            View::MyDay => "from-purple-600 to-purple-800",
+            View::WhatIFinished => "from-green-600 to-green-800",
+        }
+    }
+
+    fn dot_active_color(self) -> &'static str {
+        match self {
+            View::MyDay => "bg-purple-200",
+            View::WhatIFinished => "bg-green-200",
+        }
+    }
+
+    fn index(self) -> usize {
+        match self {
+            View::MyDay => 0,
+            View::WhatIFinished => 1,
+        }
+    }
+
+    fn from_index(i: usize) -> Option<Self> {
+        match i {
+            0 => Some(Self::MyDay),
+            1 => Some(Self::WhatIFinished),
+            _ => None,
+        }
+    }
+
+    fn prev(self) -> Option<Self> {
+        self.index().checked_sub(1).and_then(Self::from_index)
+    }
+
+    fn next(self) -> Option<Self> {
+        Self::from_index(self.index() + 1)
+    }
+
+    fn filter<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(self, task: &T) -> bool {
+        match self {
+            View::MyDay => !task.is_done(),
+            View::WhatIFinished => task.is_done(),
+        }
+    }
+
+    fn empty_message(self) -> &'static str {
+        match self {
+            View::MyDay => "Nothing left for today.",
+            View::WhatIFinished => "Nothing finished yet.",
+        }
+    }
+}
+
+fn arrow_opacity_class(switch_count: u32) -> &'static str {
+    match switch_count {
+        0..=10 => "opacity-80",
+        11..=50 => "opacity-40 hover:opacity-80 focus-visible:opacity-80",
+        _ => "opacity-20 hover:opacity-80 focus-visible:opacity-80",
+    }
+}
+
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
@@ -78,6 +154,22 @@ fn TaskList() -> impl IntoView {
         move |_| server::fetch_task_list(),
     );
 
+    let current_view = RwSignal::new(View::MyDay);
+    let switch_count = RwSignal::new(0u32);
+
+    let go_prev = move |_| {
+        if let Some(prev) = current_view.get_untracked().prev() {
+            current_view.set(prev);
+            switch_count.update(|c| *c += 1);
+        }
+    };
+    let go_next = move |_| {
+        if let Some(next) = current_view.get_untracked().next() {
+            current_view.set(next);
+            switch_count.update(|c| *c += 1);
+        }
+    };
+
     view! {
         <MultiActionForm action=add_task>
             <label>"Add a Task" <input type="text" name="summary"/></label>
@@ -85,8 +177,80 @@ fn TaskList() -> impl IntoView {
         </MultiActionForm>
         <div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900">
             <div class="max-w-2xl mx-auto min-h-screen bg-slate-900 shadow-2xl">
-                <header class="px-6 py-8 bg-gradient-to-br from-cyan-600 to-teal-700 text-white">
-                    <h1 class="text-3xl font-semibold mb-1">"My Day"</h1>
+                <header class=move || format!(
+                    "px-6 pt-6 pb-5 bg-gradient-to-br {} text-white select-none",
+                    current_view.get().header_gradient()
+                )>
+                    <div class="flex items-center gap-2">
+                        // Left arrow
+                        <button
+                            type="button"
+                            class=move || {
+                                let opacity = match current_view.get().prev() {
+                                    Some(_) => arrow_opacity_class(switch_count.get()),
+                                    None => "opacity-0 pointer-events-none",
+                                };
+                                format!("w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
+                            }
+                            on:click=go_prev
+                            aria-label=move || current_view.get().prev()
+                                .map(|v| format!("Previous view: {}", v.title()))
+                                .unwrap_or_default()
+                        >
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </button>
+                        // Title
+                        <h1
+                            aria-live="polite"
+                            class="flex-1 text-center text-3xl font-semibold"
+                        >
+                            {move || current_view.get().title()}
+                        </h1>
+                        // Right arrow
+                        <button
+                            type="button"
+                            class=move || {
+                                let opacity = match current_view.get().next() {
+                                    Some(_) => arrow_opacity_class(switch_count.get()),
+                                    None => "opacity-0 pointer-events-none",
+                                };
+                                format!("w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
+                            }
+                            on:click=go_next
+                            aria-label=move || current_view.get().next()
+                                .map(|v| format!("Next view: {}", v.title()))
+                                .unwrap_or_default()
+                        >
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                        </button>
+                    </div>
+                    // Page indicator dots
+                    <div class="flex justify-center items-center gap-2 mt-3">
+                        {(0..View::COUNT).map(|i| {
+                            let v = View::from_index(i).unwrap();
+                            view! {
+                                <button
+                                    type="button"
+                                    class=move || if current_view.get() == v {
+                                        format!("h-1.5 w-4 rounded-full transition-all {}", v.dot_active_color())
+                                    } else {
+                                        "h-1.5 w-1.5 rounded-full bg-white opacity-40 hover:opacity-60 transition-all".to_string()
+                                    }
+                                    on:click=move |_| {
+                                        if current_view.get_untracked() != v {
+                                            current_view.set(v);
+                                            switch_count.update(|c| *c += 1);
+                                        }
+                                    }
+                                    aria-label={v.title()}
+                                />
+                            }
+                        }).collect_view()}
+                    </div>
                 </header>
                 <div class="py-2">
                     <Suspense fallback=move || view! {
@@ -94,14 +258,23 @@ fn TaskList() -> impl IntoView {
                     }>
                         <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
                             {move || {
+                                let view = current_view.get();
                                 Suspend::new(async move {
                                     task_list.await.map(|task_list| {
-                                        if task_list.is_empty() {
-                                            Either::Left(view! { <p>"No tasks were found."</p> })
+                                        let filtered: Vec<_> = task_list
+                                            .into_iter()
+                                            .filter(|t| view.filter(t))
+                                            .collect();
+                                        if filtered.is_empty() {
+                                            Either::Left(view! {
+                                                <p class="px-6 py-6 text-center text-slate-400">
+                                                    {view.empty_message()}
+                                                </p>
+                                            })
                                         } else {
                                             Either::Right(view! {
                                                 <For
-                                                    each=move || task_list.clone()
+                                                    each=move || filtered.clone()
                                                     key=|task| *task.id()
                                                     children=move |task| {
                                                         view! {
