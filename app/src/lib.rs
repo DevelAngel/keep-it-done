@@ -125,6 +125,22 @@ impl View {
             View::WhatIFinished => "Nothing finished yet.",
         }
     }
+
+    fn checkbox_checked_classes(self) -> &'static str {
+        match self {
+            View::MyDay => "checked:from-cyan-500 checked:to-teal-600 checked:border-cyan-500",
+            View::WhatIFinished => {
+                "checked:from-teal-500 checked:to-emerald-600 checked:border-teal-500"
+            }
+        }
+    }
+
+    fn spinner_gradient(self) -> &'static str {
+        match self {
+            View::MyDay => "from-cyan-500 to-teal-600",
+            View::WhatIFinished => "from-teal-500 to-emerald-600",
+        }
+    }
 }
 
 fn arrow_opacity_class(switch_count: u32) -> &'static str {
@@ -284,6 +300,8 @@ fn TaskList() -> impl IntoView {
                                                                 set_expanded_task_id=set_expanded_task_id
                                                                 set_completion_version=set_completion_version
                                                                 strikethrough_when_done={view == View::MyDay}
+                                                                checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                spinner_gradient={view.spinner_gradient()}
                                                             />
                                                         }
                                                     }
@@ -308,6 +326,8 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     set_expanded_task_id: WriteSignal<Option<Uuid>>,
     set_completion_version: WriteSignal<u32>,
     strikethrough_when_done: bool,
+    checkbox_checked_classes: &'static str,
+    spinner_gradient: &'static str,
 ) -> impl IntoView {
     let id = *task.id();
 
@@ -360,7 +380,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 // Checkbox
                 <input
                     type="checkbox"
-                    class="w-5 h-5 rounded-full border-2 border-slate-600 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br checked:from-cyan-500 checked:to-teal-600 checked:border-cyan-500 relative"
+                    class=format!("w-5 h-5 rounded-full border-2 border-slate-600 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br {checkbox_checked_classes} relative")
                     prop:checked=move || checked.get()
                     prop:disabled=move || complete_task.pending().get()
                     on:click=move |ev| ev.stop_propagation()
@@ -385,8 +405,8 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 <Show when=move || complete_task.pending().get()>
                     <div class="ml-4 flex-shrink-0">
                         <div class="relative w-5 h-5">
-                            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 opacity-75 animate-ping"></div>
-                            <div class="relative rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 w-5 h-5 animate-spin border-2 border-slate-900 border-t-transparent"></div>
+                            <div class=format!("absolute inset-0 rounded-full bg-gradient-to-br {spinner_gradient} opacity-75 animate-ping")></div>
+                            <div class=format!("relative rounded-full bg-gradient-to-br {spinner_gradient} w-5 h-5 animate-spin border-2 border-slate-900 border-t-transparent")></div>
                         </div>
                     </div>
                 </Show>
