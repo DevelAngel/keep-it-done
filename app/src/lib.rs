@@ -142,6 +142,7 @@ fn TaskList() -> impl IntoView {
 
     let add_task = ServerMultiAction::<server::AddTask>::new();
     let delete_task = ServerAction::<server::DeleteTask>::new();
+    let (completion_version, set_completion_version) = signal(0u32);
 
     let task_list = Resource::new(
         move || {
@@ -149,6 +150,7 @@ fn TaskList() -> impl IntoView {
                 delete_task.version().get(),
                 add_task.version().get(),
                 delete_task.version().get(),
+                completion_version.get(),
             )
         },
         move |_| server::fetch_task_list(),
@@ -281,6 +283,8 @@ fn TaskList() -> impl IntoView {
                                                             <TaskItem task=task
                                                                 expanded_task_id=expanded_task_id
                                                                 set_expanded_task_id=set_expanded_task_id
+                                                                set_completion_version=set_completion_version
+                                                                strikethrough_when_done={view == View::MyDay}
                                                             />
                                                         }
                                                     }
@@ -303,6 +307,8 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     task: T,
     expanded_task_id: ReadSignal<Option<Uuid>>,
     set_expanded_task_id: WriteSignal<Option<Uuid>>,
+    set_completion_version: WriteSignal<u32>,
+    strikethrough_when_done: bool,
 ) -> impl IntoView {
     let id = *task.id();
 
@@ -311,9 +317,12 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
         let id = *id;
         let checked = *checked;
         async move {
-            if let Err(e) = server::complete_task(id, checked).await {
-                tracing::error!("complete task failed: {e}");
-                set_checked.set(!checked);
+            match server::complete_task(id, checked).await {
+                Ok(()) => set_completion_version.update(|v| *v += 1),
+                Err(e) => {
+                    tracing::error!("complete task failed: {e}");
+                    set_checked.set(!checked);
+                }
             }
         }
     });
@@ -362,7 +371,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 />
                 // Summary
                 <div class="flex-1">
-                    <span class=move || if checked.get() {
+                    <span class=move || if checked.get() && strikethrough_when_done {
                         "text-slate-100 line-through opacity-50"
                     } else {
                         "text-slate-100"
