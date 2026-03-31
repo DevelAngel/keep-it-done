@@ -45,12 +45,17 @@ Chosen option: "Swipe gesture with progressive affordance disclosure", because i
 
 **Semantic color coding per view:**
 
-- My Day — purple (active, forward-looking)
-- What I Finished — green (completion, positive)
-- Quick Wins — orange (opportunistic, brief)
-- Recent Changes — blue (analytical, audit)
+- My Day — cyan/teal (active, forward-looking)
+- What I Finished — teal/emerald (completion, positive)
+- Quick Wins — amber (opportunistic, brief)
+- Recent Changes — sky (analytical, audit)
 
 Header title and arrow colors change with the active view.
+
+> [!TIP]
+> Color palette aligned with the app's existing cyan/teal accent system.
+> Original proposal used purple/green/orange/blue;
+> revised to stay within the established palette.
 
 ### Consequences
 

@@ -77,15 +77,15 @@ impl View {
 
     fn header_gradient(self) -> &'static str {
         match self {
-            View::MyDay => "from-purple-600 to-purple-800",
-            View::WhatIFinished => "from-green-600 to-green-800",
+            View::MyDay => "from-cyan-600 to-teal-700",
+            View::WhatIFinished => "from-teal-600 to-emerald-700",
         }
     }
 
     fn dot_active_color(self) -> &'static str {
         match self {
-            View::MyDay => "bg-purple-200",
-            View::WhatIFinished => "bg-green-200",
+            View::MyDay => "bg-cyan-200",
+            View::WhatIFinished => "bg-emerald-200",
         }
     }
 
