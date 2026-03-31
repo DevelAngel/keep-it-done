@@ -318,7 +318,10 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
         let checked = *checked;
         async move {
             match server::complete_task(id, checked).await {
-                Ok(()) => set_completion_version.update(|v| *v += 1),
+                Ok(()) => set_timeout(
+                    move || set_completion_version.update(|v| *v += 1),
+                    std::time::Duration::from_millis(600),
+                ),
                 Err(e) => {
                     tracing::error!("complete task failed: {e}");
                     set_checked.set(!checked);
