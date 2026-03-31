@@ -14,6 +14,7 @@ use leptos_router::{
     StaticSegment,
     components::{Route, Router, Routes},
 };
+use strum::EnumCount;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -60,15 +61,13 @@ pub fn App() -> impl IntoView {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, EnumCount)]
 enum View {
     MyDay,
     WhatIFinished,
 }
 
 impl View {
-    const COUNT: usize = 2;
-
     fn title(self) -> &'static str {
         match self {
             View::MyDay => "My Day",
