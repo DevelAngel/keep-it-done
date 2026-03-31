@@ -19,6 +19,12 @@ use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Filter {
+    Todo,
+    Done,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Task {

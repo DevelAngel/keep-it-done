@@ -8,6 +8,7 @@ pub use crate::task::{
     DateEstimation as TaskDateEstimation, DateEstimationRef as TaskDateEstimationRef,
     Priority as TaskPriority, Status as TaskStatus, Task, TimeEstimation as TaskTimeEstimation,
     TimeEstimationRef as TaskTimeEstimationRef,
+    Filter as TaskFilter,
 };
 pub use chrono::{DateTime, Utc};
 pub use uuid::Uuid;

@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDateEstimationRef, TaskDetails, TaskId, TaskInfos, TaskPriority, Uuid};
+use kid_types::{TaskDateEstimationRef, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, Uuid};
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -112,13 +112,6 @@ impl View {
         Self::from_index(self.index() + 1)
     }
 
-    fn filter<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(self, task: &T) -> bool {
-        match self {
-            View::MyDay => !task.is_done(),
-            View::WhatIFinished => task.is_done(),
-        }
-    }
-
     fn empty_message(self) -> &'static str {
         match self {
             View::MyDay => "Nothing left for today.",
@@ -159,6 +152,9 @@ fn TaskList() -> impl IntoView {
     let delete_task = ServerAction::<server::DeleteTask>::new();
     let (completion_version, set_completion_version) = signal(0u32);
 
+    let current_view = RwSignal::new(View::MyDay);
+    let switch_count = RwSignal::new(0u32);
+
     let task_list = Resource::new(
         move || {
             (
@@ -166,13 +162,17 @@ fn TaskList() -> impl IntoView {
                 add_task.version().get(),
                 delete_task.version().get(),
                 completion_version.get(),
+                current_view.get(),
             )
         },
-        move |_| server::fetch_task_list(),
+        move |_| {
+            let filter = match current_view.get_untracked() {
+                View::MyDay => TaskFilter::Todo,
+                View::WhatIFinished => TaskFilter::Done,
+            };
+            server::fetch_task_list(filter)
+        },
     );
-
-    let current_view = RwSignal::new(View::MyDay);
-    let switch_count = RwSignal::new(0u32);
 
     let go_prev = move |_| {
         if let Some(prev) = current_view.get_untracked().prev() {
@@ -278,11 +278,7 @@ fn TaskList() -> impl IntoView {
                                 let view = current_view.get();
                                 Suspend::new(async move {
                                     task_list.await.map(|task_list| {
-                                        let filtered: Vec<_> = task_list
-                                            .into_iter()
-                                            .filter(|t| view.filter(t))
-                                            .collect();
-                                        if filtered.is_empty() {
+                                        if task_list.is_empty() {
                                             Either::Left(view! {
                                                 <p class="px-6 py-6 text-center text-slate-400">
                                                     {view.empty_message()}
@@ -291,7 +287,7 @@ fn TaskList() -> impl IntoView {
                                         } else {
                                             Either::Right(view! {
                                                 <For
-                                                    each=move || filtered.clone()
+                                                    each=move || task_list.clone()
                                                     key=|task| *task.id()
                                                     children=move |task| {
                                                         view! {

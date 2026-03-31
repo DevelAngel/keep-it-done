@@ -4,6 +4,7 @@ cfg_if::cfg_if! {
     }
 }
 
+use kid_types::TaskFilter;
 use kid_types::Uuid;
 use kid_types::task;
 
@@ -22,12 +23,16 @@ use leptos::prelude::*;
 */
 
 #[server(endpoint = "fetch_tasks")]
-pub async fn fetch_task_list() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
-    tracing::info!("fetch task list");
+pub async fn fetch_task_list(filter: TaskFilter) -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+    tracing::info!("fetch task list ({filter:?})");
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let list = cache
         .iter()
+        .filter(|(_, task)| match filter {
+            TaskFilter::Todo => !task.info().is_done(),
+            TaskFilter::Done => task.info().is_done(),
+        })
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
     Ok(list)
