@@ -14,7 +14,7 @@ use leptos_router::{
     StaticSegment,
     components::{Route, Router, Routes},
 };
-use strum::EnumCount;
+use strum::{EnumCount, FromRepr};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -61,7 +61,7 @@ pub fn App() -> impl IntoView {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, EnumCount)]
+#[derive(Clone, Copy, PartialEq, Eq, EnumCount, FromRepr)]
 enum View {
     MyDay,
     WhatIFinished,
@@ -97,31 +97,12 @@ impl View {
         }
     }
 
-    fn index(self) -> usize {
-        match self {
-            View::MyDay => 0,
-            View::WhatIFinished => 1,
-            View::QuickWins => 2,
-            View::RecentlyChanged => 3,
-        }
-    }
-
-    fn from_index(i: usize) -> Option<Self> {
-        match i {
-            0 => Some(Self::MyDay),
-            1 => Some(Self::WhatIFinished),
-            2 => Some(Self::QuickWins),
-            3 => Some(Self::RecentlyChanged),
-            _ => None,
-        }
-    }
-
     fn prev(self) -> Option<Self> {
-        self.index().checked_sub(1).and_then(Self::from_index)
+        (self as usize).checked_sub(1).and_then(Self::from_repr)
     }
 
     fn next(self) -> Option<Self> {
-        Self::from_index(self.index() + 1)
+        Self::from_repr(self as usize + 1)
     }
 
     fn empty_message(self) -> &'static str {
@@ -285,7 +266,7 @@ fn TaskList() -> impl IntoView {
                     // Page indicator dots
                     <div class="flex justify-center items-center gap-2 mt-3">
                         {(0..View::COUNT).map(|i| {
-                            let v = View::from_index(i).unwrap();
+                            let v = View::from_repr(i).unwrap();
                             view! {
                                 <button
                                     type="button"
