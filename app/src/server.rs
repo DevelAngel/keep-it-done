@@ -1,7 +1,7 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
         use chrono::{TimeDelta, Utc};
-        use kid_types::{TaskDetails, TaskInfos, TaskStatus};
+        use kid_types::{TaskDetails, TaskInfos};
     }
 }
 
@@ -37,10 +37,7 @@ pub async fn fetch_task_list(filter: TaskFilter) -> Result<Vec<(Uuid, task::Info
                 !task.info().is_done() && task.time_estimate().is_some()
             }
             TaskFilter::RecentlyChanged => {
-                let since = match task.info().status() {
-                    TaskStatus::ToDo { since } | TaskStatus::Done { since } => since,
-                };
-                Utc::now().signed_duration_since(since.with_timezone(&Utc))
+                Utc::now().signed_duration_since(task.info().since().with_timezone(&Utc))
                     <= TimeDelta::hours(24)
             }
         })

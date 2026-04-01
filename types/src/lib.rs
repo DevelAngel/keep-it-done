@@ -10,7 +10,7 @@ pub use crate::task::{
     TimeEstimationRef as TaskTimeEstimationRef,
     Filter as TaskFilter,
 };
-pub use chrono::{DateTime, Utc};
+pub use chrono::{DateTime, FixedOffset, Utc};
 pub use uuid::Uuid;
 
 use chrono::TimeZone;
@@ -50,6 +50,11 @@ pub trait TaskInfos<'a> {
     fn mark_todo(&'a mut self) {
         let since = Utc::now().fixed_offset();
         self.change_status(TaskStatus::ToDo { since });
+    }
+    fn since(&'a self) -> &'a DateTime<FixedOffset> {
+        match self.status() {
+            TaskStatus::ToDo { since } | TaskStatus::Done { since } => since
+        }
     }
 }
 

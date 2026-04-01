@@ -165,6 +165,18 @@ impl View {
             View::RecentlyChanged => TaskFilter::RecentlyChanged,
         }
     }
+
+    fn sort_tasks<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(self, tasks: &mut Vec<T>) {
+        let created_asc = |a: &T, b: &T| a.id().cmp(b.id());        
+        let since_asc   = |a: &T, b: &T| a.since().cmp(b.since());
+        let since_desc  = |a: &T, b: &T| b.since().cmp(a.since());
+        match self {
+            View::MyDay          => tasks.sort_by(created_asc),
+            View::WhatIFinished  => tasks.sort_by(since_desc),
+            View::QuickWins      => tasks.sort_by(since_asc),
+            View::RecentlyChanged => tasks.sort_by(since_desc),
+        }
+    }
 }
 
 fn arrow_opacity_class(switch_count: u32) -> &'static str {
@@ -312,7 +324,11 @@ fn TaskList() -> impl IntoView {
                                         } else {
                                             Either::Right(view! {
                                                 <For
-                                                    each=move || task_list.clone()
+                                                    each=move || {
+                                                        let mut list = task_list.clone();
+                                                        view.sort_tasks(&mut list);
+                                                        list
+                                                    }
                                                     key=|task| *task.id()
                                                     children=move |task| {
                                                         view! {
