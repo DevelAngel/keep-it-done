@@ -58,13 +58,27 @@ open http://localhost:3000
 
 ## Browser View
 
-### Task List View
+Four views, switchable by swipe or tap:
 
-![Task list view: Browser view showing "My Day" with a teal header, an Add button, and a scrollable list of tasks with checkboxes and task summaries.](screenshots/task-list.png "Task list view")
+### My Day
+
+![My Day: cyan/teal header, list of open tasks with checkboxes sorted by creation date.](screenshots/task-list-myday.png "My Day view")
+
+### What I Finished
+
+![What I Finished: teal/emerald header, completed tasks sorted by completion date.](screenshots/task-list-whatifinished.png "What I Finished view")
+
+### Quick Wins
+
+![Quick Wins: amber header, open tasks with a time estimate sorted by age.](screenshots/task-list-quickwins.png "Quick Wins view")
+
+### Recent Changes
+
+![Recent Changes: sky header, tasks updated within the last 24 hours sorted by most recent change.](screenshots/task-list-recentchanges.png "Recent Changes view")
 
 ### Task Details Expansion
 
-![Task detail expansion: Same view with one task expanded, revealing labelled fields: priority badge, due date, start date, context badge, and a notes text block.](screenshots/task-detail-expansion.png "Task detail expansion")
+![Task detail expansion: task expanded to reveal priority badge, due date, start date, context badge, and notes.](screenshots/task-detail-expansion.png "Task detail expansion")
 
 ## Task Fields
 
