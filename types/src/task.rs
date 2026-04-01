@@ -23,6 +23,7 @@ use std::time::Duration;
 pub enum Filter {
     Todo,
     Done,
+    HasTimeEstimate,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

@@ -65,6 +65,7 @@ pub fn App() -> impl IntoView {
 enum View {
     MyDay,
     WhatIFinished,
+    QuickWins,
 }
 
 impl View {
@@ -72,6 +73,7 @@ impl View {
         match self {
             View::MyDay => "My Day",
             View::WhatIFinished => "What I Finished",
+            View::QuickWins => "Quick Wins",
         }
     }
 
@@ -79,6 +81,7 @@ impl View {
         match self {
             View::MyDay => "from-cyan-600 to-teal-700",
             View::WhatIFinished => "from-teal-600 to-emerald-700",
+            View::QuickWins => "from-amber-500 to-amber-700",
         }
     }
 
@@ -86,6 +89,7 @@ impl View {
         match self {
             View::MyDay => "bg-cyan-200",
             View::WhatIFinished => "bg-emerald-200",
+            View::QuickWins => "bg-amber-200",
         }
     }
 
@@ -93,6 +97,7 @@ impl View {
         match self {
             View::MyDay => 0,
             View::WhatIFinished => 1,
+            View::QuickWins => 2,
         }
     }
 
@@ -100,6 +105,7 @@ impl View {
         match i {
             0 => Some(Self::MyDay),
             1 => Some(Self::WhatIFinished),
+            2 => Some(Self::QuickWins),
             _ => None,
         }
     }
@@ -116,6 +122,7 @@ impl View {
         match self {
             View::MyDay => "Nothing left for today.",
             View::WhatIFinished => "Nothing finished yet.",
+            View::QuickWins => "No estimated tasks.",
         }
     }
 
@@ -125,6 +132,9 @@ impl View {
             View::WhatIFinished => {
                 "checked:from-teal-500 checked:to-emerald-600 checked:border-teal-500"
             }
+            View::QuickWins => {
+                "checked:from-amber-400 checked:to-amber-600 checked:border-amber-400"
+            }
         }
     }
 
@@ -132,6 +142,15 @@ impl View {
         match self {
             View::MyDay => "from-cyan-500 to-teal-600",
             View::WhatIFinished => "from-teal-500 to-emerald-600",
+            View::QuickWins => "from-amber-400 to-amber-600",
+        }
+    }
+
+    fn task_filter(self) -> TaskFilter {
+        match self {
+            View::MyDay => TaskFilter::Todo,
+            View::WhatIFinished => TaskFilter::Done,
+            View::QuickWins => TaskFilter::HasTimeEstimate,
         }
     }
 }
@@ -165,13 +184,7 @@ fn TaskList() -> impl IntoView {
                 current_view.get(),
             )
         },
-        move |_| {
-            let filter = match current_view.get_untracked() {
-                View::MyDay => TaskFilter::Todo,
-                View::WhatIFinished => TaskFilter::Done,
-            };
-            server::fetch_task_list(filter)
-        },
+        move |_| server::fetch_task_list(current_view.get_untracked().task_filter()),
     );
 
     let go_prev = move |_| {

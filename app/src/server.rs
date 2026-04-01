@@ -1,6 +1,6 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use kid_types::TaskInfos;
+        use kid_types::{TaskDetails, TaskInfos};
     }
 }
 
@@ -32,6 +32,9 @@ pub async fn fetch_task_list(filter: TaskFilter) -> Result<Vec<(Uuid, task::Info
         .filter(|(_, task)| match filter {
             TaskFilter::Todo => !task.info().is_done(),
             TaskFilter::Done => task.info().is_done(),
+            TaskFilter::HasTimeEstimate => {
+                !task.info().is_done() && task.time_estimate().is_some()
+            }
         })
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
