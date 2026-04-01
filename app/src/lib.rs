@@ -270,11 +270,7 @@ fn TaskList() -> impl IntoView {
                             view! {
                                 <button
                                     type="button"
-                                    class=move || if current_view.get() == v {
-                                        format!("h-1.5 w-4 rounded-full transition-all {}", v.dot_active_color())
-                                    } else {
-                                        "h-1.5 w-1.5 rounded-full bg-white opacity-40 hover:opacity-60 transition-all".to_string()
-                                    }
+                                    class="p-3 -m-3"
                                     on:click=move |_| {
                                         if current_view.get_untracked() != v {
                                             current_view.set(v);
@@ -282,7 +278,13 @@ fn TaskList() -> impl IntoView {
                                         }
                                     }
                                     aria-label={v.title()}
-                                />
+                                >
+                                    <div class=move || if current_view.get() == v {
+                                        format!("h-1.5 w-4 rounded-full transition-all {}", v.dot_active_color())
+                                    } else {
+                                        "h-1.5 w-1.5 rounded-full bg-white opacity-40 hover:opacity-60 transition-all".to_string()
+                                    }/>
+                                </button>
                             }
                         }).collect_view()}
                     </div>
