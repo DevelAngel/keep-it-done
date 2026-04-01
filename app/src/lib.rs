@@ -66,6 +66,7 @@ enum View {
     MyDay,
     WhatIFinished,
     QuickWins,
+    RecentlyChanged,
 }
 
 impl View {
@@ -74,6 +75,7 @@ impl View {
             View::MyDay => "My Day",
             View::WhatIFinished => "What I Finished",
             View::QuickWins => "Quick Wins",
+            View::RecentlyChanged => "Recent Changes",
         }
     }
 
@@ -82,6 +84,7 @@ impl View {
             View::MyDay => "from-cyan-600 to-teal-700",
             View::WhatIFinished => "from-teal-600 to-emerald-700",
             View::QuickWins => "from-amber-500 to-amber-700",
+            View::RecentlyChanged => "from-sky-500 to-sky-700",
         }
     }
 
@@ -90,6 +93,7 @@ impl View {
             View::MyDay => "bg-cyan-200",
             View::WhatIFinished => "bg-emerald-200",
             View::QuickWins => "bg-amber-200",
+            View::RecentlyChanged => "bg-sky-200",
         }
     }
 
@@ -98,6 +102,7 @@ impl View {
             View::MyDay => 0,
             View::WhatIFinished => 1,
             View::QuickWins => 2,
+            View::RecentlyChanged => 3,
         }
     }
 
@@ -106,6 +111,7 @@ impl View {
             0 => Some(Self::MyDay),
             1 => Some(Self::WhatIFinished),
             2 => Some(Self::QuickWins),
+            3 => Some(Self::RecentlyChanged),
             _ => None,
         }
     }
@@ -123,6 +129,7 @@ impl View {
             View::MyDay => "Nothing left for today.",
             View::WhatIFinished => "Nothing finished yet.",
             View::QuickWins => "No estimated tasks.",
+            View::RecentlyChanged => "No changes in the last 24 hours.",
         }
     }
 
@@ -135,6 +142,9 @@ impl View {
             View::QuickWins => {
                 "checked:from-amber-400 checked:to-amber-600 checked:border-amber-400"
             }
+            View::RecentlyChanged => {
+                "checked:from-sky-400 checked:to-sky-600 checked:border-sky-400"
+            }
         }
     }
 
@@ -143,6 +153,7 @@ impl View {
             View::MyDay => "from-cyan-500 to-teal-600",
             View::WhatIFinished => "from-teal-500 to-emerald-600",
             View::QuickWins => "from-amber-400 to-amber-600",
+            View::RecentlyChanged => "from-sky-400 to-sky-600",
         }
     }
 
@@ -151,6 +162,7 @@ impl View {
             View::MyDay => TaskFilter::Todo,
             View::WhatIFinished => TaskFilter::Done,
             View::QuickWins => TaskFilter::HasTimeEstimate,
+            View::RecentlyChanged => TaskFilter::RecentlyChanged,
         }
     }
 }

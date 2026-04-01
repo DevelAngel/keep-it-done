@@ -1,6 +1,7 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use kid_types::{TaskDetails, TaskInfos};
+        use chrono::{TimeDelta, Utc};
+        use kid_types::{TaskDetails, TaskInfos, TaskStatus};
     }
 }
 
@@ -34,6 +35,13 @@ pub async fn fetch_task_list(filter: TaskFilter) -> Result<Vec<(Uuid, task::Info
             TaskFilter::Done => task.info().is_done(),
             TaskFilter::HasTimeEstimate => {
                 !task.info().is_done() && task.time_estimate().is_some()
+            }
+            TaskFilter::RecentlyChanged => {
+                let since = match task.info().status() {
+                    TaskStatus::ToDo { since } | TaskStatus::Done { since } => since,
+                };
+                Utc::now().signed_duration_since(since.with_timezone(&Utc))
+                    <= TimeDelta::hours(24)
             }
         })
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))

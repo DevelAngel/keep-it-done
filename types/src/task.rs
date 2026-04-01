@@ -24,6 +24,7 @@ pub enum Filter {
     Todo,
     Done,
     HasTimeEstimate,
+    RecentlyChanged,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
