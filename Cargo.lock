@@ -1643,7 +1643,7 @@ dependencies = [
 
 [[package]]
 name = "kid-app"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "cfg-if",
  "chrono",
@@ -1661,7 +1661,7 @@ dependencies = [
 
 [[package]]
 name = "kid-cli"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "clap",
  "clap-verbosity-flag",
@@ -1679,7 +1679,7 @@ dependencies = [
 
 [[package]]
 name = "kid-frontend"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "kid-server"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1704,7 +1704,7 @@ dependencies = [
  "leptos",
  "leptos_axum",
  "miette",
- "rand 0.10.0",
+ "rand 0.8.5",
  "tarpc",
  "tokio",
  "tokio-util",
@@ -1716,7 +1716,7 @@ dependencies = [
 
 [[package]]
 name = "kid-types"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "ahash",
  "assert_fs",
@@ -1728,7 +1728,7 @@ dependencies = [
  "kid-types-derive",
  "miette",
  "predicates",
- "rand 0.10.0",
+ "rand 0.8.5",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -1743,7 +1743,7 @@ dependencies = [
 
 [[package]]
 name = "kid-types-derive"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "proc-macro2",
  "quote",
