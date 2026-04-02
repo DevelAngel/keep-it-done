@@ -6,9 +6,8 @@ pub mod task;
 
 pub use crate::task::{
     DateEstimation as TaskDateEstimation, DateEstimationRef as TaskDateEstimationRef,
-    Priority as TaskPriority, Status as TaskStatus, Task, TimeEstimation as TaskTimeEstimation,
-    TimeEstimationRef as TaskTimeEstimationRef,
-    Filter as TaskFilter,
+    Filter as TaskFilter, Priority as TaskPriority, Status as TaskStatus, Task,
+    TimeEstimate as TaskTimeEstimate,
 };
 pub use chrono::{DateTime, FixedOffset, Utc};
 pub use uuid::Uuid;
@@ -68,9 +67,9 @@ pub trait TaskDetails<'a> {
     fn start_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<TaskDateEstimationRef<'a, Tz>>;
     fn set_start_date(&'a mut self, start_date: TaskDateEstimation);
     fn clear_start_date(&'a mut self);
-    fn time_estimate(&'a self) -> Option<TaskTimeEstimationRef<'a>>;
-    fn set_time_estimate(&'a mut self, time: TaskTimeEstimation);
-    fn clear_time_estimate(&'a mut self);
+    fn time_estimate(&'a self) -> Option<&'a TaskTimeEstimate>;
+    fn set_time_estimate(&mut self, time: TaskTimeEstimate);
+    fn clear_time_estimate(&mut self);
     fn context(&'a self) -> Option<Cow<'a, str>>;
     fn set_context<T: ToString>(&'a mut self, text: T);
     fn clear_context(&'a mut self);

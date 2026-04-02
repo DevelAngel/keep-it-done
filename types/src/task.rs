@@ -53,7 +53,7 @@ pub struct Details {
     priority: Option<Priority>,
     due_date: Option<DateEstimation>,
     start_date: Option<DateEstimation>,
-    time_estimate: Option<TimeEstimation>,
+    time_estimate: Option<TimeEstimate>,
     context: Option<String>,
     notes: Option<String>,
 }
@@ -148,17 +148,70 @@ pub enum DateEstimationRef<'a, Tz: TimeZone> {
     Precise(Cow<'a, DateTime<Tz>>),
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
-pub enum TimeEstimation {
-    Guess(String),
-    Precise(Duration),
+pub enum TimeEstimate {
+    Min15,
+    Min30,
+    Min45,
+    Hours1,
+    Hours2,
+    HalfDay,
+    Day1,
+    Day2,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TimeEstimationRef<'a> {
-    Guess(Cow<'a, str>),
-    Precise(Cow<'a, Duration>),
+impl From<Duration> for TimeEstimate {
+    fn from(time: Duration) -> Self {
+        let time = time.as_secs() / 60u64;
+        match time {
+            0..20 => Self::Min15,
+            20..35 => Self::Min30,
+            35..50 => Self::Min45,
+            50..70 => Self::Hours1,
+            70..135 => Self::Hours2,
+            135..740 => Self::HalfDay,
+            740..1500 => Self::Day1,
+            _ => Self::Day2,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TimeEstimate {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Current(Current),
+            Legacy(Legacy),
+        }
+
+        #[derive(Deserialize)]
+        enum Current {
+            Min15, Min30, Min45, Hours1, Hours2, HalfDay, Day1, Day2,
+        }
+
+        #[derive(Deserialize)]
+        enum Legacy {
+            Guess(#[allow(dead_code)] String),
+            Precise(Duration),
+        }
+
+        Ok(match Raw::deserialize(deserializer)? {
+            Raw::Current(c) => match c {
+                Current::Min15   => Self::Min15,
+                Current::Min30   => Self::Min30,
+                Current::Min45   => Self::Min45,
+                Current::Hours1  => Self::Hours1,
+                Current::Hours2  => Self::Hours2,
+                Current::HalfDay => Self::HalfDay,
+                Current::Day1    => Self::Day1,
+                Current::Day2    => Self::Day2,
+            },
+            Raw::Legacy(Legacy::Guess(_)) => Self::Day2,
+            Raw::Legacy(Legacy::Precise(d)) => d.into(),
+        })
+    }
 }
 
 impl<'a, Task> TaskId<'a> for (Uuid, Task) {
@@ -246,13 +299,13 @@ impl<'a> TaskDetails<'a> for (Uuid, Details) {
     fn clear_start_date(&'a mut self) {
         self.1.clear_start_date();
     }
-    fn time_estimate(&'a self) -> Option<TimeEstimationRef<'a>> {
+    fn time_estimate(&'a self) -> Option<&'a TimeEstimate> {
         self.1.time_estimate()
     }
-    fn set_time_estimate(&'a mut self, time: TimeEstimation) {
+    fn set_time_estimate(&mut self, time: TimeEstimate) {
         self.1.set_time_estimate(time);
     }
-    fn clear_time_estimate(&'a mut self) {
+    fn clear_time_estimate(&mut self) {
         self.1.clear_time_estimate();
     }
     fn context(&'a self) -> Option<Cow<'a, str>> {
@@ -303,13 +356,13 @@ impl<'a> TaskDetails<'a> for Task {
     fn clear_start_date(&'a mut self) {
         self.details.clear_start_date();
     }
-    fn time_estimate(&'a self) -> Option<TimeEstimationRef<'a>> {
+    fn time_estimate(&'a self) -> Option<&'a TimeEstimate> {
         self.details.time_estimate()
     }
-    fn set_time_estimate(&'a mut self, time: TimeEstimation) {
+    fn set_time_estimate(&mut self, time: TimeEstimate) {
         self.details.set_time_estimate(time);
     }
-    fn clear_time_estimate(&'a mut self) {
+    fn clear_time_estimate(&mut self) {
         self.details.clear_time_estimate();
     }
     fn context(&'a self) -> Option<Cow<'a, str>> {
@@ -360,13 +413,13 @@ impl<'a> TaskDetails<'a> for Details {
     fn clear_start_date(&'a mut self) {
         self.start_date = None;
     }
-    fn time_estimate(&'a self) -> Option<TimeEstimationRef<'a>> {
-        self.time_estimate.as_ref().map(|time| time.as_deref())
+    fn time_estimate(&'a self) -> Option<&'a TimeEstimate> {
+        self.time_estimate.as_ref()
     }
-    fn set_time_estimate(&'a mut self, time: TimeEstimation) {
+    fn set_time_estimate(&mut self, time: TimeEstimate) {
         self.time_estimate = Some(time);
     }
-    fn clear_time_estimate(&'a mut self) {
+    fn clear_time_estimate(&mut self) {
         self.time_estimate = None;
     }
     fn context(&'a self) -> Option<Cow<'a, str>> {
@@ -398,29 +451,11 @@ impl<'a> DateEstimation {
     }
 }
 
-impl<'a> TimeEstimation {
-    fn as_deref(&'a self) -> TimeEstimationRef<'a> {
-        match self {
-            Self::Guess(s) => TimeEstimationRef::Guess(Cow::Borrowed(s)),
-            Self::Precise(t) => TimeEstimationRef::Precise(Cow::Borrowed(t)),
-        }
-    }
-}
-
 impl<'a, Tz: TimeZone> DateEstimationRef<'a, Tz> {
     pub fn into_owned(self) -> DateEstimation {
         match self {
             Self::Guess(s) => DateEstimation::Guess(s.into_owned()),
             Self::Precise(d) => DateEstimation::Precise(d.with_timezone(&d.offset().fix())),
-        }
-    }
-}
-
-impl<'a> TimeEstimationRef<'a> {
-    pub fn into_owned(self) -> TimeEstimation {
-        match self {
-            TimeEstimationRef::Guess(s) => TimeEstimation::Guess(s.into_owned()),
-            TimeEstimationRef::Precise(t) => TimeEstimation::Precise(t.into_owned()),
         }
     }
 }
@@ -437,24 +472,17 @@ impl<'a, Tz: TimeZone> Display for DateEstimationRef<'a, Tz> {
     }
 }
 
-impl<'a> Display for TimeEstimationRef<'a> {
+impl Display for TimeEstimate {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Guess(s) => write!(f, "{s}"),
-            Self::Precise(d) => {
-                let secs = d.as_secs();
-                let (mins, secs) = (secs / 60, secs % 60);
-                let (hours, mins) = (mins / 60, mins % 60);
-                let (days, hours) = (hours / 24, hours % 24);
-                match (days, hours, mins, secs) {
-                    (0, 0, 0, _) => write!(f, "{secs} seconds"),
-                    (0, 0, _, 0) => write!(f, "{mins} minutes"),
-                    (0, _, 0, 0) => write!(f, "{hours} hours"),
-                    (_, 0, 0, 0) => write!(f, "{days} days"),
-                    (0, _, _, _) => write!(f, "{hours}:{mins:02}:{secs:02} hours"),
-                    (_, _, _, _) => write!(f, "{days} days, {hours}:{mins:02}:{secs:02} hours"),
-                }
-            }
+            Self::Min15   => write!(f, "15 minutes"),
+            Self::Min30   => write!(f, "30 minutes"),
+            Self::Min45   => write!(f, "45 minutes"),
+            Self::Hours1  => write!(f, "1 hour"),
+            Self::Hours2  => write!(f, "2 hours"),
+            Self::HalfDay => write!(f, "½ day"),
+            Self::Day1    => write!(f, "1 day"),
+            Self::Day2    => write!(f, "2 days"),
         }
     }
 }
@@ -637,5 +665,32 @@ mod tests {
                 details: Details { .. }
             }
         ));
+    }
+
+    // TIME ESTIMATE - SERIALIZE / DESERIALIZE
+
+    #[test]
+    fn serialize_time_estimate() {
+        let v = serde_json::to_string(&TimeEstimate::Min30).unwrap();
+        assert_eq!(v, r#""Min30""#);
+    }
+
+    #[test]
+    fn deserialize_time_estimate_current() {
+        let v: TimeEstimate = serde_json::from_str(r#""HalfDay""#).unwrap();
+        assert_eq!(v, TimeEstimate::HalfDay);
+    }
+
+    #[test]
+    fn deserialize_time_estimate_legacy_precise_nearest() {
+        let v: TimeEstimate =
+            serde_json::from_str(r#"{"Precise":{"secs":2880,"nanos":0}}"#).unwrap();
+        assert_eq!(v, TimeEstimate::Min45);
+    }
+
+    #[test]
+    fn deserialize_time_estimate_legacy_guess() {
+        let v: TimeEstimate = serde_json::from_str(r#"{"Guess":"a weekend"}"#).unwrap();
+        assert_eq!(v, TimeEstimate::Day2);
     }
 }
