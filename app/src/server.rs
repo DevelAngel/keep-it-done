@@ -5,6 +5,7 @@ cfg_if::cfg_if! {
     }
 }
 
+use kid_types::TaskDate;
 use kid_types::TaskFilter;
 use kid_types::TaskPriority;
 use kid_types::TaskTimeEstimate;
@@ -109,6 +110,36 @@ pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstima
     match estimate {
         Some(e) => task.set_time_estimate(e),
         None => task.clear_time_estimate(),
+    }
+    Ok(())
+}
+
+#[server(endpoint = "update_task_due_date")]
+pub async fn update_task_due_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
+    tracing::info!("update due date for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    match date {
+        Some(d) => task.set_due_date(d),
+        None => task.clear_due_date(),
+    }
+    Ok(())
+}
+
+#[server(endpoint = "update_task_start_date")]
+pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
+    tracing::info!("update start date for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    match date {
+        Some(d) => task.set_start_date(d),
+        None => task.clear_start_date(),
     }
     Ok(())
 }

@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use kid_types::{TaskDate, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
 use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
@@ -17,10 +17,14 @@ use leptos_router::{
 };
 use strum::{EnumCount, FromRepr};
 
+use std::ops::Deref;
+use std::str::FromStr;
+use std::fmt::{self, Display, Formatter};
+
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>
-        <html lang="en">
+        <html lang="de">
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -86,7 +90,7 @@ mod key {
 #[derive(Clone, Copy, Default)]
 struct EditMode(RwSignal<bool>);
 
-impl std::ops::Deref for EditMode {
+impl Deref for EditMode {
     type Target = RwSignal<bool>;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -535,6 +539,22 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
             }
         }
     });
+    let update_due_date = Action::new(move |date: &Option<TaskDate>| {
+        let date = date.clone();
+        async move {
+            if let Err(e) = server::update_task_due_date(id, date).await {
+                tracing::error!("update due date failed: {e}");
+            }
+        }
+    });
+    let update_start_date = Action::new(move |date: &Option<TaskDate>| {
+        let date = date.clone();
+        async move {
+            if let Err(e) = server::update_task_start_date(id, date).await {
+                tracing::error!("update start date failed: {e}");
+            }
+        }
+    });
 
     view! {
         <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
@@ -548,8 +568,10 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                             details.await.map(|task| {
                                 let priority_value = RwSignal::new(task.priority().cloned());
                                 let priority_initially_set = priority_value.get_untracked().is_some();
-                                let due_date = task.due_date().map(|d| (d.date.to_relative_time(), d.soft));
-                                let start_date = task.start_date().map(|d| (d.date.to_relative_time(), d.soft));
+                                let due_date_value = RwSignal::new(task.due_date().cloned());
+                                let due_date_initially_set = due_date_value.get_untracked().is_some();
+                                let start_date_value = RwSignal::new(task.start_date().cloned());
+                                let start_date_initially_set = start_date_value.get_untracked().is_some();
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
                                 let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
@@ -630,7 +652,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             </div>
                                         }
                                     })}
-                                    {due_date.map(|(due_date, soft)| view! {
+                                    {move || (due_date_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -638,12 +660,57 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                                 </svg>
                                             </div>
                                             <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">
-                                                {if soft { "Due Date (approx.)" } else { "Due Date" }}
+                                                {move || due_date_value.get().map(|d| if d.soft { "Due Date (approx.)" } else { "Due Date" }).unwrap_or("Due Date")}
                                             </div>
-                                            <div class="text-sm text-slate-200">{due_date}</div>
+                                            {move || if edit_mode.get() {
+                                                Either::Left(view! {
+                                                    <div class="flex flex-col gap-1">
+                                                        <div class="flex items-center gap-2">
+                                                            <input
+                                                                type="datetime-local"
+                                                                class="bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 flex-1 min-w-0"
+                                                                prop:value=move || due_date_value.get().as_ref().map(|d| DateTimeLocal::from(d.date).to_string()).unwrap_or_default()
+                                                                on:change=move |ev| {
+                                                                    let s = event_target_value(&ev);
+                                                                    let soft = due_date_value.get_untracked().map(|d| d.soft).unwrap_or(false);
+                                                                    let new = s.parse::<DateTimeLocal>().ok().map(|dl| TaskDate { date: dl.into(), soft });
+                                                                    due_date_value.set(new.clone());
+                                                                    update_due_date.dispatch(new);
+                                                                }
+                                                            />
+                                                            <button type="button"
+                                                                class="text-slate-400 hover:text-red-400 px-1 py-1 text-sm leading-none"
+                                                                on:click=move |_| {
+                                                                    due_date_value.set(None);
+                                                                    update_due_date.dispatch(None);
+                                                                }
+                                                            >"×"</button>
+                                                        </div>
+                                                        <label class="flex items-center gap-2 text-xs text-slate-400 select-none">
+                                                            <input
+                                                                type="checkbox"
+                                                                prop:checked=move || due_date_value.get().map(|d| d.soft).unwrap_or(false)
+                                                                on:change=move |ev| {
+                                                                    let soft = event_target_checked(&ev);
+                                                                    let new = due_date_value.get_untracked().map(|mut d| { d.soft = soft; d });
+                                                                    due_date_value.set(new.clone());
+                                                                    update_due_date.dispatch(new);
+                                                                }
+                                                            />
+                                                            "approximate"
+                                                        </label>
+                                                    </div>
+                                                })
+                                            } else {
+                                                Either::Right(view! {
+                                                    <div class="text-sm text-slate-200">
+                                                        {move || due_date_value.get().map(|d| d.date.to_relative_time()).unwrap_or_default()}
+                                                    </div>
+                                                })
+                                            }}
                                         </div>
                                     })}
-                                    {start_date.map(|(start_date, soft)| view! {
+                                    {move || (start_date_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-sky-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -651,9 +718,54 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                                 </svg>
                                             </div>
                                             <div class="text-xs font-semibold text-sky-400 uppercase tracking-wide mb-0.5">
-                                                {if soft { "Start Date (approx.)" } else { "Start Date" }}
+                                                {move || start_date_value.get().map(|d| if d.soft { "Start Date (approx.)" } else { "Start Date" }).unwrap_or("Start Date")}
                                             </div>
-                                            <div class="text-sm text-slate-200">{start_date}</div>
+                                            {move || if edit_mode.get() {
+                                                Either::Left(view! {
+                                                    <div class="flex flex-col gap-1">
+                                                        <div class="flex items-center gap-2">
+                                                            <input
+                                                                type="datetime-local"
+                                                                class="bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 flex-1 min-w-0"
+                                                                prop:value=move || start_date_value.get().as_ref().map(|d| DateTimeLocal::from(d.date).to_string()).unwrap_or_default()
+                                                                on:change=move |ev| {
+                                                                    let s = event_target_value(&ev);
+                                                                    let soft = start_date_value.get_untracked().map(|d| d.soft).unwrap_or(false);
+                                                                    let new = s.parse::<DateTimeLocal>().ok().map(|dl| TaskDate { date: dl.into(), soft });
+                                                                    start_date_value.set(new.clone());
+                                                                    update_start_date.dispatch(new);
+                                                                }
+                                                            />
+                                                            <button type="button"
+                                                                class="text-slate-400 hover:text-red-400 px-1 py-1 text-sm leading-none"
+                                                                on:click=move |_| {
+                                                                    start_date_value.set(None);
+                                                                    update_start_date.dispatch(None);
+                                                                }
+                                                            >"×"</button>
+                                                        </div>
+                                                        <label class="flex items-center gap-2 text-xs text-slate-400 select-none">
+                                                            <input
+                                                                type="checkbox"
+                                                                prop:checked=move || start_date_value.get().map(|d| d.soft).unwrap_or(false)
+                                                                on:change=move |ev| {
+                                                                    let soft = event_target_checked(&ev);
+                                                                    let new = start_date_value.get_untracked().map(|mut d| { d.soft = soft; d });
+                                                                    start_date_value.set(new.clone());
+                                                                    update_start_date.dispatch(new);
+                                                                }
+                                                            />
+                                                            "approximate"
+                                                        </label>
+                                                    </div>
+                                                })
+                                            } else {
+                                                Either::Right(view! {
+                                                    <div class="text-sm text-slate-200">
+                                                        {move || start_date_value.get().map(|d| d.date.to_relative_time()).unwrap_or_default()}
+                                                    </div>
+                                                })
+                                            }}
                                         </div>
                                     })}
                                     {move || (time_estimate_initially_set || edit_mode.get()).then(|| view! {
@@ -815,6 +927,43 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
     }
 }
 
+struct DateTimeLocal(DateTime<FixedOffset>);
+
+impl DateTimeLocal {
+    fn to_display(&self) -> String {
+        self.0.with_timezone(&Local).format("%d.%m.%Y %H:%M").to_string()
+    }
+}
+
+impl Display for DateTimeLocal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.with_timezone(&Local).format("%Y-%m-%dT%H:%M"))
+    }
+}
+
+impl From<DateTimeLocal> for DateTime<FixedOffset> {
+    fn from(dl: DateTimeLocal) -> Self {
+        dl.0
+    }
+}
+
+impl From<DateTime<FixedOffset>> for DateTimeLocal {
+    fn from(dt: DateTime<FixedOffset>) -> Self {
+        Self(dt)
+    }
+}
+
+impl FromStr for DateTimeLocal {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M")
+            .ok()
+            .and_then(|ndt| Local.from_local_datetime(&ndt).single())
+            .map(|dt| Self(dt.fixed_offset()))
+            .ok_or(())
+    }
+}
+
 trait ToRelativeTime {
     fn to_relative_time(&self) -> String;
 }
@@ -845,7 +994,7 @@ impl<Tz: TimeZone> ToRelativeTime for DateTime<Tz> {
                     plural(hours)
                 )
             } else {
-                self.with_timezone(&Local).to_rfc2822()
+                DateTimeLocal::from(self.with_timezone(&Local).fixed_offset()).to_display()
             }
         } else {
             let duration = duration.abs();
@@ -878,7 +1027,7 @@ impl<Tz: TimeZone> ToRelativeTime for DateTime<Tz> {
                     plural(mins)
                 )
             } else {
-                self.with_timezone(&Local).to_rfc2822()
+                DateTimeLocal::from(self.with_timezone(&Local).fixed_offset()).to_display()
             }
         }
     }
