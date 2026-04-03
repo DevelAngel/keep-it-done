@@ -388,6 +388,10 @@ fn TaskList() -> impl IntoView {
                     </Suspense>
                 </div>
             </div>
+            <Show when=move || edit_mode.get()>
+                <div class="fixed top-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
+                <div class="fixed bottom-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
+            </Show>
         </div>
     }
 }
