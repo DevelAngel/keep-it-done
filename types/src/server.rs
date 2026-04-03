@@ -339,11 +339,17 @@ impl TaskCache {
             return false;
         };
 
-        // Check for legacy format:
-        // - "status" is a blank string instead of an object with field "since"
-        v.get("status")
-            .map(|s| s.is_string())
-            .unwrap_or(false)
+        // Legacy status: plain string instead of {"ToDo":{"since":"..."}}
+        let legacy_status = v.get("status").map(|s| s.is_string()).unwrap_or(false);
+
+        // Legacy time_estimate: {"Guess":"..."} or {"Precise":{"secs":...}}
+        // New format is a plain string e.g. "Min30"
+        let legacy_time_estimate = v
+            .get("time_estimate")
+            .map(|t| t.is_object())
+            .unwrap_or(false);
+
+        legacy_status || legacy_time_estimate
     }
 
     async fn write_task_file(&self, id: &Uuid, task: &Task) -> TaskResult<()> {
@@ -503,6 +509,38 @@ mod tests {
         assert_files(&dir, cache.len())?;
         dir.close().into_diagnostic()?;
         Ok(())
+    }
+
+    // DETECT LEGACY FORMAT
+
+    #[test]
+    fn detect_legacy_format_no_time_estimate() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}}}"#;
+        assert!(!TaskCache::detect_legacy_format(json));
+    }
+
+    #[test]
+    fn detect_legacy_format_status_string() {
+        let json = r#"{"summary":"A","status":"ToDo"}"#;
+        assert!(TaskCache::detect_legacy_format(json));
+    }
+
+    #[test]
+    fn detect_legacy_format_time_estimate_guess() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"time_estimate":{"Guess":"a weekend"}}"#;
+        assert!(TaskCache::detect_legacy_format(json));
+    }
+
+    #[test]
+    fn detect_legacy_format_time_estimate_precise() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"time_estimate":{"Precise":{"secs":3600,"nanos":0}}}"#;
+        assert!(TaskCache::detect_legacy_format(json));
+    }
+
+    #[test]
+    fn detect_legacy_format_time_estimate_variant() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"time_estimate":"Hours1"}"#;
+        assert!(!TaskCache::detect_legacy_format(json));
     }
 
     fn assert_files(dir: &Path, num: usize) -> Result<()> {
