@@ -78,3 +78,4 @@ Offline writes are not queued. On a local family network, connectivity loss is r
 - Batch editing
 - Dependency editing
 - Offline support
+- Floating action button (FAB) for edit mode toggle — FABs obscure content and conflict with scrolling on mobile; rejected in favour of a header icon + active-state banner.
