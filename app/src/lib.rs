@@ -430,7 +430,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
         }
     });
 
-    let summary = task.summary().to_string();
+    let summary = RwSignal::new(task.summary().to_string());
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
 
@@ -479,7 +479,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                     } else {
                         "text-slate-100"
                     }>
-                        {summary}
+                        {move || summary.get()}
                     </span>
                 </div>
                 // Spinner
@@ -495,18 +495,29 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id/>
+                <TaskDetails task=id summary=summary/>
             </Show>
         </div>
     }
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> impl IntoView {
     let id = *task.id();
     let created = task.created().to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let summary_saved = StoredValue::new(summary.get_untracked());
+    let summary_escape = RwSignal::new(false);
+    let summary_ref = NodeRef::<leptos::html::Input>::new();
+    let rename_task = Action::new(move |value: &String| {
+        let value = value.clone();
+        async move {
+            if let Err(e) = server::rename_task(id, value).await {
+                tracing::error!("rename task failed: {e}");
+            }
+        }
+    });
     let update_time_estimate = Action::new(move |estimate: &Option<TaskTimeEstimate>| {
         let estimate = estimate.clone();
         async move {
@@ -558,6 +569,44 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
 
     view! {
         <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+            // Summary (editable in edit mode)
+            {move || if edit_mode.get() {
+                Either::Left(view! {
+                    <input
+                        type="text"
+                        class="w-full bg-slate-700 text-slate-100 text-base font-medium rounded px-3 py-2 mb-3 border border-slate-600 focus:border-cyan-500 focus:outline-none"
+                        node_ref=summary_ref
+                        prop:value=move || summary.get()
+                        on:input=move |ev| summary.set(event_target_value(&ev))
+                        on:keydown=move |ev| match ev.key().as_str() {
+                            key::ENTER => {
+                                ev.prevent_default();
+                                rename_task.dispatch(summary.get_untracked());
+                                summary_saved.set_value(summary.get_untracked());
+                                summary_escape.set(true);
+                                if let Some(el) = summary_ref.get() { let _ = el.blur(); }
+                            }
+                            key::ESCAPE => {
+                                ev.prevent_default();
+                                summary.set(summary_saved.get_value());
+                                summary_escape.set(true);
+                                if let Some(el) = summary_ref.get() { let _ = el.blur(); }
+                            }
+                            _ => {}
+                        }
+                        on:blur=move |_| {
+                            if summary_escape.get_untracked() {
+                                summary_escape.set(false);
+                                return;
+                            }
+                            rename_task.dispatch(summary.get_untracked());
+                            summary_saved.set_value(summary.get_untracked());
+                        }
+                    />
+                })
+            } else {
+                Either::Right(())
+            }}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
                 // Vertical line

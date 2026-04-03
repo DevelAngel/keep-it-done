@@ -73,6 +73,18 @@ pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+#[server(endpoint = "rename_task")]
+pub async fn rename_task(id: Uuid, summary: String) -> Result<(), ServerFnError> {
+    tracing::info!("rename task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    task.rename(summary);
+    Ok(())
+}
+
 #[server(endpoint = "delete_task")]
 pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     tracing::info!("delete task with id {id}");
