@@ -502,14 +502,97 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 }
 
 #[component]
+fn EditableField(
+    value: RwSignal<String>,
+    #[prop(into)] on_save: UnsyncCallback<String>,
+    #[prop(default = false)] multiline: bool,
+    #[prop(default = "")] placeholder: &'static str,
+    #[prop(default = "")] class: &'static str,
+) -> impl IntoView {
+    let saved = StoredValue::new(value.get_untracked());
+    let escape = RwSignal::new(false);
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+    let textarea_ref = NodeRef::<leptos::html::Textarea>::new();
+
+    let do_save = move || {
+        let v = value.get_untracked();
+        saved.set_value(v.clone());
+        on_save.run(v);
+    };
+    let do_revert = move || value.set(saved.get_value());
+    let do_blur = move || {
+        if multiline {
+            if let Some(el) = textarea_ref.get() { let _ = el.blur(); }
+        } else {
+            if let Some(el) = input_ref.get() { let _ = el.blur(); }
+        }
+    };
+
+    if multiline {
+        Either::Left(view! {
+            <textarea
+                node_ref=textarea_ref
+                class=class
+                placeholder=placeholder
+                rows=4
+                prop:value=move || value.get()
+                on:input=move |ev| value.set(event_target_value(&ev))
+                on:keydown=move |ev| {
+                    if ev.key() == key::ESCAPE {
+                        ev.prevent_default();
+                        do_revert();
+                        escape.set(true);
+                        do_blur();
+                    } else if ev.key() == key::ENTER && ev.ctrl_key() {
+                        ev.prevent_default();
+                        do_save();
+                        escape.set(true);
+                        do_blur();
+                    }
+                }
+                on:blur=move |_| {
+                    if escape.get_untracked() { escape.set(false); } else { do_save(); }
+                }
+            />
+        })
+    } else {
+        Either::Right(view! {
+            <input
+                type="text"
+                node_ref=input_ref
+                class=class
+                placeholder=placeholder
+                prop:value=move || value.get()
+                on:input=move |ev| value.set(event_target_value(&ev))
+                on:keydown=move |ev| match ev.key().as_str() {
+                    key::ENTER => {
+                        ev.prevent_default();
+                        do_save();
+                        escape.set(true);
+                        do_blur();
+                    }
+                    key::ESCAPE => {
+                        ev.prevent_default();
+                        do_revert();
+                        escape.set(true);
+                        do_blur();
+                    }
+                    _ => {}
+                }
+                on:blur=move |_| {
+                    if escape.get_untracked() { escape.set(false); } else { do_save(); }
+                }
+            />
+        })
+    }
+}
+
+#[component]
 fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> impl IntoView {
     let id = *task.id();
     let created = task.created().to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
-    let summary_saved = StoredValue::new(summary.get_untracked());
-    let summary_escape = RwSignal::new(false);
-    let summary_ref = NodeRef::<leptos::html::Input>::new();
     let rename_task = Action::new(move |value: &String| {
         let value = value.clone();
         async move {
@@ -570,43 +653,13 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> imp
     view! {
         <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
             // Summary (editable in edit mode)
-            {move || if edit_mode.get() {
-                Either::Left(view! {
-                    <input
-                        type="text"
-                        class="w-full bg-slate-700 text-slate-100 text-base font-medium rounded px-3 py-2 mb-3 border border-slate-600 focus:border-cyan-500 focus:outline-none"
-                        node_ref=summary_ref
-                        prop:value=move || summary.get()
-                        on:input=move |ev| summary.set(event_target_value(&ev))
-                        on:keydown=move |ev| match ev.key().as_str() {
-                            key::ENTER => {
-                                ev.prevent_default();
-                                rename_task.dispatch(summary.get_untracked());
-                                summary_saved.set_value(summary.get_untracked());
-                                summary_escape.set(true);
-                                if let Some(el) = summary_ref.get() { let _ = el.blur(); }
-                            }
-                            key::ESCAPE => {
-                                ev.prevent_default();
-                                summary.set(summary_saved.get_value());
-                                summary_escape.set(true);
-                                if let Some(el) = summary_ref.get() { let _ = el.blur(); }
-                            }
-                            _ => {}
-                        }
-                        on:blur=move |_| {
-                            if summary_escape.get_untracked() {
-                                summary_escape.set(false);
-                                return;
-                            }
-                            rename_task.dispatch(summary.get_untracked());
-                            summary_saved.set_value(summary.get_untracked());
-                        }
-                    />
-                })
-            } else {
-                Either::Right(())
-            }}
+            {move || edit_mode.get().then(|| view! {
+                <EditableField
+                    value=summary
+                    on_save=move |v: String| { rename_task.dispatch(v); }
+                    class="w-full bg-slate-700 text-slate-100 text-base font-medium rounded px-3 py-2 mb-3 border border-slate-600 focus:border-cyan-500 focus:outline-none"
+                />
+            })}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
                 // Vertical line
@@ -625,14 +678,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> imp
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
                                 let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
                                 let context_initially_set = !context_value.get_untracked().is_empty();
-                                let context_saved = StoredValue::new(context_value.get_untracked());
-                                let context_escape = RwSignal::new(false);
-                                let context_ref = NodeRef::<leptos::html::Input>::new();
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
-                                let notes_saved = StoredValue::new(notes_value.get_untracked());
-                                let notes_escape = RwSignal::new(false);
-                                let notes_ref = NodeRef::<leptos::html::Textarea>::new();
                                 view! {
                                     {move || (priority_initially_set || edit_mode.get()).then(|| {
                                         let marker_class = move || match priority_value.get() {
@@ -865,38 +912,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> imp
                                             <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Context"</div>
                                             {move || if edit_mode.get() {
                                                 Either::Left(view! {
-                                                    <input
-                                                        type="text"
-                                                        node_ref=context_ref
+                                                    <EditableField
+                                                        value=context_value
+                                                        on_save=move |v: String| { update_context.dispatch(v); }
                                                         class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
                                                         placeholder="Add context…"
-                                                        prop:value=move || context_value.get()
-                                                        on:input=move |ev| context_value.set(event_target_value(&ev))
-                                                        on:keydown=move |ev| match ev.key().as_str() {
-                                                            // plain Enter and Ctrl+Enter both save (single-line field)
-                                                            key::ENTER => {
-                                                                ev.prevent_default();
-                                                                update_context.dispatch(context_value.get_untracked());
-                                                                context_saved.set_value(context_value.get_untracked());
-                                                                context_escape.set(true);
-                                                                if let Some(el) = context_ref.get() { let _ = el.blur(); }
-                                                            }
-                                                            key::ESCAPE => {
-                                                                ev.prevent_default();
-                                                                context_value.set(context_saved.get_value());
-                                                                context_escape.set(true);
-                                                                if let Some(el) = context_ref.get() { let _ = el.blur(); }
-                                                            }
-                                                            _ => {}
-                                                        }
-                                                        on:blur=move |_| {
-                                                            if context_escape.get_untracked() {
-                                                                context_escape.set(false);
-                                                            } else {
-                                                                update_context.dispatch(context_value.get_untracked());
-                                                                context_saved.set_value(context_value.get_untracked());
-                                                            }
-                                                        }
                                                     />
                                                 })
                                             } else {
@@ -918,35 +938,12 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> imp
                                             <div class="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1">"Notes"</div>
                                             {move || if edit_mode.get() {
                                                 Either::Left(view! {
-                                                    <textarea
-                                                        node_ref=notes_ref
+                                                    <EditableField
+                                                        multiline=true
+                                                        value=notes_value
+                                                        on_save=move |v: String| { update_notes.dispatch(v); }
                                                         class="w-full bg-slate-800 text-slate-300 text-sm leading-relaxed rounded-lg px-3 py-2 border border-slate-700 focus:border-slate-500 focus:outline-none resize-none"
                                                         placeholder="Add notes…"
-                                                        rows=4
-                                                        prop:value=move || notes_value.get()
-                                                        on:input=move |ev| notes_value.set(event_target_value(&ev))
-                                                        on:keydown=move |ev| {
-                                                            if ev.key() == key::ESCAPE {
-                                                                ev.prevent_default();
-                                                                notes_value.set(notes_saved.get_value());
-                                                                notes_escape.set(true);
-                                                                if let Some(el) = notes_ref.get() { let _ = el.blur(); }
-                                                            } else if ev.key() == key::ENTER && ev.ctrl_key() {
-                                                                ev.prevent_default();
-                                                                update_notes.dispatch(notes_value.get_untracked());
-                                                                notes_saved.set_value(notes_value.get_untracked());
-                                                                notes_escape.set(true);
-                                                                if let Some(el) = notes_ref.get() { let _ = el.blur(); }
-                                                            }
-                                                        }
-                                                        on:blur=move |_| {
-                                                            if notes_escape.get_untracked() {
-                                                                notes_escape.set(false);
-                                                            } else {
-                                                                update_notes.dispatch(notes_value.get_untracked());
-                                                                notes_saved.set_value(notes_value.get_untracked());
-                                                            }
-                                                        }
                                                     />
                                                 })
                                             } else {
