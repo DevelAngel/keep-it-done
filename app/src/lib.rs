@@ -498,6 +498,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
     let created = task.created().to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let update_notes = Action::new(move |value: &String| {
+        let value = value.clone();
+        async move {
+            if let Err(e) = server::update_task_notes(id, value).await {
+                tracing::error!("update notes failed: {e}");
+            }
+        }
+    });
     let update_context = Action::new(move |value: &String| {
         let value = value.clone();
         async move {
@@ -526,7 +534,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                 let context_saved = StoredValue::new(context_value.get_untracked());
                                 let context_escape = RwSignal::new(false);
                                 let context_ref = NodeRef::<leptos::html::Input>::new();
-                                let notes = task.notes().into_owned();
+                                let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
+                                let notes_initially_set = !notes_value.get_untracked().is_empty();
+                                let notes_saved = StoredValue::new(notes_value.get_untracked());
+                                let notes_escape = RwSignal::new(false);
+                                let notes_ref = NodeRef::<leptos::html::Textarea>::new();
                                 view! {
                                     {priority.map(|priority| view! {
                                         // Priority badge with color coding
@@ -651,7 +663,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             }}
                                         </div>
                                     })}
-                                    {notes.map(|notes| view! {
+                                    {move || (notes_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -659,9 +671,46 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                                 </svg>
                                             </div>
                                             <div class="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-1">"Notes"</div>
-                                            <div class="text-sm text-slate-300 leading-relaxed bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-sm whitespace-pre-wrap">
-                                                {notes}
-                                            </div>
+                                            {move || if edit_mode.get() {
+                                                Either::Left(view! {
+                                                    <textarea
+                                                        node_ref=notes_ref
+                                                        class="w-full bg-slate-800 text-slate-300 text-sm leading-relaxed rounded-lg px-3 py-2 border border-slate-700 focus:border-slate-500 focus:outline-none resize-none"
+                                                        placeholder="Add notes…"
+                                                        rows=4
+                                                        prop:value=move || notes_value.get()
+                                                        on:input=move |ev| notes_value.set(event_target_value(&ev))
+                                                        on:keydown=move |ev| {
+                                                            if ev.key() == key::ESCAPE {
+                                                                ev.prevent_default();
+                                                                notes_value.set(notes_saved.get_value());
+                                                                notes_escape.set(true);
+                                                                if let Some(el) = notes_ref.get() { let _ = el.blur(); }
+                                                            } else if ev.key() == key::ENTER && ev.ctrl_key() {
+                                                                ev.prevent_default();
+                                                                update_notes.dispatch(notes_value.get_untracked());
+                                                                notes_saved.set_value(notes_value.get_untracked());
+                                                                notes_escape.set(true);
+                                                                if let Some(el) = notes_ref.get() { let _ = el.blur(); }
+                                                            }
+                                                        }
+                                                        on:blur=move |_| {
+                                                            if notes_escape.get_untracked() {
+                                                                notes_escape.set(false);
+                                                            } else {
+                                                                update_notes.dispatch(notes_value.get_untracked());
+                                                                notes_saved.set_value(notes_value.get_untracked());
+                                                            }
+                                                        }
+                                                    />
+                                                })
+                                            } else {
+                                                Either::Right(view! {
+                                                    <div class="text-sm text-slate-300 leading-relaxed bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-sm whitespace-pre-wrap">
+                                                        {notes_value.get()}
+                                                    </div>
+                                                })
+                                            }}
                                         </div>
                                     })}
                                 }
