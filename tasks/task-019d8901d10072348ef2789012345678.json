@@ -1,1 +1,1 @@
-{"summary":"Fix squeaky hinge on hallway door","status":{"ToDo":{"since":"2026-03-30T10:05:00Z"}},"priority":"C","time_estimate":{"Precise":{"secs":1800,"nanos":0}},"context":"House","notes":"The middle hinge is the culprit. WD-40 only worked for a week. Remove hinge, clean, apply proper grease."}
+{"summary":"Fix squeaky hinge on hallway door","status":{"ToDo":{"since":"2026-03-30T10:05:00Z"}},"priority":"C","time_estimate":"Min30","context":"House","notes":"The middle hinge is the culprit. WD-40 only worked for a week. Remove hinge, clean, apply proper grease."}
