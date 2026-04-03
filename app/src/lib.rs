@@ -431,6 +431,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     });
 
     let summary = RwSignal::new(task.summary().to_string());
+    let since = *task.since();
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
 
@@ -495,7 +496,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary/>
+                <TaskDetails task=id summary=summary since=since/>
             </Show>
         </div>
     }
@@ -588,9 +589,10 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created().to_relative_time();
+    let since   = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
     let rename_task = Action::new(move |value: &String| {
@@ -960,6 +962,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>) -> imp
                         })
                     }}
                 </Suspense>
+                // Since
+                <div class="relative">
+                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
+                        <div class="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">"Last status change"</div>
+                    <div class="text-sm text-slate-200">{since}</div>
+                </div>
                 // Created
                 <div class="relative">
                     <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-700 border-4 border-slate-900 shadow flex items-center justify-center">
