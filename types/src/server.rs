@@ -325,7 +325,7 @@ impl TaskCache {
             path: path.to_path_buf(),
             error: e,
         })?;
-        let needs_migration = Self::detect_legacy_format(&raw);
+        let needs_migration = Self::detect_legacy_format(id, &raw);
         let task = serde_json::from_str(&raw).map_err(|e| TaskError::ReadJsonFile {
             id: *id,
             path: path.to_path_buf(),
@@ -334,7 +334,7 @@ impl TaskCache {
         Ok((task, needs_migration))
     }
 
-    fn detect_legacy_format(json_str: &str) -> bool {
+    fn detect_legacy_format(id: &Uuid, json_str: &str) -> bool {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) else {
             return false;
         };
@@ -344,12 +344,32 @@ impl TaskCache {
 
         // Legacy time_estimate: {"Guess":"..."} or {"Precise":{"secs":...}}
         // New format is a plain string e.g. "Min30"
+        // Guess is mapped to Day2 — warn so the lossy rounding is visible.
         let legacy_time_estimate = v
             .get("time_estimate")
             .map(|t| t.is_object())
             .unwrap_or(false);
+        if let Some(guess) = v.get("time_estimate").and_then(|t| t.get("Guess")).and_then(|g| g.as_str()) {
+            tracing::warn!(
+                "task {id}: migrating legacy Guess time_estimate \"{guess}\" → Day2"
+            );
+        }
 
-        legacy_status || legacy_time_estimate
+        // Legacy date fields: {"Precise":"..."} or {"Guess":"..."}
+        // Guess values cannot be migrated and are dropped — warn so data loss is visible.
+        for field in ["due_date", "start_date"] {
+            if let Some(guess) = v.get(field).and_then(|d| d.get("Guess")).and_then(|g| g.as_str()) {
+                tracing::warn!(
+                    "task {id}: dropping legacy Guess {field} \"{guess}\" — no date anchor, cannot migrate"
+                );
+            }
+        }
+
+        let legacy_date = ["due_date", "start_date"]
+            .iter()
+            .any(|f| v.get(f).map(|d| d.get("Precise").is_some() || d.get("Guess").is_some()).unwrap_or(false));
+
+        legacy_status || legacy_time_estimate || legacy_date
     }
 
     async fn write_task_file(&self, id: &Uuid, task: &Task) -> TaskResult<()> {

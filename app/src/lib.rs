@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDateEstimationRef, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use kid_types::{TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
 use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
@@ -548,8 +548,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                             details.await.map(|task| {
                                 let priority_value = RwSignal::new(task.priority().cloned());
                                 let priority_initially_set = priority_value.get_untracked().is_some();
-                                let due_date = task.due_date(&Local).map(|t| t.to_relative_time());
-                                let start_date = task.start_date(&Local).map(|t| t.to_relative_time());
+                                let due_date = task.due_date().map(|d| (d.date.to_relative_time(), d.soft));
+                                let start_date = task.start_date().map(|d| (d.date.to_relative_time(), d.soft));
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
                                 let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
@@ -630,25 +630,29 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             </div>
                                         }
                                     })}
-                                    {due_date.map(|due_date| view! {
+                                    {due_date.map(|(due_date, soft)| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Due Date"</div>
+                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">
+                                                {if soft { "Due Date (approx.)" } else { "Due Date" }}
+                                            </div>
                                             <div class="text-sm text-slate-200">{due_date}</div>
                                         </div>
                                     })}
-                                    {start_date.map(|start_date| view! {
+                                    {start_date.map(|(start_date, soft)| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-sky-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-sky-400 uppercase tracking-wide mb-0.5">"Start Date"</div>
+                                            <div class="text-xs font-semibold text-sky-400 uppercase tracking-wide mb-0.5">
+                                                {if soft { "Start Date (approx.)" } else { "Start Date" }}
+                                            </div>
                                             <div class="text-sm text-slate-200">{start_date}</div>
                                         </div>
                                     })}
@@ -813,15 +817,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
 
 trait ToRelativeTime {
     fn to_relative_time(&self) -> String;
-}
-
-impl<Tz: TimeZone> ToRelativeTime for TaskDateEstimationRef<'_, Tz> {
-    fn to_relative_time(&self) -> String {
-        match self {
-            Self::Guess(s) => s.to_string(),
-            Self::Precise(date) => date.to_relative_time(),
-        }
-    }
 }
 
 impl<Tz: TimeZone> ToRelativeTime for DateTime<Tz> {

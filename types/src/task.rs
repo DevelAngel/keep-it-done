@@ -6,7 +6,7 @@ use kid_types_derive::GeneratePatch;
 #[cfg(feature = "ssr")]
 use kid_types_derive::Patchable;
 
-use chrono::{DateTime, FixedOffset, Offset, TimeZone, Timelike, Utc};
+use chrono::{DateTime, FixedOffset, Timelike, Utc};
 use derive_more::Display;
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -52,8 +52,10 @@ pub struct Infos {
 #[cfg_attr(feature = "ssr", patch_type(DetailsPatch))]
 pub struct Details {
     priority: Option<Priority>,
-    due_date: Option<DateEstimation>,
-    start_date: Option<DateEstimation>,
+    #[serde(default, deserialize_with = "deserialize_due_date")]
+    due_date: Option<Date>,
+    #[serde(default, deserialize_with = "deserialize_due_date")]
+    start_date: Option<Date>,
     time_estimate: Option<TimeEstimate>,
     context: Option<String>,
     notes: Option<String>,
@@ -138,16 +140,31 @@ pub enum Priority {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
-pub enum DateEstimation {
-    Guess(String),
-    Precise(DateTime<FixedOffset>),
+pub struct Date {
+    pub date: DateTime<FixedOffset>,
+    pub soft: bool,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-pub enum DateEstimationRef<'a, Tz: TimeZone> {
-    Guess(Cow<'a, str>),
-    Precise(Cow<'a, DateTime<Tz>>),
+fn deserialize_due_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Date>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Raw {
+        Current(Date),
+        Legacy(LegacyDate),
+    }
+    #[derive(Deserialize)]
+    enum LegacyDate {
+        Guess(#[allow(dead_code)] String),
+        Precise(DateTime<FixedOffset>),
+    }
+    let maybe: Option<Raw> = Option::deserialize(d)?;
+    Ok(maybe.and_then(|raw| match raw {
+        Raw::Current(dd) => Some(dd),
+        Raw::Legacy(LegacyDate::Precise(date)) => Some(Date { date, soft: false }),
+        Raw::Legacy(LegacyDate::Guess(_)) => None,
+    }))
 }
+
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
@@ -282,20 +299,20 @@ impl<'a> TaskDetails<'a> for (Uuid, Details) {
     fn clear_priority(&'a mut self) {
         self.1.clear_priority();
     }
-    fn due_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<DateEstimationRef<'a, Tz>> {
-        self.1.due_date(tz)
+    fn due_date(&'a self) -> Option<&'a Date> {
+        self.1.due_date()
     }
-    fn set_due_date(&'a mut self, due_date: DateEstimation) {
+    fn set_due_date(&'a mut self, due_date: Date) {
         self.1.set_due_date(due_date);
     }
     fn clear_due_date(&'a mut self) {
         self.1.clear_due_date();
     }
-    fn start_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<DateEstimationRef<'a, Tz>> {
-        self.1.start_date(tz)
+    fn start_date(&'a self) -> Option<&'a Date> {
+        self.1.start_date()
     }
-    fn set_start_date(&'a mut self, start_date: DateEstimation) {
-        self.1.set_start_date(start_date);
+    fn set_start_date(&'a mut self, date: Date) {
+        self.1.set_start_date(date);
     }
     fn clear_start_date(&'a mut self) {
         self.1.clear_start_date();
@@ -339,20 +356,20 @@ impl<'a> TaskDetails<'a> for Task {
     fn clear_priority(&'a mut self) {
         self.details.clear_priority();
     }
-    fn due_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<DateEstimationRef<'a, Tz>> {
-        self.details.due_date(tz)
+    fn due_date(&'a self) -> Option<&'a Date> {
+        self.details.due_date()
     }
-    fn set_due_date(&'a mut self, due_date: DateEstimation) {
+    fn set_due_date(&'a mut self, due_date: Date) {
         self.details.set_due_date(due_date);
     }
     fn clear_due_date(&'a mut self) {
         self.details.clear_due_date();
     }
-    fn start_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<DateEstimationRef<'a, Tz>> {
-        self.details.start_date(tz)
+    fn start_date(&'a self) -> Option<&'a Date> {
+        self.details.start_date()
     }
-    fn set_start_date(&'a mut self, start_date: DateEstimation) {
-        self.details.set_start_date(start_date);
+    fn set_start_date(&'a mut self, date: Date) {
+        self.details.set_start_date(date);
     }
     fn clear_start_date(&'a mut self) {
         self.details.clear_start_date();
@@ -396,20 +413,20 @@ impl<'a> TaskDetails<'a> for Details {
     fn clear_priority(&'a mut self) {
         self.priority = None;
     }
-    fn due_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<DateEstimationRef<'a, Tz>> {
-        self.due_date.as_ref().map(|date| date.as_deref(tz))
+    fn due_date(&'a self) -> Option<&'a Date> {
+        self.due_date.as_ref()
     }
-    fn set_due_date(&'a mut self, due_date: DateEstimation) {
+    fn set_due_date(&'a mut self, due_date: Date) {
         self.due_date = Some(due_date);
     }
     fn clear_due_date(&'a mut self) {
         self.due_date = None;
     }
-    fn start_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<DateEstimationRef<'a, Tz>> {
-        self.start_date.as_ref().map(|date| date.as_deref(tz))
+    fn start_date(&'a self) -> Option<&'a Date> {
+        self.start_date.as_ref()
     }
-    fn set_start_date(&'a mut self, start_date: DateEstimation) {
-        self.start_date = Some(start_date);
+    fn set_start_date(&'a mut self, date: Date) {
+        self.start_date = Some(date);
     }
     fn clear_start_date(&'a mut self) {
         self.start_date = None;
@@ -440,36 +457,6 @@ impl<'a> TaskDetails<'a> for Details {
     }
     fn clear_notes(&'a mut self) {
         self.notes = None;
-    }
-}
-
-impl<'a> DateEstimation {
-    fn as_deref<Tz: TimeZone>(&'a self, tz: &Tz) -> DateEstimationRef<'a, Tz> {
-        match self {
-            Self::Guess(s) => DateEstimationRef::Guess(Cow::Borrowed(s)),
-            Self::Precise(d) => DateEstimationRef::Precise(Cow::Owned(d.with_timezone(tz))),
-        }
-    }
-}
-
-impl<'a, Tz: TimeZone> DateEstimationRef<'a, Tz> {
-    pub fn into_owned(self) -> DateEstimation {
-        match self {
-            Self::Guess(s) => DateEstimation::Guess(s.into_owned()),
-            Self::Precise(d) => DateEstimation::Precise(d.with_timezone(&d.offset().fix())),
-        }
-    }
-}
-
-impl<'a, Tz: TimeZone> Display for DateEstimationRef<'a, Tz> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Guess(s) => write!(f, "{s}"),
-            Self::Precise(d) => {
-                let d = d.to_rfc2822();
-                write!(f, "{d}")
-            }
-        }
     }
 }
 
@@ -710,5 +697,43 @@ mod tests {
     fn deserialize_time_estimate_legacy_guess() {
         let v: TimeEstimate = serde_json::from_str(r#"{"Guess":"a weekend"}"#).unwrap();
         assert_eq!(v, TimeEstimate::Day2);
+    }
+
+    // DATE - DESERIALIZE (migration)
+
+    #[test]
+    fn deserialize_due_date_legacy_precise() {
+        let task: Task = serde_json::from_str(&format!(
+            r#"{{"summary":"X","status":"ToDo","due_date":{{"Precise":"{TIME_Z}"}}}}"#
+        )).unwrap();
+        let date = task.details.due_date.unwrap();
+        assert_eq!(date.date, DateTime::parse_from_rfc3339(TIME_Z).unwrap());
+        assert!(!date.soft);
+    }
+
+    #[test]
+    fn deserialize_due_date_legacy_guess() {
+        let task: Task = serde_json::from_str(
+            r#"{"summary":"X","status":"ToDo","due_date":{"Guess":"next week"}}"#
+        ).unwrap();
+        assert!(task.details.due_date.is_none());
+    }
+
+    #[test]
+    fn deserialize_start_date_legacy_precise() {
+        let task: Task = serde_json::from_str(&format!(
+            r#"{{"summary":"X","status":"ToDo","start_date":{{"Precise":"{TIME_Z}"}}}}"#
+        )).unwrap();
+        let date = task.details.start_date.unwrap();
+        assert_eq!(date.date, DateTime::parse_from_rfc3339(TIME_Z).unwrap());
+        assert!(!date.soft);
+    }
+
+    #[test]
+    fn deserialize_start_date_legacy_guess() {
+        let task: Task = serde_json::from_str(
+            r#"{"summary":"X","status":"ToDo","start_date":{"Guess":"end of month"}}"#
+        ).unwrap();
+        assert!(task.details.start_date.is_none());
     }
 }

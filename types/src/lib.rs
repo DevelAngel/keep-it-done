@@ -5,14 +5,13 @@ pub mod server;
 pub mod task;
 
 pub use crate::task::{
-    DateEstimation as TaskDateEstimation, DateEstimationRef as TaskDateEstimationRef,
+    Date as TaskDate,
     Filter as TaskFilter, Priority as TaskPriority, Status as TaskStatus, Task,
     TimeEstimate as TaskTimeEstimate,
 };
 pub use chrono::{DateTime, FixedOffset, Utc};
 pub use uuid::Uuid;
 
-use chrono::TimeZone;
 use std::borrow::Cow;
 use std::time::SystemTime;
 
@@ -61,11 +60,11 @@ pub trait TaskDetails<'a> {
     fn priority(&'a self) -> Option<&'a TaskPriority>;
     fn set_priority(&'a mut self, priority: TaskPriority);
     fn clear_priority(&'a mut self);
-    fn due_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<TaskDateEstimationRef<'a, Tz>>;
-    fn set_due_date(&'a mut self, due_date: TaskDateEstimation);
+    fn due_date(&'a self) -> Option<&'a TaskDate>;
+    fn set_due_date(&'a mut self, due_date: TaskDate);
     fn clear_due_date(&'a mut self);
-    fn start_date<Tz: TimeZone>(&'a self, tz: &Tz) -> Option<TaskDateEstimationRef<'a, Tz>>;
-    fn set_start_date(&'a mut self, start_date: TaskDateEstimation);
+    fn start_date(&'a self) -> Option<&'a TaskDate>;
+    fn set_start_date(&'a mut self, date: TaskDate);
     fn clear_start_date(&'a mut self);
     fn time_estimate(&'a self) -> Option<&'a TaskTimeEstimate>;
     fn set_time_estimate(&mut self, time: TaskTimeEstimate);

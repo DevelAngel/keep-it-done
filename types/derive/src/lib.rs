@@ -136,7 +136,7 @@ pub fn generate_patch(input: TokenStream) -> TokenStream {
 /// #[patch_type(DetailsPatch)]
 /// pub struct Details {
 ///     priority: Option<Priority>,
-///     due_date: Option<DateEstimation>,
+///     due_date: Option<Date>,
 /// }
 /// ```
 ///
