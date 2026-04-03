@@ -351,16 +351,16 @@ impl TaskCache {
             .unwrap_or(false);
         if let Some(guess) = v.get("time_estimate").and_then(|t| t.get("Guess")).and_then(|g| g.as_str()) {
             tracing::warn!(
-                "task {id}: migrating legacy Guess time_estimate \"{guess}\" → Day2"
+                "task {id}: migrating legacy Guess time_estimate \"{guess}\" — best-effort parse; unrecognised values fall back to Day2"
             );
         }
 
         // Legacy date fields: {"Precise":"..."} or {"Guess":"..."}
-        // Guess values cannot be migrated and are dropped — warn so data loss is visible.
+        // Guess values are parsed best-effort (RFC3339 / date-only → soft=true); unparseable values are dropped.
         for field in ["due_date", "start_date"] {
             if let Some(guess) = v.get(field).and_then(|d| d.get("Guess")).and_then(|g| g.as_str()) {
                 tracing::warn!(
-                    "task {id}: dropping legacy Guess {field} \"{guess}\" — no date anchor, cannot migrate"
+                    "task {id}: migrating legacy Guess {field} \"{guess}\" — best-effort parse, soft=true; unparseable values are dropped"
                 );
             }
         }

@@ -154,14 +154,27 @@ fn deserialize_due_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option
     }
     #[derive(Deserialize)]
     enum LegacyDate {
-        Guess(#[allow(dead_code)] String),
+        Guess(String),
         Precise(DateTime<FixedOffset>),
     }
     let maybe: Option<Raw> = Option::deserialize(d)?;
     Ok(maybe.and_then(|raw| match raw {
         Raw::Current(dd) => Some(dd),
         Raw::Legacy(LegacyDate::Precise(date)) => Some(Date { date, soft: false }),
-        Raw::Legacy(LegacyDate::Guess(_)) => None,
+        Raw::Legacy(LegacyDate::Guess(s)) => {
+            // Try to parse as a datetime with timezone offset
+            DateTime::parse_from_rfc3339(&s)
+                .or_else(|_| DateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S%z"))
+                .map(|date| Date { date, soft: true })
+                .ok()
+                // Fall back to date-only (midnight UTC)
+                .or_else(|| {
+                    chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d")
+                        .ok()
+                        .and_then(|d| d.and_hms_opt(0, 0, 0))
+                        .map(|ndt| Date { date: ndt.and_utc().fixed_offset(), soft: true })
+                })
+        }
     }))
 }
 
@@ -211,7 +224,7 @@ impl<'de> Deserialize<'de> for TimeEstimate {
 
         #[derive(Deserialize)]
         enum Legacy {
-            Guess(#[allow(dead_code)] String),
+            Guess(String),
             Precise(Duration),
         }
 
@@ -226,7 +239,13 @@ impl<'de> Deserialize<'de> for TimeEstimate {
                 Current::Day1    => Self::Day1,
                 Current::Day2    => Self::Day2,
             },
-            Raw::Legacy(Legacy::Guess(_)) => Self::Day2,
+            Raw::Legacy(Legacy::Guess(s)) => {
+                use strum::IntoEnumIterator;
+                let lower = s.trim().to_lowercase();
+                Self::iter()
+                    .find(|v| lower == v.short_label() || lower == v.to_string().to_lowercase())
+                    .unwrap_or(Self::Day2)
+            }
             Raw::Legacy(Legacy::Precise(d)) => d.into(),
         })
     }
@@ -694,9 +713,21 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_time_estimate_legacy_guess() {
+    fn deserialize_time_estimate_legacy_guess_unparseable() {
         let v: TimeEstimate = serde_json::from_str(r#"{"Guess":"a weekend"}"#).unwrap();
         assert_eq!(v, TimeEstimate::Day2);
+    }
+
+    #[test]
+    fn deserialize_time_estimate_legacy_guess_short_label() {
+        let v: TimeEstimate = serde_json::from_str(r#"{"Guess":"1h"}"#).unwrap();
+        assert_eq!(v, TimeEstimate::Hours1);
+    }
+
+    #[test]
+    fn deserialize_time_estimate_legacy_guess_display() {
+        let v: TimeEstimate = serde_json::from_str(r#"{"Guess":"30 minutes"}"#).unwrap();
+        assert_eq!(v, TimeEstimate::Min30);
     }
 
     // DATE - DESERIALIZE (migration)
@@ -712,11 +743,31 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_due_date_legacy_guess() {
+    fn deserialize_due_date_legacy_guess_unparseable() {
         let task: Task = serde_json::from_str(
             r#"{"summary":"X","status":"ToDo","due_date":{"Guess":"next week"}}"#
         ).unwrap();
         assert!(task.details.due_date.is_none());
+    }
+
+    #[test]
+    fn deserialize_due_date_legacy_guess_rfc3339() {
+        let task: Task = serde_json::from_str(&format!(
+            r#"{{"summary":"X","status":"ToDo","due_date":{{"Guess":"{TIME_Z}"}}}}"#
+        )).unwrap();
+        let date = task.details.due_date.unwrap();
+        assert_eq!(date.date, DateTime::parse_from_rfc3339(TIME_Z).unwrap());
+        assert!(date.soft);
+    }
+
+    #[test]
+    fn deserialize_due_date_legacy_guess_date_only() {
+        let task: Task = serde_json::from_str(
+            r#"{"summary":"X","status":"ToDo","due_date":{"Guess":"2026-04-30"}}"#
+        ).unwrap();
+        let date = task.details.due_date.unwrap();
+        assert_eq!(date.date, DateTime::parse_from_rfc3339("2026-04-30T00:00:00+00:00").unwrap());
+        assert!(date.soft);
     }
 
     #[test]
@@ -730,10 +781,20 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_start_date_legacy_guess() {
+    fn deserialize_start_date_legacy_guess_unparseable() {
         let task: Task = serde_json::from_str(
             r#"{"summary":"X","status":"ToDo","start_date":{"Guess":"end of month"}}"#
         ).unwrap();
         assert!(task.details.start_date.is_none());
+    }
+
+    #[test]
+    fn deserialize_start_date_legacy_guess_date_only() {
+        let task: Task = serde_json::from_str(
+            r#"{"summary":"X","status":"ToDo","start_date":{"Guess":"2026-07-01"}}"#
+        ).unwrap();
+        let date = task.details.start_date.unwrap();
+        assert_eq!(date.date, DateTime::parse_from_rfc3339("2026-07-01T00:00:00+00:00").unwrap());
+        assert!(date.soft);
     }
 }
