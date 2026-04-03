@@ -61,6 +61,37 @@ pub fn App() -> impl IntoView {
     }
 }
 
+mod key {
+    pub const ENTER: &str = "Enter";
+    pub const ESCAPE: &str = "Escape";
+}
+
+/*
+ * Copy is intentional:
+ * RwSignal is a lightweight handle (essentially an index into a reactive store),
+ * so copying it is cheap and semantically correct.
+ *
+ * Leptos components pass EditMode into multiple independent move closures;
+ * without Copy, each closure would need an explicit .clone() before capture:
+ * ```rust
+ * // without Copy
+ * let em1 = edit_mode.clone();
+ * let em2 = edit_mode.clone();
+ * view! { <button class=move || em1.get() on:click=move |_| em2.update(…)> }
+ * // with Copy 
+ * view! { <button class=move || edit_mode.get() on:click=move |_| edit_mode.update(…)> }
+ * ```
+ */
+#[derive(Clone, Copy, Default)]
+struct EditMode(RwSignal<bool>);
+
+impl std::ops::Deref for EditMode {
+    type Target = RwSignal<bool>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, EnumCount, FromRepr)]
 enum View {
     MyDay,
@@ -178,7 +209,7 @@ fn TaskList() -> impl IntoView {
 
     let current_view = RwSignal::new(View::MyDay);
     let switch_count = RwSignal::new(0u32);
-    let edit_mode = RwSignal::new(false);
+    let edit_mode = EditMode::default();
     provide_context(edit_mode);
 
     let task_list = Resource::new(
@@ -466,6 +497,15 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
     let id = *task.id();
     let created = task.created().to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
+    let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let update_context = Action::new(move |value: &String| {
+        let value = value.clone();
+        async move {
+            if let Err(e) = server::update_task_context(id, value).await {
+                tracing::error!("update context failed: {e}");
+            }
+        }
+    });
 
     view! {
         <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
@@ -481,7 +521,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                 let due_date = task.due_date(&Local).map(|t| t.to_relative_time());
                                 let start_date = task.start_date(&Local).map(|t| t.to_relative_time());
                                 let time_estimate = task.time_estimate().map(|t| t.to_string());
-                                let context = task.context().into_owned();
+                                let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
+                                let context_initially_set = !context_value.get_untracked().is_empty();
+                                let context_saved = StoredValue::new(context_value.get_untracked());
+                                let context_escape = RwSignal::new(false);
+                                let context_ref = NodeRef::<leptos::html::Input>::new();
                                 let notes = task.notes().into_owned();
                                 view! {
                                     {priority.map(|priority| view! {
@@ -554,7 +598,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             <div class="text-sm text-slate-200">{time_estimate}</div>
                                         </div>
                                     })}
-                                    {context.map(|context| view! {
+                                    {move || (context_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -562,9 +606,49 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                                 </svg>
                                             </div>
                                             <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Context"</div>
-                                            <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
-                                                {context}
-                                            </div>
+                                            {move || if edit_mode.get() {
+                                                Either::Left(view! {
+                                                    <input
+                                                        type="text"
+                                                        node_ref=context_ref
+                                                        class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
+                                                        placeholder="Add context…"
+                                                        prop:value=move || context_value.get()
+                                                        on:input=move |ev| context_value.set(event_target_value(&ev))
+                                                        on:keydown=move |ev| match ev.key().as_str() {
+                                                            // plain Enter and Ctrl+Enter both save (single-line field)
+                                                            key::ENTER => {
+                                                                ev.prevent_default();
+                                                                update_context.dispatch(context_value.get_untracked());
+                                                                context_saved.set_value(context_value.get_untracked());
+                                                                context_escape.set(true);
+                                                                if let Some(el) = context_ref.get() { let _ = el.blur(); }
+                                                            }
+                                                            key::ESCAPE => {
+                                                                ev.prevent_default();
+                                                                context_value.set(context_saved.get_value());
+                                                                context_escape.set(true);
+                                                                if let Some(el) = context_ref.get() { let _ = el.blur(); }
+                                                            }
+                                                            _ => {}
+                                                        }
+                                                        on:blur=move |_| {
+                                                            if context_escape.get_untracked() {
+                                                                context_escape.set(false);
+                                                            } else {
+                                                                update_context.dispatch(context_value.get_untracked());
+                                                                context_saved.set_value(context_value.get_untracked());
+                                                            }
+                                                        }
+                                                    />
+                                                })
+                                            } else {
+                                                Either::Right(view! {
+                                                    <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
+                                                        {context_value.get()}
+                                                    </div>
+                                                })
+                                            }}
                                         </div>
                                     })}
                                     {notes.map(|notes| view! {

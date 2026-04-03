@@ -81,6 +81,22 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+#[server(endpoint = "update_task_context")]
+pub async fn update_task_context(id: Uuid, context: String) -> Result<(), ServerFnError> {
+    tracing::info!("update context for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    if context.is_empty() {
+        task.clear_context();
+    } else {
+        task.set_context(context);
+    }
+    Ok(())
+}
+
 #[server(endpoint = "complete_task")]
 pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
     tracing::info!("change status for task with id {id}");
