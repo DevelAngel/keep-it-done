@@ -149,7 +149,7 @@ pub enum DateEstimationRef<'a, Tz: TimeZone> {
     Precise(Cow<'a, DateTime<Tz>>),
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, EnumIter)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub enum TimeEstimate {
     Min15,
@@ -469,6 +469,23 @@ impl<'a, Tz: TimeZone> Display for DateEstimationRef<'a, Tz> {
                 let d = d.to_rfc2822();
                 write!(f, "{d}")
             }
+        }
+    }
+}
+
+impl TimeEstimate {
+    /// `short_label` has an exhaustive match — adding a variant breaks the build
+    /// until updated. Use `TimeEstimate::iter()` (strum) to iterate all variants.
+    pub fn short_label(self) -> &'static str {
+        match self {
+            Self::Min15   => "15m",
+            Self::Min30   => "30m",
+            Self::Min45   => "45m",
+            Self::Hours1  => "1h",
+            Self::Hours2  => "2h",
+            Self::HalfDay => "½d",
+            Self::Day1    => "1d",
+            Self::Day2    => "2d",
         }
     }
 }

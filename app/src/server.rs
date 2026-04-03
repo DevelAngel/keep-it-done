@@ -7,6 +7,7 @@ cfg_if::cfg_if! {
 
 use kid_types::TaskFilter;
 use kid_types::TaskPriority;
+use kid_types::TaskTimeEstimate;
 use kid_types::Uuid;
 use kid_types::task;
 
@@ -93,6 +94,21 @@ pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> R
     match priority {
         Some(p) => task.set_priority(p),
         None => task.clear_priority(),
+    }
+    Ok(())
+}
+
+#[server(endpoint = "update_task_time_estimate")]
+pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstimate>) -> Result<(), ServerFnError> {
+    tracing::info!("update time estimate for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    match estimate {
+        Some(e) => task.set_time_estimate(e),
+        None => task.clear_time_estimate(),
     }
     Ok(())
 }

@@ -4,7 +4,8 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDateEstimationRef, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, Uuid};
+use kid_types::{TaskDateEstimationRef, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
 use leptos::either::Either;
@@ -498,6 +499,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
     let created = task.created().to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let update_time_estimate = Action::new(move |estimate: &Option<TaskTimeEstimate>| {
+        let estimate = estimate.clone();
+        async move {
+            if let Err(e) = server::update_task_time_estimate(id, estimate).await {
+                tracing::error!("update time estimate failed: {e}");
+            }
+        }
+    });
     let update_priority = Action::new(move |priority: &Option<TaskPriority>| {
         let priority = priority.clone();
         async move {
@@ -537,7 +546,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                 let priority_initially_set = priority_value.get_untracked().is_some();
                                 let due_date = task.due_date(&Local).map(|t| t.to_relative_time());
                                 let start_date = task.start_date(&Local).map(|t| t.to_relative_time());
-                                let time_estimate = task.time_estimate().map(|t| t.to_string());
+                                let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
+                                let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
                                 let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
                                 let context_initially_set = !context_value.get_untracked().is_empty();
                                 let context_saved = StoredValue::new(context_value.get_untracked());
@@ -638,7 +648,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                             <div class="text-sm text-slate-200">{start_date}</div>
                                         </div>
                                     })}
-                                    {time_estimate.map(|time_estimate| view! {
+                                    {move || (time_estimate_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-md bg-amber-500 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-slate-900" fill="currentColor" viewBox="0 0 20 20">
@@ -646,7 +656,34 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                                 </svg>
                                             </div>
                                             <div class="text-xs font-semibold text-amber-500 uppercase tracking-wide mb-0.5">"Estimate"</div>
-                                            <div class="text-sm text-slate-200">{time_estimate}</div>
+                                            {move || if edit_mode.get() {
+                                                Either::Left(view! {
+                                                    <div class="flex flex-wrap gap-2">
+                                                        {TaskTimeEstimate::iter().map(|variant| {
+                                                            let label = variant.short_label();
+                                                            view! {
+                                                            <button type="button"
+                                                                class=move || if time_estimate_value.get() == Some(variant) {
+                                                                    "px-2.5 py-1 rounded bg-amber-500 text-slate-900 text-xs font-bold shadow"
+                                                                } else {
+                                                                    "px-2.5 py-1 rounded bg-slate-700 text-slate-400 text-xs font-bold"
+                                                                }
+                                                                on:click=move |_| {
+                                                                    let new = if time_estimate_value.get_untracked() == Some(variant) { None } else { Some(variant) };
+                                                                    time_estimate_value.set(new.clone());
+                                                                    update_time_estimate.dispatch(new);
+                                                                }
+                                                            >{label}</button>
+                                                        }}).collect_view()}
+                                                    </div>
+                                                })
+                                            } else {
+                                                Either::Right(view! {
+                                                    <div class="text-sm text-slate-200">
+                                                        {move || time_estimate_value.get().map(|t| t.to_string()).unwrap_or_default()}
+                                                    </div>
+                                                })
+                                            }}
                                         </div>
                                     })}
                                     {move || (context_initially_set || edit_mode.get()).then(|| view! {
