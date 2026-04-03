@@ -219,8 +219,6 @@ fn TaskList() -> impl IntoView {
                     current_view.get().header_gradient()
                 )>
                     <div class="flex items-center gap-2">
-                        // Spacer (balances edit icon on the right)
-                        <div class="w-8 h-8 flex-shrink-0"></div>
                         // Left arrow
                         <button
                             type="button"
@@ -266,22 +264,6 @@ fn TaskList() -> impl IntoView {
                                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
                             </svg>
                         </button>
-                        // Edit mode toggle icon
-                        <button
-                            type="button"
-                            class=move || if edit_mode.get() {
-                                "w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-amber-400 text-slate-900 transition-colors"
-                            } else {
-                                "w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-white/50 hover:text-white/80 hover:bg-white/10 transition-colors"
-                            }
-                            on:click=move |_| edit_mode.update(|m| *m = !*m)
-                            aria-pressed=move || edit_mode.get()
-                            aria-label="Toggle edit mode"
-                        >
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-                            </svg>
-                        </button>
                     </div>
                     // Page indicator dots
                     <div class="flex justify-center items-center gap-2 mt-3">
@@ -309,11 +291,25 @@ fn TaskList() -> impl IntoView {
                         }).collect_view()}
                     </div>
                 </header>
-                <Show when=move || edit_mode.get()>
-                    <div class="bg-amber-400 text-slate-900 text-sm font-semibold text-center py-1.5 select-none">
-                        "Edit Mode"
-                    </div>
-                </Show>
+                <button
+                    type="button"
+                    class="w-full flex items-center justify-center py-3 select-none"
+                    on:click=move |_| edit_mode.update(|m| *m = !*m)
+                    aria-pressed=move || edit_mode.get()
+                    aria-label="Toggle edit mode"
+                >
+                    {move || if edit_mode.get() {
+                        Either::Left(view! {
+                            <span class="w-full bg-amber-400 text-slate-900 text-sm font-semibold text-center py-1 transition-all">
+                                "Edit Mode"
+                            </span>
+                        })
+                    } else {
+                        Either::Right(view! {
+                            <span class="w-16 h-1 rounded-full bg-slate-600 transition-all"></span>
+                        })
+                    }}
+                </button>
                 <div class="py-2">
                     <Suspense fallback=move || view! {
                         <div class="px-6 py-6 text-center text-slate-400">"Loading tasks..."</div>
