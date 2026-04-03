@@ -11,6 +11,7 @@ use derive_more::Display;
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+use strum::EnumIter;
 
 #[cfg(feature = "rpc")]
 use serde_with::rust::double_option;
@@ -125,7 +126,7 @@ impl Display for Status {
     }
 }
 
-#[derive(Clone, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq, EnumIter)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 #[display(rename_all = "uppercase")]
 pub enum Priority {

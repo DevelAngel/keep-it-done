@@ -498,6 +498,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
     let created = task.created().to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let update_priority = Action::new(move |priority: &Option<TaskPriority>| {
+        let priority = priority.clone();
+        async move {
+            if let Err(e) = server::update_task_priority(id, priority).await {
+                tracing::error!("update priority failed: {e}");
+            }
+        }
+    });
     let update_notes = Action::new(move |value: &String| {
         let value = value.clone();
         async move {
@@ -525,7 +533,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                     {move || {
                         Suspend::new(async move {
                             details.await.map(|task| {
-                                let priority = task.priority();
+                                let priority_value = RwSignal::new(task.priority().cloned());
+                                let priority_initially_set = priority_value.get_untracked().is_some();
                                 let due_date = task.due_date(&Local).map(|t| t.to_relative_time());
                                 let start_date = task.start_date(&Local).map(|t| t.to_relative_time());
                                 let time_estimate = task.time_estimate().map(|t| t.to_string());
@@ -540,42 +549,72 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T) -> impl IntoView {
                                 let notes_escape = RwSignal::new(false);
                                 let notes_ref = NodeRef::<leptos::html::Textarea>::new();
                                 view! {
-                                    {priority.map(|priority| view! {
-                                        // Priority badge with color coding
-                                        <div class="relative">
-                                            <div class={format!(
-                                                "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-slate-900 shadow flex items-center justify-center {}",
-                                                match priority {
-                                                    TaskPriority::A => "bg-red-500",
-                                                    TaskPriority::B => "bg-amber-500",
-                                                    TaskPriority::C => "bg-sky-400",
-                                                }
-                                            )}>
-                                                <span class={format!(
-                                                    "text-xs font-bold {}",
-                                                    match priority {
-                                                        TaskPriority::A => "text-white",
-                                                        TaskPriority::B => "text-slate-900",
-                                                        TaskPriority::C => "text-slate-900",
-                                                    }
-                                                )}>{priority.to_string()}</span>
+                                    {move || (priority_initially_set || edit_mode.get()).then(|| {
+                                        let marker_class = move || match priority_value.get() {
+                                            Some(TaskPriority::A) => "bg-red-500",
+                                            Some(TaskPriority::B) => "bg-amber-500",
+                                            Some(TaskPriority::C) | None => "bg-sky-400",
+                                        };
+                                        let label_class = move || match priority_value.get() {
+                                            Some(TaskPriority::A) => "text-red-400",
+                                            Some(TaskPriority::B) => "text-amber-500",
+                                            Some(TaskPriority::C) | None => "text-sky-400",
+                                        };
+                                        view! {
+                                            // Priority badge with color coding
+                                            <div class="relative">
+                                                <div class=move || format!(
+                                                    "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-slate-900 shadow flex items-center justify-center {}",
+                                                    marker_class()
+                                                )>
+                                                    <span class=move || format!(
+                                                        "text-xs font-bold {}",
+                                                        match priority_value.get() {
+                                                            Some(TaskPriority::A) => "text-white",
+                                                            _ => "text-slate-900",
+                                                        }
+                                                    )>
+                                                        {move || priority_value.get().map(|p| p.to_string()).unwrap_or_default()}
+                                                    </span>
+                                                </div>
+                                                <div class=move || format!(
+                                                    "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
+                                                    label_class()
+                                                )>"Priority"</div>
+                                                {move || if edit_mode.get() {
+                                                    Either::Left(view! {
+                                                        <div class="flex gap-2">
+                                                            {TaskPriority::iter().map(|variant| {
+                                                                let active_class = match variant {
+                                                                    TaskPriority::A => "w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold shadow",
+                                                                    TaskPriority::B => "w-8 h-8 rounded-full bg-amber-500 text-slate-900 text-xs font-bold shadow",
+                                                                    TaskPriority::C => "w-8 h-8 rounded-full bg-sky-400 text-slate-900 text-xs font-bold shadow",
+                                                                };
+                                                                view! {
+                                                                    <button type="button"
+                                                                        class=move || if priority_value.get() == Some(variant) { active_class } else { "w-8 h-8 rounded-full bg-slate-700 text-slate-400 text-xs font-bold" }
+                                                                        on:click=move |_| {
+                                                                            let new = if priority_value.get_untracked() == Some(variant) { None } else { Some(variant) };
+                                                                            priority_value.set(new.clone());
+                                                                            update_priority.dispatch(new);
+                                                                        }
+                                                                    >{variant.to_string()}</button>
+                                                                }
+                                                            }).collect_view()}
+                                                        </div>
+                                                    })
+                                                } else {
+                                                    Either::Right(view! {
+                                                        <div class="text-sm text-slate-200">{move || match priority_value.get() {
+                                                            Some(TaskPriority::A) => "Critical",
+                                                            Some(TaskPriority::B) => "Important",
+                                                            Some(TaskPriority::C) => "Routine",
+                                                            None => "",
+                                                        }}</div>
+                                                    })
+                                                }}
                                             </div>
-                                            <div class={format!(
-                                                "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
-                                                match priority {
-                                                    TaskPriority::A => "text-red-400",
-                                                    TaskPriority::B => "text-amber-500",
-                                                    TaskPriority::C => "text-sky-400",
-                                                }
-                                            )}>"Priority"</div>
-                                            <div class="text-sm text-slate-200">{
-                                                match priority {
-                                                    TaskPriority::A => "Critical",
-                                                    TaskPriority::B => "Important",
-                                                    TaskPriority::C => "Routine",
-                                                }
-                                            }</div>
-                                        </div>
+                                        }
                                     })}
                                     {due_date.map(|due_date| view! {
                                         <div class="relative">

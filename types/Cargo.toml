@@ -44,6 +44,7 @@ schemars = { workspace = true, features = ["std", "derive", "chrono04", "preserv
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["indexmap", "preserve_order"], optional = true }
 serde_with.workspace = true
+strum.workspace = true
 tarpc = { workspace = true, features = ["serde1"], optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs"], optional = true }

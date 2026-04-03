@@ -6,6 +6,7 @@ cfg_if::cfg_if! {
 }
 
 use kid_types::TaskFilter;
+use kid_types::TaskPriority;
 use kid_types::Uuid;
 use kid_types::task;
 
@@ -78,6 +79,21 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
     let deleted = cache.remove(&id);
     tracing::debug!("task deleted: {deleted}");
     assert!(deleted, "task was not deleted");
+    Ok(())
+}
+
+#[server(endpoint = "update_task_priority")]
+pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> Result<(), ServerFnError> {
+    tracing::info!("update priority for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    match priority {
+        Some(p) => task.set_priority(p),
+        None => task.clear_priority(),
+    }
     Ok(())
 }
 
