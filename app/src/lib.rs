@@ -190,7 +190,10 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
 
-    let add_task = ServerMultiAction::<server::AddTask>::new();
+    let add_task = Action::new(move |summary: &String| {
+        let summary = summary.clone();
+        async move { server::add_task(summary).await }
+    });
     let delete_task = ServerAction::<server::DeleteTask>::new();
     let (completion_version, set_completion_version) = signal(0u32);
 
@@ -200,15 +203,7 @@ fn TaskList() -> impl IntoView {
     provide_context(edit_mode);
 
     let task_list = Resource::new(
-        move || {
-            (
-                delete_task.version().get(),
-                add_task.version().get(),
-                delete_task.version().get(),
-                completion_version.get(),
-                current_view.get(),
-            )
-        },
+        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), current_view.get()),
         move |_| async move {
             match current_view.get_untracked() {
                 View::MyDay          => server::fetch_my_day().await,
@@ -233,10 +228,6 @@ fn TaskList() -> impl IntoView {
     };
 
     view! {
-        <MultiActionForm action=add_task>
-            <label>"Add a Task" <input type="text" name="summary"/></label>
-            <input type="submit" value="Add"/>
-        </MultiActionForm>
         <div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900">
             <div class="max-w-2xl mx-auto min-h-screen bg-slate-900 shadow-2xl">
                 <header class=move || format!(
@@ -376,11 +367,76 @@ fn TaskList() -> impl IntoView {
                         </ErrorBoundary>
                     </Suspense>
                 </div>
+                <Show when=move || edit_mode.get()>
+                    <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); }/>
+                </Show>
             </div>
             <Show when=move || edit_mode.get()>
                 <div class="fixed top-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
                 <div class="fixed bottom-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
             </Show>
+        </div>
+    }
+}
+
+#[component]
+fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>) -> impl IntoView {
+    let expanded = RwSignal::new(false);
+    let value = RwSignal::new(String::new());
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+
+    let submit = move || {
+        let v = value.get_untracked().trim().to_string();
+        if !v.is_empty() {
+            on_add.run(v);
+            value.set(String::new());
+        }
+        expanded.set(false);
+    };
+
+    Effect::new(move || {
+        if expanded.get() {
+            if let Some(el) = input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
+
+    view! {
+        <div class="border-t border-slate-700">
+            {move || if expanded.get() {
+                Either::Left(view! {
+                    <input
+                        node_ref=input_ref
+                        type="text"
+                        class="w-full bg-slate-700 text-slate-100 rounded-lg px-6 py-4 border border-amber-500 focus:outline-none placeholder-slate-400 text-base"
+                        placeholder="New task…"
+                        prop:value=move || value.get()
+                        on:input=move |ev| value.set(event_target_value(&ev))
+                        on:keydown=move |ev| {
+                            if ev.key() == key::ENTER {
+                                ev.prevent_default();
+                                submit();
+                            } else if ev.key() == key::ESCAPE {
+                                ev.prevent_default();
+                                value.set(String::new());
+                                expanded.set(false);
+                            }
+                        }
+                        on:blur=move |_| submit()
+                    />
+                })
+            } else {
+                Either::Right(view! {
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-center text-slate-400 hover:text-amber-400 transition-colors py-3"
+                        on:click=move |_| expanded.set(true)
+                    >
+                        <span class="text-base">"Add Task"</span>
+                    </button>
+                })
+            }}
         </div>
     }
 }
