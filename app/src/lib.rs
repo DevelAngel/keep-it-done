@@ -8,6 +8,7 @@ use kid_types::{TaskDate, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriori
 use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
+use chrono::TimeDelta;
 use leptos::either::Either;
 use leptos::prelude::*;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
@@ -591,8 +592,10 @@ fn EditableField(
 #[component]
 fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
-    let created = task.created().to_relative_time();
-    let since   = since.to_relative_time();
+    let created = task.created();
+    let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
+    let created = created.to_relative_time();
+    let since = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
     let rename_task = Action::new(move |value: &String| {
@@ -962,14 +965,16 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                         })
                     }}
                 </Suspense>
-                // Since
-                <div class="relative">
-                    <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
-                        <div class="w-2 h-2 rounded-full bg-white"></div>
+                // Since (only if different from created, minute-precise)
+                {show_since.then(|| view! {
+                    <div class="relative">
+                        <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-600 border-4 border-slate-900 shadow flex items-center justify-center">
+                            <div class="w-2 h-2 rounded-full bg-white"></div>
+                        </div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">"Last status change"</div>
+                        <div class="text-sm text-slate-200">{since}</div>
                     </div>
-                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">"Last status change"</div>
-                    <div class="text-sm text-slate-200">{since}</div>
-                </div>
+                })}
                 // Created
                 <div class="relative">
                     <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-cyan-700 border-4 border-slate-900 shadow flex items-center justify-center">
@@ -1027,7 +1032,6 @@ trait ToRelativeTime {
 
 impl<Tz: TimeZone> ToRelativeTime for DateTime<Tz> {
     fn to_relative_time(&self) -> String {
-        use chrono::TimeDelta;
         let plural = |num| if num == 1 { "" } else { "s" };
         let duration = Utc::now().signed_duration_since(self);
         if duration > TimeDelta::zero() {
