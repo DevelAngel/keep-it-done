@@ -665,7 +665,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
                 // Vertical line
-                <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500"></div>
+                <div class="absolute left-3 top-0 -bottom-4 w-0.5 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500"></div>
                 <Suspense>
                     {move || {
                         Suspend::new(async move {
@@ -977,6 +977,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                     </div>
                     <div class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-0.5">"Created"</div>
                     <div class="text-sm text-slate-200">{created}</div>
+                    <div class="text-xs text-slate-500 font-mono mt-0.5">{id.to_string()}</div>
                 </div>
             </div>
         </div>
