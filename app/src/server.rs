@@ -6,7 +6,6 @@ cfg_if::cfg_if! {
 }
 
 use kid_types::TaskDate;
-use kid_types::TaskFilter;
 use kid_types::TaskPriority;
 use kid_types::TaskTimeEstimate;
 use kid_types::Uuid;
@@ -26,26 +25,58 @@ use leptos::prelude::*;
 * ```
 */
 
-#[server(endpoint = "fetch_tasks")]
-pub async fn fetch_task_list(filter: TaskFilter) -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
-    tracing::info!("fetch task list ({filter:?})");
+#[server(endpoint = "fetch_my_day")]
+pub async fn fetch_my_day() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let list = cache
+    let mut list: Vec<_> = cache
         .iter()
-        .filter(|(_, task)| match filter {
-            TaskFilter::Todo => !task.info().is_done(),
-            TaskFilter::Done => task.info().is_done(),
-            TaskFilter::HasTimeEstimate => {
-                !task.info().is_done() && task.time_estimate().is_some()
-            }
-            TaskFilter::RecentlyChanged => {
-                Utc::now().signed_duration_since(task.info().since().with_timezone(&Utc))
-                    <= TimeDelta::hours(24)
-            }
+        .filter(|(_, task)| !task.info().is_done())
+        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
+        .collect();
+    list.sort_by_key(|(id, _)| *id);
+    Ok(list)
+}
+
+#[server(endpoint = "fetch_what_i_finished")]
+pub async fn fetch_what_i_finished() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    let mut list: Vec<_> = cache
+        .iter()
+        .filter(|(_, task)| task.info().is_done())
+        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
+        .collect();
+    list.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
+    Ok(list)
+}
+
+#[server(endpoint = "fetch_quick_wins")]
+pub async fn fetch_quick_wins() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    let mut list: Vec<_> = cache
+        .iter()
+        .filter(|(_, task)| !task.info().is_done() && task.time_estimate().is_some())
+        .map(|(id, task)| (id.to_owned(), task.info().to_owned(), task.time_estimate().cloned()))
+        .collect();
+    list.sort_by_key(|(_, _, te)| *te);
+    Ok(list.into_iter().map(|(id, info, _)| (id, info)).collect())
+}
+
+#[server(endpoint = "fetch_recently_changed")]
+pub async fn fetch_recently_changed() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    let mut list: Vec<_> = cache
+        .iter()
+        .filter(|(_, task)| {
+            Utc::now().signed_duration_since(task.info().since().with_timezone(&Utc))
+                <= TimeDelta::hours(24)
         })
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
+    list.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
     Ok(list)
 }
 

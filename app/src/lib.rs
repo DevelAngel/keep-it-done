@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDate, TaskDetails, TaskFilter, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use kid_types::{TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
 use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
@@ -175,26 +175,7 @@ impl View {
         }
     }
 
-    fn task_filter(self) -> TaskFilter {
-        match self {
-            View::MyDay => TaskFilter::Todo,
-            View::WhatIFinished => TaskFilter::Done,
-            View::QuickWins => TaskFilter::HasTimeEstimate,
-            View::RecentlyChanged => TaskFilter::RecentlyChanged,
-        }
-    }
 
-    fn sort_tasks<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(self, tasks: &mut Vec<T>) {
-        let created_asc = |a: &T, b: &T| a.id().cmp(b.id());        
-        let since_asc   = |a: &T, b: &T| a.since().cmp(b.since());
-        let since_desc  = |a: &T, b: &T| b.since().cmp(a.since());
-        match self {
-            View::MyDay          => tasks.sort_by(created_asc),
-            View::WhatIFinished  => tasks.sort_by(since_desc),
-            View::QuickWins      => tasks.sort_by(since_asc),
-            View::RecentlyChanged => tasks.sort_by(since_desc),
-        }
-    }
 }
 
 fn arrow_opacity_class(switch_count: u32) -> &'static str {
@@ -228,7 +209,14 @@ fn TaskList() -> impl IntoView {
                 current_view.get(),
             )
         },
-        move |_| server::fetch_task_list(current_view.get_untracked().task_filter()),
+        move |_| async move {
+            match current_view.get_untracked() {
+                View::MyDay          => server::fetch_my_day().await,
+                View::WhatIFinished  => server::fetch_what_i_finished().await,
+                View::QuickWins      => server::fetch_quick_wins().await,
+                View::RecentlyChanged => server::fetch_recently_changed().await,
+            }
+        },
     );
 
     let go_prev = move |_| {
@@ -365,11 +353,7 @@ fn TaskList() -> impl IntoView {
                                         } else {
                                             Either::Right(view! {
                                                 <For
-                                                    each=move || {
-                                                        let mut list = task_list.clone();
-                                                        view.sort_tasks(&mut list);
-                                                        list
-                                                    }
+                                                    each=move || task_list.clone()
                                                     key=|task| *task.id()
                                                     children=move |task| {
                                                         view! {
