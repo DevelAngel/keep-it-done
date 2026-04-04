@@ -202,6 +202,12 @@ fn TaskList() -> impl IntoView {
     let edit_mode = EditMode::default();
     provide_context(edit_mode);
 
+    window_event_listener(leptos::ev::keydown, move |ev| {
+        if ev.key() == key::ESCAPE && !ev.default_prevented() && edit_mode.get() {
+            edit_mode.update(|m| *m = false);
+        }
+    });
+
     let task_list = Resource::new(
         move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), current_view.get()),
         move |_| async move {
