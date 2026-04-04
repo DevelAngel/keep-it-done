@@ -142,6 +142,15 @@ impl View {
         Self::from_repr(self as usize + 1)
     }
 
+    fn subtitle(self) -> &'static str {
+        match self {
+            View::MyDay          => "Open tasks · by creation date",
+            View::WhatIFinished  => "Completed tasks · most recent first",
+            View::QuickWins      => "Open tasks with estimate · shortest first",
+            View::RecentlyChanged => "Changed within 24 h · most recent first",
+        }
+    }
+
     fn empty_message(self) -> &'static str {
         match self {
             View::MyDay => "Nothing left for today.",
@@ -237,10 +246,10 @@ fn TaskList() -> impl IntoView {
         <div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900">
             <div class="max-w-2xl mx-auto min-h-screen bg-slate-900 shadow-2xl">
                 <header class=move || format!(
-                    "px-6 pt-6 pb-5 bg-gradient-to-br {} text-white select-none",
+                    "px-6 pt-4 pb-5 bg-gradient-to-br {} text-white select-none",
                     current_view.get().header_gradient()
                 )>
-                    <div class="flex items-center gap-2">
+                    <div class="relative text-center">
                         // Left arrow
                         <button
                             type="button"
@@ -249,7 +258,7 @@ fn TaskList() -> impl IntoView {
                                     Some(_) => arrow_opacity_class(switch_count.get()),
                                     None => "opacity-0 pointer-events-none",
                                 };
-                                format!("w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
+                                format!("absolute left-0 top-[58%] -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
                             }
                             on:click=go_prev
                             aria-label=move || current_view.get().prev()
@@ -261,12 +270,12 @@ fn TaskList() -> impl IntoView {
                             </svg>
                         </button>
                         // Title
-                        <h1
-                            aria-live="polite"
-                            class="flex-1 text-center text-3xl font-semibold"
-                        >
+                        <h1 aria-live="polite" class="text-3xl font-semibold">
                             {move || current_view.get().title()}
                         </h1>
+                        <p class="text-xs opacity-60 mt-0.5">
+                            {move || current_view.get().subtitle()}
+                        </p>
                         // Right arrow
                         <button
                             type="button"
@@ -275,7 +284,7 @@ fn TaskList() -> impl IntoView {
                                     Some(_) => arrow_opacity_class(switch_count.get()),
                                     None => "opacity-0 pointer-events-none",
                                 };
-                                format!("w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
+                                format!("absolute right-0 top-[58%] -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
                             }
                             on:click=go_next
                             aria-label=move || current_view.get().next()
