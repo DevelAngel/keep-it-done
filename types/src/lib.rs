@@ -69,9 +69,9 @@ pub trait TaskDetails<'a> {
     fn time_estimate(&'a self) -> Option<&'a TaskTimeEstimate>;
     fn set_time_estimate(&mut self, time: TaskTimeEstimate);
     fn clear_time_estimate(&mut self);
-    fn context(&'a self) -> Option<Cow<'a, str>>;
-    fn set_context<T: ToString>(&'a mut self, text: T);
-    fn clear_context(&'a mut self);
+    fn category(&'a self) -> Option<Cow<'a, str>>;
+    fn set_category<T: ToString>(&'a mut self, text: T);
+    fn clear_category(&'a mut self);
     fn notes(&'a self) -> Option<Cow<'a, str>>;
     fn set_notes<T: ToString>(&'a mut self, text: T);
     fn clear_notes(&'a mut self);

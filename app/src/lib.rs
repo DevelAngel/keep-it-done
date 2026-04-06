@@ -685,11 +685,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
             }
         }
     });
-    let update_context = Action::new(move |value: &String| {
+    let update_category = Action::new(move |value: &String| {
         let value = value.clone();
         async move {
-            if let Err(e) = server::update_task_context(id, value).await {
-                tracing::error!("update context failed: {e}");
+            if let Err(e) = server::update_task_category(id, value).await {
+                tracing::error!("update category failed: {e}");
             }
         }
     });
@@ -736,8 +736,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                 let start_date_initially_set = start_date_value.get_untracked().is_some();
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
-                                let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
-                                let context_initially_set = !context_value.get_untracked().is_empty();
+                                let category_value = RwSignal::new(task.category().into_owned().unwrap_or_default());
+                                let category_initially_set = !category_value.get_untracked().is_empty();
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
                                 view! {
@@ -962,27 +962,27 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                             }}
                                         </div>
                                     })}
-                                    {move || (context_initially_set || edit_mode.get()).then(|| view! {
+                                    {move || (category_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
                                                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
                                                 </svg>
                                             </div>
-                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Context"</div>
+                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Category"</div>
                                             {move || if edit_mode.get() {
                                                 Either::Left(view! {
                                                     <EditableField
-                                                        value=context_value
-                                                        on_save=move |v: String| { update_context.dispatch(v); }
+                                                        value=category_value
+                                                        on_save=move |v: String| { update_category.dispatch(v); }
                                                         class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
-                                                        placeholder="Add context…"
+                                                        placeholder="Add category…"
                                                     />
                                                 })
                                             } else {
                                                 Either::Right(view! {
                                                     <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
-                                                        {context_value.get()}
+                                                        {category_value.get()}
                                                     </div>
                                                 })
                                             }}

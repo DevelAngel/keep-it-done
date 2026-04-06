@@ -187,18 +187,18 @@ pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<
     Ok(())
 }
 
-#[server(endpoint = "update_task_context")]
-pub async fn update_task_context(id: Uuid, context: String) -> Result<(), ServerFnError> {
-    tracing::info!("update context for task {id}");
+#[server(endpoint = "update_task_category")]
+pub async fn update_task_category(id: Uuid, category: String) -> Result<(), ServerFnError> {
+    tracing::info!("update category for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
         .get_mut(&id)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
-    if context.is_empty() {
-        task.clear_context();
+    if category.is_empty() {
+        task.clear_category();
     } else {
-        task.set_context(context);
+        task.set_category(category);
     }
     Ok(())
 }

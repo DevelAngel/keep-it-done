@@ -57,7 +57,8 @@ pub struct Details {
     #[serde(default, deserialize_with = "deserialize_due_date")]
     start_date: Option<Date>,
     time_estimate: Option<TimeEstimate>,
-    context: Option<String>,
+    #[serde(alias = "context")]
+    category: Option<String>,
     notes: Option<String>,
 }
 
@@ -345,14 +346,14 @@ impl<'a> TaskDetails<'a> for (Uuid, Details) {
     fn clear_time_estimate(&mut self) {
         self.1.clear_time_estimate();
     }
-    fn context(&'a self) -> Option<Cow<'a, str>> {
-        self.1.context()
+    fn category(&'a self) -> Option<Cow<'a, str>> {
+        self.1.category()
     }
-    fn set_context<T: ToString>(&'a mut self, text: T) {
-        self.1.set_context(text);
+    fn set_category<T: ToString>(&'a mut self, text: T) {
+        self.1.set_category(text);
     }
-    fn clear_context(&'a mut self) {
-        self.1.clear_context();
+    fn clear_category(&'a mut self) {
+        self.1.clear_category();
     }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.1.notes()
@@ -402,14 +403,14 @@ impl<'a> TaskDetails<'a> for Task {
     fn clear_time_estimate(&mut self) {
         self.details.clear_time_estimate();
     }
-    fn context(&'a self) -> Option<Cow<'a, str>> {
-        self.details.context()
+    fn category(&'a self) -> Option<Cow<'a, str>> {
+        self.details.category()
     }
-    fn set_context<T: ToString>(&'a mut self, text: T) {
-        self.details.set_context(text);
+    fn set_category<T: ToString>(&'a mut self, text: T) {
+        self.details.set_category(text);
     }
-    fn clear_context(&'a mut self) {
-        self.details.clear_context();
+    fn clear_category(&'a mut self) {
+        self.details.clear_category();
     }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.details.notes()
@@ -459,14 +460,14 @@ impl<'a> TaskDetails<'a> for Details {
     fn clear_time_estimate(&mut self) {
         self.time_estimate = None;
     }
-    fn context(&'a self) -> Option<Cow<'a, str>> {
-        self.context.as_deref().map(Cow::Borrowed)
+    fn category(&'a self) -> Option<Cow<'a, str>> {
+        self.category.as_deref().map(Cow::Borrowed)
     }
-    fn set_context<T: ToString>(&'a mut self, text: T) {
-        self.context = Some(text.to_string());
+    fn set_category<T: ToString>(&'a mut self, text: T) {
+        self.category = Some(text.to_string());
     }
-    fn clear_context(&'a mut self) {
-        self.context = None;
+    fn clear_category(&'a mut self) {
+        self.category = None;
     }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.notes.as_deref().map(Cow::Borrowed)
