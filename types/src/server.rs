@@ -369,7 +369,13 @@ impl TaskCache {
             .iter()
             .any(|f| v.get(f).map(|d| d.get("Precise").is_some() || d.get("Guess").is_some()).unwrap_or(false));
 
-        legacy_status || legacy_time_estimate || legacy_date
+        // Legacy field name: "context" was renamed to "category"
+        let legacy_context_field = v.get("context").is_some();
+        if legacy_context_field {
+            tracing::info!("task {id}: migrating legacy \"context\" field to \"category\"");
+        }
+
+        legacy_status || legacy_time_estimate || legacy_date || legacy_context_field
     }
 
     async fn write_task_file(&self, id: &Uuid, task: &Task) -> TaskResult<()> {
@@ -533,34 +539,48 @@ mod tests {
 
     // DETECT LEGACY FORMAT
 
+    const DETECT_ID: Uuid = uuid!("019c500f-e598-75a1-9bd9-286e3d82cd04");
+
     #[test]
     fn detect_legacy_format_no_time_estimate() {
         let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}}}"#;
-        assert!(!TaskCache::detect_legacy_format(json));
+        assert!(!TaskCache::detect_legacy_format(&DETECT_ID, json));
     }
 
     #[test]
     fn detect_legacy_format_status_string() {
         let json = r#"{"summary":"A","status":"ToDo"}"#;
-        assert!(TaskCache::detect_legacy_format(json));
+        assert!(TaskCache::detect_legacy_format(&DETECT_ID, json));
     }
 
     #[test]
     fn detect_legacy_format_time_estimate_guess() {
         let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"time_estimate":{"Guess":"a weekend"}}"#;
-        assert!(TaskCache::detect_legacy_format(json));
+        assert!(TaskCache::detect_legacy_format(&DETECT_ID, json));
     }
 
     #[test]
     fn detect_legacy_format_time_estimate_precise() {
         let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"time_estimate":{"Precise":{"secs":3600,"nanos":0}}}"#;
-        assert!(TaskCache::detect_legacy_format(json));
+        assert!(TaskCache::detect_legacy_format(&DETECT_ID, json));
     }
 
     #[test]
     fn detect_legacy_format_time_estimate_variant() {
         let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"time_estimate":"Hours1"}"#;
-        assert!(!TaskCache::detect_legacy_format(json));
+        assert!(!TaskCache::detect_legacy_format(&DETECT_ID, json));
+    }
+
+    #[test]
+    fn detect_legacy_format_context_field() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"context":"Children"}"#;
+        assert!(TaskCache::detect_legacy_format(&DETECT_ID, json));
+    }
+
+    #[test]
+    fn detect_legacy_format_category_field() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"category":"Children"}"#;
+        assert!(!TaskCache::detect_legacy_format(&DETECT_ID, json));
     }
 
     fn assert_files(dir: &Path, num: usize) -> Result<()> {
