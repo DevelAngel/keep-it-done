@@ -686,11 +686,19 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
             }
         }
     });
+    let category_last_saved = StoredValue::new(category.get_untracked());
+    let category_error: RwSignal<Option<String>> = RwSignal::new(None);
     let update_category = Action::new(move |value: &String| {
         let value = value.clone();
+        category_error.set(None);
         async move {
-            if let Err(e) = server::update_task_category(id, value).await {
-                tracing::error!("update category failed: {e}");
+            match server::update_task_category(id, value.clone()).await {
+                Ok(()) => category_last_saved.set_value(value),
+                Err(e) => {
+                    tracing::error!("update category failed: {e}");
+                    category.set(category_last_saved.get_value());
+                    category_error.set(Some(e.to_string()));
+                }
             }
         }
     });
@@ -978,6 +986,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                                         class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
                                                         placeholder="Add category…"
                                                     />
+                                                    {move || category_error.get().map(|msg| view! {
+                                                        <div class="text-xs text-red-400 mt-1">{msg}</div>
+                                                    })}
                                                 })
                                             } else {
                                                 Either::Right(view! {
