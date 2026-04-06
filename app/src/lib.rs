@@ -487,6 +487,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     });
 
     let summary = RwSignal::new(task.summary().to_string());
+    let category = RwSignal::new(task.category().to_string());
     let since = *task.since();
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
@@ -552,7 +553,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary since=since/>
+                <TaskDetails task=id summary=summary category=category since=since/>
             </Show>
         </div>
     }
@@ -645,7 +646,7 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
@@ -736,8 +737,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                 let start_date_initially_set = start_date_value.get_untracked().is_some();
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
-                                let category_value = RwSignal::new(task.category().into_owned().unwrap_or_default());
-                                let category_initially_set = !category_value.get_untracked().is_empty();
+                                let category_initially_set = !category.get_untracked().is_empty();
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
                                 view! {
@@ -973,7 +973,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                             {move || if edit_mode.get() {
                                                 Either::Left(view! {
                                                     <EditableField
-                                                        value=category_value
+                                                        value=category
                                                         on_save=move |v: String| { update_category.dispatch(v); }
                                                         class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
                                                         placeholder="Add category…"
@@ -982,7 +982,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                             } else {
                                                 Either::Right(view! {
                                                     <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
-                                                        {category_value.get()}
+                                                        {category.get()}
                                                     </div>
                                                 })
                                             }}
