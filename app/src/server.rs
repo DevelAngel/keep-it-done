@@ -1,10 +1,11 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
         use chrono::{TimeDelta, Utc};
-        use kid_types::{TaskCategory, TaskDetails, TaskInfos};
+        use kid_types::{TaskDetails, TaskInfos};
     }
 }
 
+use kid_types::TaskCategory;
 use kid_types::TaskDate;
 use kid_types::TaskPriority;
 use kid_types::TaskTimeEstimate;
@@ -188,11 +189,7 @@ pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<
 }
 
 #[server(endpoint = "update_task_category")]
-pub async fn update_task_category(id: Uuid, category: String) -> Result<(), ServerFnError> {
-    let category = match category.parse::<TaskCategory>() {
-        Ok(c) => c,
-        Err(e) => return Err(ServerFnError::ServerError(e.to_string())),
-    };
+pub async fn update_task_category(id: Uuid, category: TaskCategory) -> Result<(), ServerFnError> {
     tracing::info!("update category for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;

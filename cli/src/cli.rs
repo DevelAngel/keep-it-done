@@ -46,6 +46,9 @@ pub enum Commands {
         /// Task summary
         #[clap(short, long)]
         summary: String,
+        /// Category (life domain: e.g. Finance, Children, Household)
+        #[clap(short, long)]
+        category: String,
         /// Task details as JSON string (see schema)
         #[clap(short, long)]
         details: Option<String>,

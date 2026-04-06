@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use kid_types::{TaskCategory, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
 use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
@@ -692,13 +692,19 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
         let value = value.clone();
         category_error.set(None);
         async move {
-            match server::update_task_category(id, value.clone()).await {
-                Ok(()) => category_last_saved.set_value(value),
+            match value.parse::<TaskCategory>() {
                 Err(e) => {
-                    tracing::error!("update category failed: {e}");
                     category.set(category_last_saved.get_value());
                     category_error.set(Some(e.to_string()));
                 }
+                Ok(cat) => match server::update_task_category(id, cat).await {
+                    Ok(()) => category_last_saved.set_value(value),
+                    Err(e) => {
+                        tracing::error!("update category failed: {e}");
+                        category.set(category_last_saved.get_value());
+                        category_error.set(Some(e.to_string()));
+                    }
+                },
             }
         }
     });

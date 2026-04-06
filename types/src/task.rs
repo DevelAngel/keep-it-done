@@ -76,8 +76,20 @@ impl Serialize for Category {
 impl<'de> Deserialize<'de> for Category {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let s = String::deserialize(d)?;
-        if s.is_empty() { Ok(Self::default()) } else { Ok(Self(s)) }
+        if s.is_empty() {
+            Err(serde::de::Error::custom("category must not be empty"))
+        } else {
+            Ok(Self(s))
+        }
     }
+}
+
+/// Lenient deserializer for the `Infos.category` field: maps the empty string
+/// to `Category::default()` so that legacy files with `"context": ""` load
+/// without error. Use only at the field level — never for user-facing input.
+fn deserialize_category_lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Category, D::Error> {
+    let s = String::deserialize(d)?;
+    if s.is_empty() { Ok(Category::default()) } else { Ok(Category(s)) }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,7 +106,7 @@ pub struct Task {
 pub struct Infos {
     summary: String,
     status: Status,
-    #[serde(alias = "context", default)]
+    #[serde(alias = "context", default, deserialize_with = "deserialize_category_lenient")]
     category: Category,
 }
 
@@ -560,6 +572,11 @@ impl Task {
         let info = Infos::new(summary);
         let details = Details::default();
         Self { info, details }
+    }
+
+    pub fn with_category(mut self, category: Category) -> Self {
+        self.info.category = category;
+        self
     }
 
     pub fn with_details(mut self, details: Details) -> Self {
