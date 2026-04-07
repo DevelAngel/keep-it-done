@@ -2,8 +2,11 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
         use chrono::{TimeDelta, Utc};
         use kid_types::{TaskDetails, TaskInfos};
+        use std::collections::BTreeMap;
     }
 }
+
+use indexmap::IndexMap;
 
 use kid_types::TaskCategory;
 use kid_types::TaskDate;
@@ -28,7 +31,7 @@ use leptos::prelude::*;
 */
 
 #[server(endpoint = "fetch_my_day")]
-pub async fn fetch_my_day() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+pub async fn fetch_my_day() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let mut list: Vec<_> = cache
@@ -37,11 +40,11 @@ pub async fn fetch_my_day() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
     list.sort_by_key(|(id, _)| *id);
-    Ok(list)
+    Ok(group_by_category(list))
 }
 
 #[server(endpoint = "fetch_what_i_finished")]
-pub async fn fetch_what_i_finished() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+pub async fn fetch_what_i_finished() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let mut list: Vec<_> = cache
@@ -50,7 +53,7 @@ pub async fn fetch_what_i_finished() -> Result<Vec<(Uuid, task::Infos)>, ServerF
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
     list.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
-    Ok(list)
+    Ok(group_by_category(list))
 }
 
 #[server(endpoint = "fetch_quick_wins")]
@@ -80,6 +83,15 @@ pub async fn fetch_recently_changed() -> Result<Vec<(Uuid, task::Infos)>, Server
         .collect();
     list.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
     Ok(list)
+}
+
+#[cfg(feature = "ssr")]
+fn group_by_category(list: Vec<(Uuid, task::Infos)>) -> IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>> {
+    let mut btree: BTreeMap<TaskCategory, Vec<(Uuid, task::Infos)>> = BTreeMap::new();
+    for item in list {
+        btree.entry(item.1.category().parse().unwrap()).or_default().push(item);
+    }
+    btree.into_iter().collect()
 }
 
 #[server(endpoint = "fetch_task_details")]

@@ -30,7 +30,7 @@ pub enum Filter {
     RecentlyChanged,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "cli", schemars(transparent))]
 pub struct Category(String);

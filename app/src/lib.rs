@@ -5,7 +5,10 @@ pub mod server;
 use crate::error_template::ErrorTemplate;
 
 use kid_types::{TaskCategory, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid};
+use kid_types::task;
 use strum::IntoEnumIterator;
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 
 use chrono::prelude::*;
 use chrono::TimeDelta;
@@ -18,6 +21,7 @@ use leptos_router::{
 };
 use strum::{EnumCount, FromRepr};
 
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::fmt::{self, Display, Formatter};
@@ -144,8 +148,8 @@ impl View {
 
     fn subtitle(self) -> &'static str {
         match self {
-            View::MyDay          => "Open tasks · by creation date",
-            View::WhatIFinished  => "Completed tasks · most recent first",
+            View::MyDay          => "Open tasks · ↓ category · oldest first",
+            View::WhatIFinished  => "Completed tasks · ↓ category · recent first",
             View::QuickWins      => "Open tasks with estimate · shortest first",
             View::RecentlyChanged => "Changed within 24 h · most recent first",
         }
@@ -195,9 +199,45 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+enum TaskListData {
+    Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
+    Flat(Vec<(Uuid, task::Infos)>),
+}
+
+#[derive(Copy, Clone)]
+struct GroupCollapseState {
+    owner: StoredValue<Owner>,
+    map: StoredValue<HashMap<TaskCategory, RwSignal<bool>>>,
+}
+
+impl GroupCollapseState {
+    fn new() -> Self {
+        Self {
+            owner: StoredValue::new(Owner::current().expect("must be in reactive context")),
+            map: StoredValue::new(HashMap::new()),
+        }
+    }
+
+    fn ensure(&self, category: &TaskCategory) {
+        let category = category.clone();
+        let owner = self.owner;
+        self.map.update_value(|map| {
+            map.entry(category).or_insert_with(|| {
+                owner.with_value(|o| o.with(|| RwSignal::new(false)))
+            });
+        });
+    }
+
+    fn signal_for(&self, category: &TaskCategory) -> RwSignal<bool> {
+        self.map.with_value(|map| map[category])
+    }
+}
+
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
+    let group_collapse = GroupCollapseState::new();
 
     let add_task = Action::new(move |summary: &String| {
         let summary = summary.clone();
@@ -226,10 +266,10 @@ fn TaskList() -> impl IntoView {
         move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), current_view.get()),
         move |_| async move {
             match current_view.get_untracked() {
-                View::MyDay          => server::fetch_my_day().await,
-                View::WhatIFinished  => server::fetch_what_i_finished().await,
-                View::QuickWins      => server::fetch_quick_wins().await,
-                View::RecentlyChanged => server::fetch_recently_changed().await,
+                View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
+                View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
+                View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::Flat),
+                View::RecentlyChanged => server::fetch_recently_changed().await.map(TaskListData::Flat),
             }
         },
     );
@@ -354,31 +394,90 @@ fn TaskList() -> impl IntoView {
                             {move || {
                                 let view = current_view.get();
                                 Suspend::new(async move {
-                                    task_list.await.map(|task_list| {
-                                        if task_list.is_empty() {
+                                    task_list.await.map(|data| {
+                                        let is_empty = match &data {
+                                            TaskListData::Grouped(m) => m.is_empty(),
+                                            TaskListData::Flat(v) => v.is_empty(),
+                                        };
+                                        if is_empty {
                                             Either::Left(view! {
                                                 <p class="px-6 py-6 text-center text-slate-400">
                                                     {view.empty_message()}
                                                 </p>
                                             })
                                         } else {
-                                            Either::Right(view! {
-                                                <For
-                                                    each=move || task_list.clone()
-                                                    key=|task| *task.id()
-                                                    children=move |task| {
-                                                        view! {
-                                                            <TaskItem task=task
-                                                                expanded_task_id=expanded_task_id
-                                                                set_expanded_task_id=set_expanded_task_id
-                                                                set_completion_version=set_completion_version
-                                                                strikethrough_when_done={view == View::MyDay}
-                                                                checkbox_checked_classes={view.checkbox_checked_classes()}
-                                                                spinner_gradient={view.spinner_gradient()}
-                                                            />
-                                                        }
+                                            Either::Right(match data {
+                                                TaskListData::Grouped(groups) => {
+                                                    for cat in groups.keys() {
+                                                        group_collapse.ensure(cat);
                                                     }
-                                                />
+                                                    let groups: Vec<_> = groups.into_iter().collect();
+                                                    Either::Left(view! {
+                                                        <div>
+                                                            {groups.into_iter().enumerate().map(|(i, (cat, tasks))| {
+                                                                let collapsed = group_collapse.signal_for(&cat);
+                                                                let tasks = StoredValue::new(tasks);
+                                                                view! {
+                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="w-full flex items-center gap-2 px-6 pt-3 pb-1 text-left select-none"
+                                                                            on:click=move |_| collapsed.update(|c| *c = !*c)
+                                                                        >
+                                                                            <span class="text-sm font-semibold text-slate-400">
+                                                                                {cat.to_string()}
+                                                                            </span>
+                                                                            <span class=move || format!(
+                                                                                "text-slate-500 text-xs transition-transform {}",
+                                                                                if collapsed.get() { "" } else { "rotate-90" }
+                                                                            )>"›"</span>
+                                                                        </button>
+                                                                        <Show when=move || !collapsed.get()>
+                                                                            <div>
+                                                                                <For
+                                                                                    each=move || tasks.get_value()
+                                                                                    key=|task| *task.id()
+                                                                                    children=move |task| {
+                                                                                        view! {
+                                                                                            <TaskItem task=task
+                                                                                                expanded_task_id=expanded_task_id
+                                                                                                set_expanded_task_id=set_expanded_task_id
+                                                                                                set_completion_version=set_completion_version
+                                                                                                strikethrough_when_done={view == View::MyDay}
+                                                                                                checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                                spinner_gradient={view.spinner_gradient()}
+                                                                                            />
+                                                                                        }
+                                                                                    }
+                                                                                />
+                                                                            </div>
+                                                                        </Show>
+                                                                    </div>
+                                                                }
+                                                            }).collect_view()}
+                                                        </div>
+                                                    })
+                                                }
+                                                TaskListData::Flat(tasks) => {
+                                                    Either::Right(view! {
+                                                        <For
+                                                            each=move || tasks.clone()
+                                                            key=|task| *task.id()
+                                                            children=move |task| {
+                                                                view! {
+                                                                    <TaskItem task=task
+                                                                        expanded_task_id=expanded_task_id
+                                                                        set_expanded_task_id=set_expanded_task_id
+                                                                        set_completion_version=set_completion_version
+                                                                        strikethrough_when_done=false
+                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                        spinner_gradient={view.spinner_gradient()}
+                                                                    />
+                                                                }
+                                                            }
+                                                        />
+                                                    })
+                                                }
                                             })
                                         }
                                     })
@@ -514,7 +613,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
     view! {
         <div
-            class="border-b border-slate-700 transition-colors"
+            class="transition-colors"
             class:bg-slate-800=is_expanded
         >
             <div
