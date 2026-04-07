@@ -4,8 +4,11 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use kid_types::{TaskCategory, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid};
+use kid_types::task;
 use strum::IntoEnumIterator;
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
 
 use chrono::prelude::*;
 use chrono::TimeDelta;
@@ -18,6 +21,7 @@ use leptos_router::{
 };
 use strum::{EnumCount, FromRepr};
 
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::fmt::{self, Display, Formatter};
@@ -144,8 +148,8 @@ impl View {
 
     fn subtitle(self) -> &'static str {
         match self {
-            View::MyDay          => "Open tasks · by creation date",
-            View::WhatIFinished  => "Completed tasks · most recent first",
+            View::MyDay          => "Open tasks · ↓ category · oldest first",
+            View::WhatIFinished  => "Completed tasks · ↓ category · recent first",
             View::QuickWins      => "Open tasks with estimate · shortest first",
             View::RecentlyChanged => "Changed within 24 h · most recent first",
         }
@@ -195,16 +199,59 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+enum TaskListData {
+    Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
+    Flat(Vec<(Uuid, task::Infos)>),
+}
+
+#[derive(Copy, Clone)]
+struct GroupCollapseState {
+    owner: StoredValue<Owner>,
+    map: StoredValue<HashMap<TaskCategory, RwSignal<bool>>>,
+}
+
+impl GroupCollapseState {
+    fn new() -> Self {
+        Self {
+            owner: StoredValue::new(Owner::current().expect("must be in reactive context")),
+            map: StoredValue::new(HashMap::new()),
+        }
+    }
+
+    fn ensure(&self, category: &TaskCategory) {
+        let category = category.clone();
+        let owner = self.owner;
+        self.map.update_value(|map| {
+            map.entry(category).or_insert_with(|| {
+                owner.with_value(|o| o.with(|| RwSignal::new(false)))
+            });
+        });
+    }
+
+    fn signal_for(&self, category: &TaskCategory) -> RwSignal<bool> {
+        self.map.with_value(|map| map[category])
+    }
+}
+
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
+    let group_collapse = GroupCollapseState::new();
 
     let add_task = Action::new(move |summary: &String| {
         let summary = summary.clone();
-        async move { server::add_task(summary).await }
+        async move {
+            match summary.parse::<TaskSummary>() {
+                Ok(s) => { let _ = server::add_task(s).await; }
+                Err(e) => tracing::error!("invalid summary: {e}"),
+            }
+        }
     });
     let delete_task = ServerAction::<server::DeleteTask>::new();
     let (completion_version, set_completion_version) = signal(0u32);
+    let category_version = RwSignal::new(0u32);
+    provide_context(category_version);
 
     let current_view = RwSignal::new(View::MyDay);
     let switch_count = RwSignal::new(0u32);
@@ -218,13 +265,13 @@ fn TaskList() -> impl IntoView {
     });
 
     let task_list = Resource::new(
-        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), current_view.get()),
+        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get()),
         move |_| async move {
             match current_view.get_untracked() {
-                View::MyDay          => server::fetch_my_day().await,
-                View::WhatIFinished  => server::fetch_what_i_finished().await,
-                View::QuickWins      => server::fetch_quick_wins().await,
-                View::RecentlyChanged => server::fetch_recently_changed().await,
+                View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
+                View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
+                View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::Flat),
+                View::RecentlyChanged => server::fetch_recently_changed().await.map(TaskListData::Flat),
             }
         },
     );
@@ -349,31 +396,90 @@ fn TaskList() -> impl IntoView {
                             {move || {
                                 let view = current_view.get();
                                 Suspend::new(async move {
-                                    task_list.await.map(|task_list| {
-                                        if task_list.is_empty() {
+                                    task_list.await.map(|data| {
+                                        let is_empty = match &data {
+                                            TaskListData::Grouped(m) => m.is_empty(),
+                                            TaskListData::Flat(v) => v.is_empty(),
+                                        };
+                                        if is_empty {
                                             Either::Left(view! {
                                                 <p class="px-6 py-6 text-center text-slate-400">
                                                     {view.empty_message()}
                                                 </p>
                                             })
                                         } else {
-                                            Either::Right(view! {
-                                                <For
-                                                    each=move || task_list.clone()
-                                                    key=|task| *task.id()
-                                                    children=move |task| {
-                                                        view! {
-                                                            <TaskItem task=task
-                                                                expanded_task_id=expanded_task_id
-                                                                set_expanded_task_id=set_expanded_task_id
-                                                                set_completion_version=set_completion_version
-                                                                strikethrough_when_done={view == View::MyDay}
-                                                                checkbox_checked_classes={view.checkbox_checked_classes()}
-                                                                spinner_gradient={view.spinner_gradient()}
-                                                            />
-                                                        }
+                                            Either::Right(match data {
+                                                TaskListData::Grouped(groups) => {
+                                                    for cat in groups.keys() {
+                                                        group_collapse.ensure(cat);
                                                     }
-                                                />
+                                                    let groups: Vec<_> = groups.into_iter().collect();
+                                                    Either::Left(view! {
+                                                        <div>
+                                                            {groups.into_iter().enumerate().map(|(i, (cat, tasks))| {
+                                                                let collapsed = group_collapse.signal_for(&cat);
+                                                                let tasks = StoredValue::new(tasks);
+                                                                view! {
+                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="w-full flex items-center gap-2 px-6 pt-3 pb-1 text-left select-none"
+                                                                            on:click=move |_| collapsed.update(|c| *c = !*c)
+                                                                        >
+                                                                            <span class="text-sm font-semibold text-slate-400">
+                                                                                {cat.to_string()}
+                                                                            </span>
+                                                                            <span class=move || format!(
+                                                                                "text-slate-500 text-xs transition-transform {}",
+                                                                                if collapsed.get() { "" } else { "rotate-90" }
+                                                                            )>"›"</span>
+                                                                        </button>
+                                                                        <Show when=move || !collapsed.get()>
+                                                                            <div>
+                                                                                <For
+                                                                                    each=move || tasks.get_value()
+                                                                                    key=|task| *task.id()
+                                                                                    children=move |task| {
+                                                                                        view! {
+                                                                                            <TaskItem task=task
+                                                                                                expanded_task_id=expanded_task_id
+                                                                                                set_expanded_task_id=set_expanded_task_id
+                                                                                                set_completion_version=set_completion_version
+                                                                                                strikethrough_when_done={view == View::MyDay}
+                                                                                                checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                                spinner_gradient={view.spinner_gradient()}
+                                                                                            />
+                                                                                        }
+                                                                                    }
+                                                                                />
+                                                                            </div>
+                                                                        </Show>
+                                                                    </div>
+                                                                }
+                                                            }).collect_view()}
+                                                        </div>
+                                                    })
+                                                }
+                                                TaskListData::Flat(tasks) => {
+                                                    Either::Right(view! {
+                                                        <For
+                                                            each=move || tasks.clone()
+                                                            key=|task| *task.id()
+                                                            children=move |task| {
+                                                                view! {
+                                                                    <TaskItem task=task
+                                                                        expanded_task_id=expanded_task_id
+                                                                        set_expanded_task_id=set_expanded_task_id
+                                                                        set_completion_version=set_completion_version
+                                                                        strikethrough_when_done=false
+                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                        spinner_gradient={view.spinner_gradient()}
+                                                                    />
+                                                                }
+                                                            }
+                                                        />
+                                                    })
+                                                }
                                             })
                                         }
                                     })
@@ -487,6 +593,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     });
 
     let summary = RwSignal::new(task.summary().to_string());
+    let category = RwSignal::new(task.category().to_string());
     let since = *task.since();
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
@@ -508,7 +615,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
     view! {
         <div
-            class="border-b border-slate-700 transition-colors"
+            class="transition-colors"
             class:bg-slate-800=is_expanded
         >
             <div
@@ -552,7 +659,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary since=since/>
+                <TaskDetails task=id summary=summary category=category since=since/>
             </Show>
         </div>
     }
@@ -645,19 +752,35 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
     let created = created.to_relative_time();
     let since = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
+    let available_categories = Resource::new(|| (), |_| server::fetch_categories());
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let category_version = use_context::<RwSignal<u32>>().expect("category_version context missing");
+    let summary_last_saved = StoredValue::new(summary.get_untracked());
+    let summary_error: RwSignal<Option<String>> = RwSignal::new(None);
     let rename_task = Action::new(move |value: &String| {
         let value = value.clone();
+        summary_error.set(None);
         async move {
-            if let Err(e) = server::rename_task(id, value).await {
-                tracing::error!("rename task failed: {e}");
+            match value.parse::<TaskSummary>() {
+                Err(e) => {
+                    summary.set(summary_last_saved.get_value());
+                    summary_error.set(Some(e.to_string()));
+                }
+                Ok(s) => match server::rename_task(id, s).await {
+                    Ok(()) => summary_last_saved.set_value(value),
+                    Err(e) => {
+                        tracing::error!("rename task failed: {e}");
+                        summary.set(summary_last_saved.get_value());
+                        summary_error.set(Some(e.to_string()));
+                    }
+                },
             }
         }
     });
@@ -685,11 +808,28 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
             }
         }
     });
-    let update_context = Action::new(move |value: &String| {
+    let category_last_saved = StoredValue::new(category.get_untracked());
+    let category_error: RwSignal<Option<String>> = RwSignal::new(None);
+    let update_category = Action::new(move |value: &String| {
         let value = value.clone();
+        category_error.set(None);
         async move {
-            if let Err(e) = server::update_task_context(id, value).await {
-                tracing::error!("update context failed: {e}");
+            match value.parse::<TaskCategory>() {
+                Err(e) => {
+                    category.set(category_last_saved.get_value());
+                    category_error.set(Some(e.to_string()));
+                }
+                Ok(cat) => match server::update_task_category(id, cat).await {
+                    Ok(()) => {
+                        category_last_saved.set_value(value);
+                        category_version.update(|v| *v += 1);
+                    }
+                    Err(e) => {
+                        tracing::error!("update category failed: {e}");
+                        category.set(category_last_saved.get_value());
+                        category_error.set(Some(e.to_string()));
+                    }
+                },
             }
         }
     });
@@ -719,6 +859,49 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                     on_save=move |v: String| { rename_task.dispatch(v); }
                     class="w-full bg-slate-700 text-slate-100 text-base font-medium rounded px-3 py-2 mb-3 border border-slate-600 focus:border-cyan-500 focus:outline-none"
                 />
+                {move || summary_error.get().map(|msg| view! {
+                    <div class="text-xs text-red-400 mb-2">{msg}</div>
+                })}
+                <EditableField
+                    value=category
+                    on_save=move |v: String| { update_category.dispatch(v); }
+                    class="w-full bg-slate-700 text-slate-200 text-sm rounded px-3 py-1.5 mb-3 border border-slate-600 focus:border-teal-500 focus:outline-none"
+                    placeholder="Category…"
+                />
+                {move || category_error.get().map(|msg| view! {
+                    <div class="text-xs text-red-400 mb-2">{msg}</div>
+                })}
+                <Suspense>
+                    {move || Suspend::new(async move {
+                        let cats = available_categories.await.unwrap_or_default();
+                        view! {
+                            <div class="flex flex-wrap gap-1.5 mb-3">
+                                {cats.into_iter().map(|cat| {
+                                    let label = StoredValue::new(cat.to_string());
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class=move || if category.get() == label.get_value() {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white cursor-default"
+                                            } else {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                            }
+                                            on:click=move |_| {
+                                                let v = label.get_value();
+                                                if category.get_untracked() != v {
+                                                    category.set(v.clone());
+                                                    update_category.dispatch(v);
+                                                }
+                                            }
+                                        >
+                                            {move || label.get_value()}
+                                        </button>
+                                    }
+                                }).collect_view()}
+                            </div>
+                        }
+                    })}
+                </Suspense>
             })}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
@@ -736,8 +919,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                 let start_date_initially_set = start_date_value.get_untracked().is_some();
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
-                                let context_value = RwSignal::new(task.context().into_owned().unwrap_or_default());
-                                let context_initially_set = !context_value.get_untracked().is_empty();
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
                                 view! {
@@ -957,32 +1138,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, since:
                                                 Either::Right(view! {
                                                     <div class="text-sm text-slate-200">
                                                         {move || time_estimate_value.get().map(|t| t.to_string()).unwrap_or_default()}
-                                                    </div>
-                                                })
-                                            }}
-                                        </div>
-                                    })}
-                                    {move || (context_initially_set || edit_mode.get()).then(|| view! {
-                                        <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
-                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-                                                </svg>
-                                            </div>
-                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Context"</div>
-                                            {move || if edit_mode.get() {
-                                                Either::Left(view! {
-                                                    <EditableField
-                                                        value=context_value
-                                                        on_save=move |v: String| { update_context.dispatch(v); }
-                                                        class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
-                                                        placeholder="Add context…"
-                                                    />
-                                                })
-                                            } else {
-                                                Either::Right(view! {
-                                                    <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
-                                                        {context_value.get()}
                                                     </div>
                                                 })
                                             }}

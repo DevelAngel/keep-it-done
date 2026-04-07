@@ -23,6 +23,8 @@ path = "../types"
 
 [dependencies]
 cfg-if.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
 chrono = { workspace = true, features = ["now", "clock"] }
 http.workspace = true
 leptos.workspace = true

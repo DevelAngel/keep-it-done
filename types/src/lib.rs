@@ -5,7 +5,9 @@ pub mod server;
 pub mod task;
 
 pub use crate::task::{
+    Category as TaskCategory,
     Date as TaskDate,
+    Summary as TaskSummary,
     Filter as TaskFilter, Priority as TaskPriority, Status as TaskStatus, Task,
     TimeEstimate as TaskTimeEstimate,
 };
@@ -29,10 +31,12 @@ pub trait TaskId<'a> {
 }
 
 pub trait TaskInfos<'a> {
-    fn summary(&'a self) -> Cow<'a, str>;
-    fn rename<T: ToString>(&'a mut self, summary: T);
+    fn summary(&'a self) -> &'a str;
+    fn rename(&'a mut self, summary: TaskSummary);
     fn status(&'a self) -> &'a TaskStatus;
     fn change_status(&'a mut self, status: TaskStatus);
+    fn category(&'a self) -> &'a str;
+    fn set_category(&'a mut self, category: TaskCategory);
 
     //provides
     fn is_done(&'a self) -> bool {
@@ -69,9 +73,6 @@ pub trait TaskDetails<'a> {
     fn time_estimate(&'a self) -> Option<&'a TaskTimeEstimate>;
     fn set_time_estimate(&mut self, time: TaskTimeEstimate);
     fn clear_time_estimate(&mut self);
-    fn context(&'a self) -> Option<Cow<'a, str>>;
-    fn set_context<T: ToString>(&'a mut self, text: T);
-    fn clear_context(&'a mut self);
     fn notes(&'a self) -> Option<Cow<'a, str>>;
     fn set_notes<T: ToString>(&'a mut self, text: T);
     fn clear_notes(&'a mut self);

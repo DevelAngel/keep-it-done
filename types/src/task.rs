@@ -18,6 +18,8 @@ use serde_with::rust::double_option;
 
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
+use std::ops::Deref;
+use std::str::FromStr;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -26,6 +28,116 @@ pub enum Filter {
     Done,
     HasTimeEstimate,
     RecentlyChanged,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "cli", schemars(transparent))]
+pub struct Category(String);
+
+impl Default for Category {
+    fn default() -> Self {
+        Self("Inbox".to_string())
+    }
+}
+
+impl FromStr for Category {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            Err("category must not be empty")
+        } else {
+            Ok(Self(s.to_string()))
+        }
+    }
+}
+
+impl Deref for Category {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Category {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Category {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Category {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        if s.is_empty() {
+            Err(serde::de::Error::custom("category must not be empty"))
+        } else {
+            Ok(Self(s))
+        }
+    }
+}
+
+/// Lenient deserializer for the `Infos.category` field: maps the empty string
+/// to `Category::default()` so that legacy files with `"context": ""` load
+/// without error. Use only at the field level — never for user-facing input.
+fn deserialize_category_lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Category, D::Error> {
+    let s = String::deserialize(d)?;
+    if s.is_empty() { Ok(Category::default()) } else { Ok(Category(s)) }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "cli", schemars(transparent))]
+pub struct Summary(String);
+
+impl FromStr for Summary {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            Err("summary must not be empty")
+        } else {
+            Ok(Self(s.to_string()))
+        }
+    }
+}
+
+impl Deref for Summary {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Summary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Summary {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Summary {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        if s.is_empty() {
+            Err(serde::de::Error::custom("summary must not be empty"))
+        } else {
+            Ok(Self(s))
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -40,8 +152,10 @@ pub struct Task {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Infos {
-    summary: String,
+    summary: Summary,
     status: Status,
+    #[serde(alias = "context", default, deserialize_with = "deserialize_category_lenient")]
+    category: Category,
 }
 
 #[skip_serializing_none]
@@ -57,7 +171,6 @@ pub struct Details {
     #[serde(default, deserialize_with = "deserialize_due_date")]
     start_date: Option<Date>,
     time_estimate: Option<TimeEstimate>,
-    context: Option<String>,
     notes: Option<String>,
 }
 
@@ -264,10 +377,10 @@ impl<'a> TaskId<'a> for Uuid {
 }
 
 impl<'a> TaskInfos<'a> for (Uuid, Infos) {
-    fn summary(&'a self) -> Cow<'a, str> {
+    fn summary(&'a self) -> &'a str {
         self.1.summary()
     }
-    fn rename<T: ToString>(&'a mut self, summary: T) {
+    fn rename(&'a mut self, summary: Summary) {
         self.1.rename(summary);
     }
     fn status(&'a self) -> &'a Status {
@@ -276,13 +389,19 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
     fn change_status(&'a mut self, status: Status) {
         self.1.change_status(status);
     }
+    fn category(&'a self) -> &'a str {
+        self.1.category()
+    }
+    fn set_category(&'a mut self, category: Category) {
+        self.1.set_category(category);
+    }
 }
 
 impl<'a> TaskInfos<'a> for Task {
-    fn summary(&'a self) -> Cow<'a, str> {
+    fn summary(&'a self) -> &'a str {
         self.info.summary()
     }
-    fn rename<T: ToString>(&'a mut self, summary: T) {
+    fn rename(&'a mut self, summary: Summary) {
         self.info.rename(summary);
     }
     fn status(&'a self) -> &'a Status {
@@ -291,20 +410,32 @@ impl<'a> TaskInfos<'a> for Task {
     fn change_status(&'a mut self, status: Status) {
         self.info.change_status(status);
     }
+    fn category(&'a self) -> &'a str {
+        self.info.category()
+    }
+    fn set_category(&'a mut self, category: Category) {
+        self.info.set_category(category);
+    }
 }
 
 impl<'a> TaskInfos<'a> for Infos {
-    fn summary(&'a self) -> Cow<'a, str> {
-        Cow::Borrowed(&self.summary)
+    fn summary(&'a self) -> &'a str {
+        &self.summary
     }
-    fn rename<T: ToString>(&'a mut self, summary: T) {
-        self.summary = summary.to_string();
+    fn rename(&'a mut self, summary: Summary) {
+        self.summary = summary;
     }
     fn status(&'a self) -> &'a Status {
         &self.status
     }
     fn change_status(&'a mut self, status: Status) {
         self.status = status;
+    }
+    fn category(&'a self) -> &'a str {
+        &self.category
+    }
+    fn set_category(&'a mut self, category: Category) {
+        self.category = category;
     }
 }
 
@@ -344,15 +475,6 @@ impl<'a> TaskDetails<'a> for (Uuid, Details) {
     }
     fn clear_time_estimate(&mut self) {
         self.1.clear_time_estimate();
-    }
-    fn context(&'a self) -> Option<Cow<'a, str>> {
-        self.1.context()
-    }
-    fn set_context<T: ToString>(&'a mut self, text: T) {
-        self.1.set_context(text);
-    }
-    fn clear_context(&'a mut self) {
-        self.1.clear_context();
     }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.1.notes()
@@ -402,15 +524,6 @@ impl<'a> TaskDetails<'a> for Task {
     fn clear_time_estimate(&mut self) {
         self.details.clear_time_estimate();
     }
-    fn context(&'a self) -> Option<Cow<'a, str>> {
-        self.details.context()
-    }
-    fn set_context<T: ToString>(&'a mut self, text: T) {
-        self.details.set_context(text);
-    }
-    fn clear_context(&'a mut self) {
-        self.details.clear_context();
-    }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.details.notes()
     }
@@ -459,15 +572,6 @@ impl<'a> TaskDetails<'a> for Details {
     fn clear_time_estimate(&mut self) {
         self.time_estimate = None;
     }
-    fn context(&'a self) -> Option<Cow<'a, str>> {
-        self.context.as_deref().map(Cow::Borrowed)
-    }
-    fn set_context<T: ToString>(&'a mut self, text: T) {
-        self.context = Some(text.to_string());
-    }
-    fn clear_context(&'a mut self) {
-        self.context = None;
-    }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.notes.as_deref().map(Cow::Borrowed)
     }
@@ -512,10 +616,15 @@ impl Display for TimeEstimate {
 }
 
 impl Task {
-    pub fn new<T: ToString>(summary: T) -> Self {
+    pub fn new(summary: Summary) -> Self {
         let info = Infos::new(summary);
         let details = Details::default();
         Self { info, details }
+    }
+
+    pub fn with_category(mut self, category: Category) -> Self {
+        self.info.category = category;
+        self
     }
 
     pub fn with_details(mut self, details: Details) -> Self {
@@ -542,10 +651,11 @@ impl Task {
 }
 
 impl Infos {
-    fn new<T: ToString>(summary: T) -> Self {
+    fn new(summary: Summary) -> Self {
         Self {
-            summary: summary.to_string(),
+            summary,
             status: Status::default(),
+            category: Category::default(),
         }
     }
 }
@@ -614,12 +724,12 @@ mod tests {
 
     #[test]
     fn serialize_minimal_task_todo() {
-        let task = Task::new(SUMMARY);
+        let task = Task::new(SUMMARY.parse().unwrap());
         let task = serde_json::to_string(&task).expect("serialization");
         let since = Status::now(); // maybe instable
         let since = since.to_rfc3339_opts(SecondsFormat::Secs, true);
         let task_expected =
-            format!(r#"{{"summary":"{SUMMARY}","status":{{"ToDo":{{"since":"{since}"}}}}}}"#);
+            format!(r#"{{"summary":"{SUMMARY}","status":{{"ToDo":{{"since":"{since}"}}}},"category":"{}"}}"#, Category::default());
         assert_eq!(task, task_expected);
     }
 
@@ -636,6 +746,7 @@ mod tests {
                 info: Infos {
                     summary: _,
                     status: Status::ToDo { since: _ },
+                    ..
                 },
                 details: Details { .. }
             }
@@ -653,6 +764,7 @@ mod tests {
                 info: Infos {
                     summary: _,
                     status: Status::Done { since: _ },
+                    ..
                 },
                 details: Details { .. }
             }
@@ -669,6 +781,7 @@ mod tests {
                 info: Infos {
                     summary: _,
                     status: Status::ToDo { since: _ },
+                    ..
                 },
                 details: Details { .. }
             }
@@ -685,6 +798,7 @@ mod tests {
                 info: Infos {
                     summary: _,
                     status: Status::Done { since: _ },
+                    ..
                 },
                 details: Details { .. }
             }
