@@ -3,11 +3,12 @@ use crate::SharedTaskCache;
 pub use kid_types::rpc::TaskService;
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskInfos, TaskSummary, Uuid};
+use kid_types::{Task, TaskCategory, TaskInfos, TaskSummary, Uuid};
+use std::collections::BTreeSet;
 
 use futures::{future, prelude::*};
 use miette::{IntoDiagnostic, Result};
-use tarpc::context;
+use tarpc::context::Context;
 use tarpc::serde_transport::tcp;
 use tarpc::server::{self, Channel};
 use tarpc::tokio_serde::formats::Json;
@@ -60,7 +61,7 @@ struct RpcService {
 }
 
 impl TaskService for RpcService {
-    async fn list(self, _: context::Context) -> Vec<(Uuid, Task)> {
+    async fn list(self, _: Context) -> Vec<(Uuid, Task)> {
         let task_cache = self.task_cache.read().await;
         task_cache
             .iter()
@@ -68,26 +69,26 @@ impl TaskService for RpcService {
             .collect()
     }
 
-    async fn add(self, _: context::Context, task: Task) {
+    async fn add(self, _: Context, task: Task) {
         let mut task_cache = self.task_cache.write().await;
         task_cache.add(task);
     }
 
-    async fn rename(self, _: context::Context, id: Uuid, summary: TaskSummary) {
+    async fn rename(self, _: Context, id: Uuid, summary: TaskSummary) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             task.rename(summary);
         }
     }
 
-    async fn replace(self, _: context::Context, id: Uuid, details: TaskDetails) {
+    async fn replace(self, _: Context, id: Uuid, details: TaskDetails) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             task.set_details(details);
         }
     }
 
-    async fn update(self, _: context::Context, id: Uuid, details: TaskDetailsPatch) {
+    async fn update(self, _: Context, id: Uuid, details: TaskDetailsPatch) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             tracing::debug!("Patch details: {details:#?}");
@@ -95,7 +96,7 @@ impl TaskService for RpcService {
         }
     }
 
-    async fn complete(self, _: context::Context, id: Uuid, reopen: bool) {
+    async fn complete(self, _: Context, id: Uuid, reopen: bool) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             if reopen {
@@ -104,5 +105,15 @@ impl TaskService for RpcService {
                 task.mark_done();
             }
         }
+    }
+
+    async fn categories(self, _: Context) -> Vec<TaskCategory> {
+        let task_cache = self.task_cache.read().await;
+        task_cache
+            .iter()
+            .map(|(_, task)| task.category().parse::<TaskCategory>().unwrap())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
     }
 }

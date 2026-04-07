@@ -1,6 +1,6 @@
 use crate::task::Details as TaskDetails;
 use crate::task::DetailsPatch as TaskDetailsPatch;
-use crate::{Task, TaskSummary, Uuid};
+use crate::{Task, TaskCategory, TaskSummary, Uuid};
 
 use tarpc::service;
 
@@ -12,4 +12,5 @@ pub trait TaskService {
     async fn replace(id: Uuid, details: TaskDetails);
     async fn update(id: Uuid, details: TaskDetailsPatch);
     async fn complete(id: Uuid, reopen: bool);
+    async fn categories() -> Vec<TaskCategory>;
 }

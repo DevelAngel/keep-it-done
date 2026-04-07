@@ -95,6 +95,12 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+    /// List all categories in use
+    Categories {
+        /// server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
     /// Complete task (or reopen it)
     Complete {
         /// Task ID

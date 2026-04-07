@@ -66,6 +66,9 @@ async fn main() -> Result<()> {
         } => {
             update(&server, &id, details).await?;
         }
+        Commands::Categories { server } => {
+            categories(&server).await?;
+        }
         Commands::Complete { server, id, reopen } => {
             complete(&server, &id, reopen).await?;
         }
@@ -191,6 +194,19 @@ async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to update details of the task {id}"))?;
+    Ok(())
+}
+
+async fn categories(server: &ServerArgs) -> Result<()> {
+    let client = connect(&server.addr).await?;
+    let cats = client
+        .categories(context::current())
+        .await
+        .into_diagnostic()
+        .wrap_err("failed to fetch categories")?;
+    for cat in cats {
+        println!("{cat}");
+    }
     Ok(())
 }
 
