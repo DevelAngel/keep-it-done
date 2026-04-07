@@ -659,14 +659,25 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     let since = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let summary_last_saved = StoredValue::new(summary.get_untracked());
+    let summary_error: RwSignal<Option<String>> = RwSignal::new(None);
     let rename_task = Action::new(move |value: &String| {
         let value = value.clone();
+        summary_error.set(None);
         async move {
             match value.parse::<TaskSummary>() {
-                Ok(s) => if let Err(e) = server::rename_task(id, s).await {
-                    tracing::error!("rename task failed: {e}");
+                Err(e) => {
+                    summary.set(summary_last_saved.get_value());
+                    summary_error.set(Some(e.to_string()));
+                }
+                Ok(s) => match server::rename_task(id, s).await {
+                    Ok(()) => summary_last_saved.set_value(value),
+                    Err(e) => {
+                        tracing::error!("rename task failed: {e}");
+                        summary.set(summary_last_saved.get_value());
+                        summary_error.set(Some(e.to_string()));
+                    }
                 },
-                Err(e) => tracing::error!("invalid summary: {e}"),
             }
         }
     });
@@ -742,6 +753,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     on_save=move |v: String| { rename_task.dispatch(v); }
                     class="w-full bg-slate-700 text-slate-100 text-base font-medium rounded px-3 py-2 mb-3 border border-slate-600 focus:border-cyan-500 focus:outline-none"
                 />
+                {move || summary_error.get().map(|msg| view! {
+                    <div class="text-xs text-red-400 mb-2">{msg}</div>
+                })}
             })}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
