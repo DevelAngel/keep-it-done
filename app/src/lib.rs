@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskCategory, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskTimeEstimate, Uuid};
+use kid_types::{TaskCategory, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid};
 use strum::IntoEnumIterator;
 
 use chrono::prelude::*;
@@ -201,7 +201,12 @@ fn TaskList() -> impl IntoView {
 
     let add_task = Action::new(move |summary: &String| {
         let summary = summary.clone();
-        async move { server::add_task(summary).await }
+        async move {
+            match summary.parse::<TaskSummary>() {
+                Ok(s) => { let _ = server::add_task(s).await; }
+                Err(e) => tracing::error!("invalid summary: {e}"),
+            }
+        }
     });
     let delete_task = ServerAction::<server::DeleteTask>::new();
     let (completion_version, set_completion_version) = signal(0u32);
@@ -657,8 +662,11 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     let rename_task = Action::new(move |value: &String| {
         let value = value.clone();
         async move {
-            if let Err(e) = server::rename_task(id, value).await {
-                tracing::error!("rename task failed: {e}");
+            match value.parse::<TaskSummary>() {
+                Ok(s) => if let Err(e) = server::rename_task(id, s).await {
+                    tracing::error!("rename task failed: {e}");
+                },
+                Err(e) => tracing::error!("invalid summary: {e}"),
             }
         }
     });

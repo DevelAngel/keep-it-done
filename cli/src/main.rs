@@ -5,7 +5,7 @@ use crate::cli::{Cli, Commands, Parser, ServerArgs};
 use crate::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
 use kid_types::rpc::TaskServiceClient;
-use kid_types::{Task, TaskCategory, Uuid};
+use kid_types::{Task, TaskCategory, TaskSummary, Uuid};
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use schemars::SchemaGenerator;
@@ -137,6 +137,7 @@ async fn list(server: &ServerArgs, json: bool, pretty: bool) -> Result<()> {
 }
 
 async fn add(server: &ServerArgs, summary: String, category: String, details: Option<&str>) -> Result<()> {
+    let summary: TaskSummary = summary.parse().map_err(|e| miette::miette!("{e}"))?;
     let category: TaskCategory = category.parse().map_err(|e| miette::miette!("{e}"))?;
     let mut task = Task::new(summary).with_category(category);
     if let Some(details) = details {
@@ -155,6 +156,7 @@ async fn add(server: &ServerArgs, summary: String, category: String, details: Op
 }
 
 async fn rename(server: &ServerArgs, id: &Uuid, summary: String) -> Result<()> {
+    let summary: TaskSummary = summary.parse().map_err(|e| miette::miette!("{e}"))?;
     let client = connect(&server.addr).await?;
     client
         .rename(context::current(), *id, summary)

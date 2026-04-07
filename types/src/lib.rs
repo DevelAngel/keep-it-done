@@ -7,6 +7,7 @@ pub mod task;
 pub use crate::task::{
     Category as TaskCategory,
     Date as TaskDate,
+    Summary as TaskSummary,
     Filter as TaskFilter, Priority as TaskPriority, Status as TaskStatus, Task,
     TimeEstimate as TaskTimeEstimate,
 };
@@ -30,8 +31,8 @@ pub trait TaskId<'a> {
 }
 
 pub trait TaskInfos<'a> {
-    fn summary(&'a self) -> Cow<'a, str>;
-    fn rename<T: ToString>(&'a mut self, summary: T);
+    fn summary(&'a self) -> &'a str;
+    fn rename(&'a mut self, summary: TaskSummary);
     fn status(&'a self) -> &'a TaskStatus;
     fn change_status(&'a mut self, status: TaskStatus);
     fn category(&'a self) -> &'a str;

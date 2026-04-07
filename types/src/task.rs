@@ -92,6 +92,54 @@ fn deserialize_category_lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Categ
     if s.is_empty() { Ok(Category::default()) } else { Ok(Category(s)) }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "cli", schemars(transparent))]
+pub struct Summary(String);
+
+impl FromStr for Summary {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            Err("summary must not be empty")
+        } else {
+            Ok(Self(s.to_string()))
+        }
+    }
+}
+
+impl Deref for Summary {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Summary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Summary {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Summary {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        if s.is_empty() {
+            Err(serde::de::Error::custom("summary must not be empty"))
+        } else {
+            Ok(Self(s))
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Task {
@@ -104,7 +152,7 @@ pub struct Task {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Infos {
-    summary: String,
+    summary: Summary,
     status: Status,
     #[serde(alias = "context", default, deserialize_with = "deserialize_category_lenient")]
     category: Category,
@@ -329,10 +377,10 @@ impl<'a> TaskId<'a> for Uuid {
 }
 
 impl<'a> TaskInfos<'a> for (Uuid, Infos) {
-    fn summary(&'a self) -> Cow<'a, str> {
+    fn summary(&'a self) -> &'a str {
         self.1.summary()
     }
-    fn rename<T: ToString>(&'a mut self, summary: T) {
+    fn rename(&'a mut self, summary: Summary) {
         self.1.rename(summary);
     }
     fn status(&'a self) -> &'a Status {
@@ -350,10 +398,10 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
 }
 
 impl<'a> TaskInfos<'a> for Task {
-    fn summary(&'a self) -> Cow<'a, str> {
+    fn summary(&'a self) -> &'a str {
         self.info.summary()
     }
-    fn rename<T: ToString>(&'a mut self, summary: T) {
+    fn rename(&'a mut self, summary: Summary) {
         self.info.rename(summary);
     }
     fn status(&'a self) -> &'a Status {
@@ -371,11 +419,11 @@ impl<'a> TaskInfos<'a> for Task {
 }
 
 impl<'a> TaskInfos<'a> for Infos {
-    fn summary(&'a self) -> Cow<'a, str> {
-        Cow::Borrowed(&self.summary)
+    fn summary(&'a self) -> &'a str {
+        &self.summary
     }
-    fn rename<T: ToString>(&'a mut self, summary: T) {
-        self.summary = summary.to_string();
+    fn rename(&'a mut self, summary: Summary) {
+        self.summary = summary;
     }
     fn status(&'a self) -> &'a Status {
         &self.status
@@ -568,7 +616,7 @@ impl Display for TimeEstimate {
 }
 
 impl Task {
-    pub fn new<T: ToString>(summary: T) -> Self {
+    pub fn new(summary: Summary) -> Self {
         let info = Infos::new(summary);
         let details = Details::default();
         Self { info, details }
@@ -603,9 +651,9 @@ impl Task {
 }
 
 impl Infos {
-    fn new<T: ToString>(summary: T) -> Self {
+    fn new(summary: Summary) -> Self {
         Self {
-            summary: summary.to_string(),
+            summary,
             status: Status::default(),
             category: Category::default(),
         }
@@ -676,7 +724,7 @@ mod tests {
 
     #[test]
     fn serialize_minimal_task_todo() {
-        let task = Task::new(SUMMARY);
+        let task = Task::new(SUMMARY.parse().unwrap());
         let task = serde_json::to_string(&task).expect("serialization");
         let since = Status::now(); // maybe instable
         let since = since.to_rfc3339_opts(SecondsFormat::Secs, true);

@@ -7,6 +7,7 @@ cfg_if::cfg_if! {
 
 use kid_types::TaskCategory;
 use kid_types::TaskDate;
+use kid_types::TaskSummary;
 use kid_types::TaskPriority;
 use kid_types::TaskTimeEstimate;
 use kid_types::Uuid;
@@ -93,7 +94,7 @@ pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), Serve
 }
 
 #[server(endpoint = "add_task")]
-pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
+pub async fn add_task(summary: TaskSummary) -> Result<(), ServerFnError> {
     use kid_types::Task;
     tracing::info!("add task with summary {summary}");
     let task = Task::new(summary);
@@ -106,7 +107,7 @@ pub async fn add_task(summary: String) -> Result<(), ServerFnError> {
 }
 
 #[server(endpoint = "rename_task")]
-pub async fn rename_task(id: Uuid, summary: String) -> Result<(), ServerFnError> {
+pub async fn rename_task(id: Uuid, summary: TaskSummary) -> Result<(), ServerFnError> {
     tracing::info!("rename task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;

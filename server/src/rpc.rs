@@ -3,7 +3,7 @@ use crate::SharedTaskCache;
 pub use kid_types::rpc::TaskService;
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskInfos, Uuid};
+use kid_types::{Task, TaskInfos, TaskSummary, Uuid};
 
 use futures::{future, prelude::*};
 use miette::{IntoDiagnostic, Result};
@@ -73,7 +73,7 @@ impl TaskService for RpcService {
         task_cache.add(task);
     }
 
-    async fn rename(self, _: context::Context, id: Uuid, summary: String) {
+    async fn rename(self, _: context::Context, id: Uuid, summary: TaskSummary) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             task.rename(summary);
