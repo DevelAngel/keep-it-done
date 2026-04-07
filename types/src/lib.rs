@@ -6,6 +6,7 @@ pub mod task;
 
 pub use crate::task::{
     Category as TaskCategory,
+    Context as TaskContext,
     Date as TaskDate,
     Summary as TaskSummary,
     Filter as TaskFilter, Priority as TaskPriority, Status as TaskStatus, Task,
@@ -13,6 +14,8 @@ pub use crate::task::{
 };
 pub use chrono::{DateTime, FixedOffset, Utc};
 pub use uuid::Uuid;
+
+use indexmap::IndexSet;
 
 use std::borrow::Cow;
 use std::time::SystemTime;
@@ -37,6 +40,8 @@ pub trait TaskInfos<'a> {
     fn change_status(&'a mut self, status: TaskStatus);
     fn category(&'a self) -> &'a str;
     fn set_category(&'a mut self, category: TaskCategory);
+    fn contexts(&'a self) -> &'a IndexSet<TaskContext>;
+    fn set_contexts(&'a mut self, contexts: IndexSet<TaskContext>);
 
     //provides
     fn is_done(&'a self) -> bool {

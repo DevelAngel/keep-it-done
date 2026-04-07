@@ -8,6 +8,7 @@ use kid_types_derive::Patchable;
 
 use chrono::{DateTime, FixedOffset, Timelike, Utc};
 use derive_more::Display;
+use indexmap::IndexSet;
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -140,6 +141,52 @@ impl<'de> Deserialize<'de> for Summary {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "cli", schemars(transparent))]
+pub struct Context(String);
+
+impl FromStr for Context {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            Err("context must not be empty")
+        } else if !s.starts_with('@') {
+            Err("context must start with '@'")
+        } else {
+            Ok(Self(s.to_string()))
+        }
+    }
+}
+
+impl Deref for Context {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Context {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for Context {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Context {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Task {
@@ -156,6 +203,9 @@ pub struct Infos {
     status: Status,
     #[serde(alias = "context", default, deserialize_with = "deserialize_category_lenient")]
     category: Category,
+    #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
+    #[cfg_attr(feature = "cli", schemars(with = "Vec<Context>"))]
+    contexts: IndexSet<Context>,
 }
 
 #[skip_serializing_none]
@@ -395,6 +445,12 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
     fn set_category(&'a mut self, category: Category) {
         self.1.set_category(category);
     }
+    fn contexts(&'a self) -> &'a IndexSet<Context> {
+        self.1.contexts()
+    }
+    fn set_contexts(&'a mut self, contexts: IndexSet<Context>) {
+        self.1.set_contexts(contexts);
+    }
 }
 
 impl<'a> TaskInfos<'a> for Task {
@@ -416,6 +472,12 @@ impl<'a> TaskInfos<'a> for Task {
     fn set_category(&'a mut self, category: Category) {
         self.info.set_category(category);
     }
+    fn contexts(&'a self) -> &'a IndexSet<Context> {
+        self.info.contexts()
+    }
+    fn set_contexts(&'a mut self, contexts: IndexSet<Context>) {
+        self.info.set_contexts(contexts);
+    }
 }
 
 impl<'a> TaskInfos<'a> for Infos {
@@ -436,6 +498,12 @@ impl<'a> TaskInfos<'a> for Infos {
     }
     fn set_category(&'a mut self, category: Category) {
         self.category = category;
+    }
+    fn contexts(&'a self) -> &'a IndexSet<Context> {
+        &self.contexts
+    }
+    fn set_contexts(&'a mut self, contexts: IndexSet<Context>) {
+        self.contexts = contexts;
     }
 }
 
@@ -656,6 +724,7 @@ impl Infos {
             summary,
             status: Status::default(),
             category: Category::default(),
+            contexts: IndexSet::new(),
         }
     }
 }
