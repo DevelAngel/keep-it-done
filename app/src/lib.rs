@@ -250,6 +250,8 @@ fn TaskList() -> impl IntoView {
     });
     let delete_task = ServerAction::<server::DeleteTask>::new();
     let (completion_version, set_completion_version) = signal(0u32);
+    let category_version = RwSignal::new(0u32);
+    provide_context(category_version);
 
     let current_view = RwSignal::new(View::MyDay);
     let switch_count = RwSignal::new(0u32);
@@ -263,7 +265,7 @@ fn TaskList() -> impl IntoView {
     });
 
     let task_list = Resource::new(
-        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), current_view.get()),
+        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get()),
         move |_| async move {
             match current_view.get_untracked() {
                 View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
@@ -757,7 +759,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     let created = created.to_relative_time();
     let since = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
+    let available_categories = Resource::new(|| (), |_| server::fetch_categories());
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
+    let category_version = use_context::<RwSignal<u32>>().expect("category_version context missing");
     let summary_last_saved = StoredValue::new(summary.get_untracked());
     let summary_error: RwSignal<Option<String>> = RwSignal::new(None);
     let rename_task = Action::new(move |value: &String| {
@@ -816,7 +820,10 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     category_error.set(Some(e.to_string()));
                 }
                 Ok(cat) => match server::update_task_category(id, cat).await {
-                    Ok(()) => category_last_saved.set_value(value),
+                    Ok(()) => {
+                        category_last_saved.set_value(value);
+                        category_version.update(|v| *v += 1);
+                    }
                     Err(e) => {
                         tracing::error!("update category failed: {e}");
                         category.set(category_last_saved.get_value());
@@ -864,6 +871,37 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                 {move || category_error.get().map(|msg| view! {
                     <div class="text-xs text-red-400 mb-2">{msg}</div>
                 })}
+                <Suspense>
+                    {move || Suspend::new(async move {
+                        let cats = available_categories.await.unwrap_or_default();
+                        view! {
+                            <div class="flex flex-wrap gap-1.5 mb-3">
+                                {cats.into_iter().map(|cat| {
+                                    let label = StoredValue::new(cat.to_string());
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class=move || if category.get() == label.get_value() {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white cursor-default"
+                                            } else {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                            }
+                                            on:click=move |_| {
+                                                let v = label.get_value();
+                                                if category.get_untracked() != v {
+                                                    category.set(v.clone());
+                                                    update_category.dispatch(v);
+                                                }
+                                            }
+                                        >
+                                            {move || label.get_value()}
+                                        </button>
+                                    }
+                                }).collect_view()}
+                            </div>
+                        }
+                    })}
+                </Suspense>
             })}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">

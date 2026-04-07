@@ -94,6 +94,17 @@ fn group_by_category(list: Vec<(Uuid, task::Infos)>) -> IndexMap<TaskCategory, V
     btree.into_iter().collect()
 }
 
+#[server(endpoint = "fetch_categories")]
+pub async fn fetch_categories() -> Result<Vec<TaskCategory>, ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    let mut cats: BTreeMap<TaskCategory, ()> = BTreeMap::new();
+    for (_, task) in cache.iter() {
+        cats.entry(task.info().category().parse().unwrap()).or_default();
+    }
+    Ok(cats.into_keys().collect())
+}
+
 #[server(endpoint = "fetch_task_details")]
 pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), ServerFnError> {
     tracing::info!("fetch details for task id {id}");
