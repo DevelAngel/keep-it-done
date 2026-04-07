@@ -756,6 +756,15 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                 {move || summary_error.get().map(|msg| view! {
                     <div class="text-xs text-red-400 mb-2">{msg}</div>
                 })}
+                <EditableField
+                    value=category
+                    on_save=move |v: String| { update_category.dispatch(v); }
+                    class="w-full bg-slate-700 text-slate-200 text-sm rounded px-3 py-1.5 mb-3 border border-slate-600 focus:border-teal-500 focus:outline-none"
+                    placeholder="Category…"
+                />
+                {move || category_error.get().map(|msg| view! {
+                    <div class="text-xs text-red-400 mb-2">{msg}</div>
+                })}
             })}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
@@ -773,7 +782,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                 let start_date_initially_set = start_date_value.get_untracked().is_some();
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
-                                let category_initially_set = !category.get_untracked().is_empty();
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
                                 view! {
@@ -993,35 +1001,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                                 Either::Right(view! {
                                                     <div class="text-sm text-slate-200">
                                                         {move || time_estimate_value.get().map(|t| t.to_string()).unwrap_or_default()}
-                                                    </div>
-                                                })
-                                            }}
-                                        </div>
-                                    })}
-                                    {move || (category_initially_set || edit_mode.get()).then(|| view! {
-                                        <div class="relative">
-                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">
-                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-                                                </svg>
-                                            </div>
-                                            <div class="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-0.5">"Category"</div>
-                                            {move || if edit_mode.get() {
-                                                Either::Left(view! {
-                                                    <EditableField
-                                                        value=category
-                                                        on_save=move |v: String| { update_category.dispatch(v); }
-                                                        class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 border border-slate-600 focus:border-teal-500 focus:outline-none"
-                                                        placeholder="Add category…"
-                                                    />
-                                                    {move || category_error.get().map(|msg| view! {
-                                                        <div class="text-xs text-red-400 mt-1">{msg}</div>
-                                                    })}
-                                                })
-                                            } else {
-                                                Either::Right(view! {
-                                                    <div class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-500 text-white shadow-sm">
-                                                        {category.get()}
                                                     </div>
                                                 })
                                             }}
