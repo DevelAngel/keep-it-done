@@ -49,6 +49,9 @@ pub enum Commands {
         /// Category (life domain: e.g. Finance, Children, Household)
         #[clap(short, long)]
         category: String,
+        /// Contexts (GTD-style, must start with '@', e.g. @home @computer)
+        #[clap(short = 'a', long = "context")]
+        contexts: Vec<String>,
         /// Task details as JSON string (see schema)
         #[clap(short, long)]
         details: Option<String>,

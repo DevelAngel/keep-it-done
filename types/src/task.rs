@@ -695,6 +695,11 @@ impl Task {
         self
     }
 
+    pub fn with_contexts(mut self, contexts: IndexSet<Context>) -> Self {
+        self.info.contexts = contexts;
+        self
+    }
+
     pub fn with_details(mut self, details: Details) -> Self {
         self.details = details;
         self

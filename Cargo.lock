@@ -1667,6 +1667,7 @@ version = "0.8.0"
 dependencies = [
  "clap",
  "clap-verbosity-flag",
+ "indexmap 2.13.0",
  "kid-types",
  "miette",
  "schemars 1.2.1",

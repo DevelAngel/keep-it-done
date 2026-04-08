@@ -17,6 +17,7 @@ features = ["cli"]
 
 [dependencies]
 clap = { workspace = true, features = ["env"] }
+indexmap.workspace = true
 clap-verbosity-flag.workspace = true
 miette = { workspace = true, features = ["fancy"] }
 schemars.workspace = true

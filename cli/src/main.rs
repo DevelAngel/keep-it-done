@@ -5,7 +5,8 @@ use crate::cli::{Cli, Commands, Parser, ServerArgs};
 use crate::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
 use kid_types::rpc::TaskServiceClient;
-use kid_types::{Task, TaskCategory, TaskSummary, Uuid};
+use kid_types::{Task, TaskCategory, TaskContext, TaskSummary, Uuid};
+use indexmap::IndexSet;
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use schemars::SchemaGenerator;
@@ -41,9 +42,10 @@ async fn main() -> Result<()> {
             server,
             summary,
             category,
+            contexts,
             details,
         } => {
-            add(&server, summary, category, details.as_deref()).await?;
+            add(&server, summary, category, contexts, details.as_deref()).await?;
         }
         Commands::Rename {
             server,
@@ -139,10 +141,14 @@ async fn list(server: &ServerArgs, json: bool, pretty: bool) -> Result<()> {
     Ok(())
 }
 
-async fn add(server: &ServerArgs, summary: String, category: String, details: Option<&str>) -> Result<()> {
+async fn add(server: &ServerArgs, summary: String, category: String, contexts: Vec<String>, details: Option<&str>) -> Result<()> {
     let summary: TaskSummary = summary.parse().map_err(|e| miette::miette!("{e}"))?;
     let category: TaskCategory = category.parse().map_err(|e| miette::miette!("{e}"))?;
-    let mut task = Task::new(summary).with_category(category);
+    let contexts: IndexSet<TaskContext> = contexts
+        .iter()
+        .map(|s| s.parse().map_err(|e| miette::miette!("{e}")))
+        .collect::<Result<_>>()?;
+    let mut task = Task::new(summary).with_category(category).with_contexts(contexts);
     if let Some(details) = details {
         let details: TaskDetails = details.parse()?;
         task = task.with_details(details.into());
