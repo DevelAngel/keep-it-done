@@ -9,6 +9,7 @@ use kid_types::task;
 use strum::IntoEnumIterator;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use chrono::prelude::*;
 use chrono::TimeDelta;
@@ -21,7 +22,6 @@ use leptos_router::{
 };
 use strum::{EnumCount, FromRepr};
 
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::str::FromStr;
 use std::fmt::{self, Display, Formatter};
@@ -102,7 +102,7 @@ impl Deref for EditMode {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, EnumCount, FromRepr)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, EnumCount, FromRepr)]
 enum View {
     MyDay,
     WhatIFinished,
@@ -234,6 +234,24 @@ impl GroupCollapseState {
     }
 }
 
+fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
+    if filters.is_empty() { return data; }
+    let matches = |info: &task::Infos| -> bool {
+        filters.iter().all(|f| info.contexts().iter().any(|c| c.to_string() == *f))
+    };
+    match data {
+        TaskListData::Flat(tasks) => TaskListData::Flat(
+            tasks.into_iter().filter(|(_, info)| matches(info)).collect()
+        ),
+        TaskListData::Grouped(groups) => TaskListData::Grouped(
+            groups.into_iter().filter_map(|(cat, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
+                if filtered.is_empty() { None } else { Some((cat, filtered)) }
+            }).collect()
+        ),
+    }
+}
+
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
@@ -258,9 +276,25 @@ fn TaskList() -> impl IntoView {
     let edit_mode = EditMode::default();
     provide_context(edit_mode);
 
+    let filter_open = RwSignal::new(false);
+    let active_filters: RwSignal<HashMap<View, Vec<String>>> = RwSignal::new(HashMap::new());
+    let filter_ctx_resource = Resource::new(|| (), |_| server::fetch_contexts());
+    let filter_suggestion_list: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    Effect::new(move |_| {
+        if let Some(Ok(fetched)) = filter_ctx_resource.get() {
+            filter_suggestion_list.update(|v| {
+                for ctx in fetched {
+                    let s = ctx.to_string();
+                    if !v.contains(&s) { v.push(s); }
+                }
+            });
+        }
+    });
+
     window_event_listener(leptos::ev::keydown, move |ev| {
-        if ev.key() == key::ESCAPE && !ev.default_prevented() && edit_mode.get() {
-            edit_mode.update(|m| *m = false);
+        if ev.key() == key::ESCAPE && !ev.default_prevented() {
+            if edit_mode.get() { edit_mode.update(|m| *m = false); }
+            else if filter_open.get() { filter_open.set(false); }
         }
     });
 
@@ -305,7 +339,7 @@ fn TaskList() -> impl IntoView {
                                     Some(_) => arrow_opacity_class(switch_count.get()),
                                     None => "opacity-0 pointer-events-none",
                                 };
-                                format!("absolute left-0 top-[58%] -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
+                                format!("absolute -left-2 top-[58%] -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
                             }
                             on:click=go_prev
                             aria-label=move || current_view.get().prev()
@@ -331,7 +365,7 @@ fn TaskList() -> impl IntoView {
                                     Some(_) => arrow_opacity_class(switch_count.get()),
                                     None => "opacity-0 pointer-events-none",
                                 };
-                                format!("absolute right-0 top-[58%] -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
+                                format!("absolute -right-2 top-[58%] -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full transition-opacity {opacity}")
                             }
                             on:click=go_next
                             aria-label=move || current_view.get().next()
@@ -343,8 +377,8 @@ fn TaskList() -> impl IntoView {
                             </svg>
                         </button>
                     </div>
-                    // Page indicator dots
-                    <div class="flex justify-center items-center gap-2 mt-3">
+                    // Page indicator dots + toolbar
+                    <div class="relative flex justify-center items-center gap-2 mt-3">
                         {(0..View::COUNT).map(|i| {
                             let v = View::from_repr(i).unwrap();
                             view! {
@@ -367,27 +401,74 @@ fn TaskList() -> impl IntoView {
                                 </button>
                             }
                         }).collect_view()}
+                        // Filter button (left)
+                        <button
+                            type="button"
+                            class=move || if filter_open.get() || active_filters.with(|m| !m.get(&current_view.get()).map(Vec::is_empty).unwrap_or(true)) {
+                                "absolute -left-2 w-8 h-8 flex items-center justify-center text-teal-300 hover:text-white transition-colors"
+                            } else {
+                                "absolute -left-2 w-8 h-8 flex items-center justify-center text-white opacity-60 hover:opacity-100 transition-colors"
+                            }
+                            on:click=move |_| filter_open.update(|o| *o = !*o)
+                            aria-label="Toggle filter"
+                        >
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-.293.707L13 10.414V17a1 1 0 01-.553.894l-4 2A1 1 0 017 19v-8.586L3.293 6.707A1 1 0 013 6V4z" clip-rule="evenodd"/>
+                            </svg>
+                        </button>
+                        // Edit button (right)
+                        <button
+                            type="button"
+                            class=move || if edit_mode.get() {
+                                "absolute -right-2 w-8 h-8 flex items-center justify-center text-amber-300 hover:text-white transition-colors"
+                            } else {
+                                "absolute -right-2 w-8 h-8 flex items-center justify-center text-white opacity-60 hover:opacity-100 transition-colors"
+                            }
+                            on:click=move |_| edit_mode.update(|m| *m = !*m)
+                            aria-label="Toggle edit mode"
+                        >
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                            </svg>
+                        </button>
                     </div>
                 </header>
-                <button
-                    type="button"
-                    class="w-full flex items-center justify-center py-3 select-none"
-                    on:click=move |_| edit_mode.update(|m| *m = !*m)
-                    aria-pressed=move || edit_mode.get()
-                    aria-label="Toggle edit mode"
-                >
-                    {move || if edit_mode.get() {
-                        Either::Left(view! {
-                            <span class="w-full bg-amber-400 text-slate-900 text-sm font-semibold text-center py-1 transition-all">
-                                "Edit Mode"
-                            </span>
-                        })
-                    } else {
-                        Either::Right(view! {
-                            <span class="w-16 h-1 rounded-full bg-slate-600 transition-all"></span>
-                        })
-                    }}
-                </button>
+                // Filter panel
+                {move || filter_open.get().then(|| {
+                    let view = current_view.get();
+                    view! {
+                        <div class="px-4 py-3 bg-slate-800 border-b border-slate-700">
+                            <div class="flex flex-wrap gap-1.5">
+                                {move || filter_suggestion_list.get().into_iter().map(|ctx| {
+                                    let label_class = ctx.clone();
+                                    let label_click = ctx.clone();
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class=move || if active_filters.with(|m| m.get(&view).map(|v| v.contains(&label_class)).unwrap_or(false)) {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white transition-colors"
+                                            } else {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                            }
+                                            on:click=move |_| {
+                                                active_filters.update(|m| {
+                                                    let list = m.entry(view).or_default();
+                                                    if let Some(pos) = list.iter().position(|c| c == &label_click) {
+                                                        list.remove(pos);
+                                                    } else {
+                                                        list.push(label_click.clone());
+                                                    }
+                                                });
+                                            }
+                                        >
+                                            {ctx}
+                                        </button>
+                                    }
+                                }).collect_view()}
+                            </div>
+                        </div>
+                    }
+                })}
                 <div class="py-2">
                     <Suspense fallback=move || view! {
                         <div class="px-6 py-6 text-center text-slate-400">"Loading tasks..."</div>
@@ -395,8 +476,10 @@ fn TaskList() -> impl IntoView {
                         <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
                             {move || {
                                 let view = current_view.get();
+                                let filters = active_filters.with(|m| m.get(&view).cloned().unwrap_or_default());
                                 Suspend::new(async move {
                                     task_list.await.map(|data| {
+                                        let data = apply_filter(data, &filters);
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
                                             TaskListData::Flat(v) => v.is_empty(),
