@@ -3,12 +3,14 @@ cfg_if::cfg_if! {
         use chrono::{TimeDelta, Utc};
         use kid_types::{TaskDetails, TaskInfos};
         use std::collections::BTreeMap;
+        use indexmap::IndexSet;
     }
 }
 
 use indexmap::IndexMap;
 
 use kid_types::TaskCategory;
+use kid_types::TaskContext;
 use kid_types::TaskDate;
 use kid_types::TaskSummary;
 use kid_types::TaskPriority;
@@ -221,6 +223,29 @@ pub async fn update_task_category(id: Uuid, category: TaskCategory) -> Result<()
         .get_mut(&id)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     task.set_category(category);
+    Ok(())
+}
+
+#[server(endpoint = "fetch_contexts")]
+pub async fn fetch_contexts() -> Result<Vec<TaskContext>, ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    let mut set: std::collections::BTreeSet<TaskContext> = std::collections::BTreeSet::new();
+    for (_, task) in cache.iter() {
+        set.extend(task.info().contexts().iter().cloned());
+    }
+    Ok(set.into_iter().collect())
+}
+
+#[server(endpoint = "replace_task_contexts")]
+pub async fn replace_task_contexts(id: Uuid, contexts: Vec<TaskContext>) -> Result<(), ServerFnError> {
+    tracing::info!("replace contexts for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    task.set_contexts(contexts.into_iter().collect::<IndexSet<_>>());
     Ok(())
 }
 

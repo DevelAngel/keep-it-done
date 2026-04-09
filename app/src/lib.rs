@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskCategory, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid};
+use kid_types::{TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid};
 use kid_types::task;
 use strum::IntoEnumIterator;
 use indexmap::IndexMap;
@@ -594,7 +594,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
     let summary = RwSignal::new(task.summary().to_string());
     let category = RwSignal::new(task.category().to_string());
-    let contexts: StoredValue<Vec<String>> = StoredValue::new(task.contexts().iter().map(|c| c.to_string()).collect());
+    let contexts: RwSignal<Vec<String>> = RwSignal::new(task.contexts().iter().map(|c| c.to_string()).collect());
     let since = *task.since();
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
@@ -753,7 +753,7 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: StoredValue<Vec<String>>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
@@ -761,6 +761,19 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     let since = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let available_categories = Resource::new(|| (), |_| server::fetch_categories());
+    let available_contexts = Resource::new(|| (), |_| server::fetch_contexts());
+    // Local suggestion list seeded from the resource; new text-input contexts appended directly.
+    let suggestion_list: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    Effect::new(move |_| {
+        if let Some(Ok(fetched)) = available_contexts.get() {
+            suggestion_list.update(|v| {
+                for ctx in fetched {
+                    let s = ctx.to_string();
+                    if !v.contains(&s) { v.push(s); }
+                }
+            });
+        }
+    });
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
     let category_version = use_context::<RwSignal<u32>>().expect("category_version context missing");
     let summary_last_saved = StoredValue::new(summary.get_untracked());
@@ -831,6 +844,22 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                         category_error.set(Some(e.to_string()));
                     }
                 },
+            }
+        }
+    });
+    let context_input = RwSignal::new(String::new());
+    let failed_contexts: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    let replace_contexts = Action::new(move |new_contexts: &Vec<String>| {
+        let snapshot = new_contexts.clone();
+        let parsed: Vec<_> = new_contexts.iter()
+            .filter_map(|s| s.parse::<TaskContext>().ok())
+            .collect();
+        async move {
+            if let Err(e) = server::replace_task_contexts(id, parsed).await {
+                tracing::error!("replace contexts failed: {e}");
+                failed_contexts.set(snapshot);
+            } else {
+                failed_contexts.set(vec![]);
             }
         }
     });
@@ -1177,19 +1206,89 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     }}
                 </Suspense>
                 // Contexts
-                {move || (!contexts.with_value(Vec::is_empty)).then(|| view! {
+                {move || (!contexts.get().is_empty() || edit_mode.get()).then(|| view! {
                     <div class="relative">
                         <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
                             <span class="text-xs text-slate-300 font-bold">"@"</span>
                         </div>
                         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Contexts"</div>
-                        <div class="flex flex-wrap gap-1.5">
-                            {contexts.get_value().into_iter().map(|ctx| view! {
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
-                                    {ctx}
-                                </span>
-                            }).collect_view()}
-                        </div>
+                        // View mode: plain chips
+                        {move || (!edit_mode.get()).then(|| view! {
+                            <div class="flex flex-wrap gap-1.5">
+                                {contexts.get().into_iter().map(|ctx| view! {
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
+                                        {ctx}
+                                    </span>
+                                }).collect_view()}
+                            </div>
+                        })}
+                        {move || edit_mode.get().then(|| {
+                            let add_ctx = move |val: String| {
+                                let mut val = val.trim().to_string();
+                                if val.is_empty() { return; }
+                                if !val.starts_with('@') { val = format!("@{val}"); }
+                                contexts.update(|v| { if !v.contains(&val) { v.push(val.clone()); } });
+                                suggestion_list.update(|v| { if !v.contains(&val) { v.push(val); } });
+                                replace_contexts.dispatch(contexts.get_untracked());
+                                context_input.set(String::new());
+                            };
+                            view! {
+                                // Suggestions: teal = active (click to remove), gray = inactive (click to add)
+                                <div class="flex flex-wrap gap-1.5">
+                                    {move || suggestion_list.get().into_iter().map(|ctx| {
+                                        let label_class = ctx.clone();
+                                        let label_click = ctx.clone();
+                                        view! {
+                                            <button
+                                                type="button"
+                                                class=move || {
+                                                    let active = contexts.get().contains(&label_class);
+                                                    let failed = failed_contexts.get().contains(&label_class);
+                                                    match (active, failed) {
+                                                        (true, true) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-800 text-red-200 hover:bg-red-700 transition-colors",
+                                                        (true, false) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-700 text-teal-100 hover:bg-teal-800 transition-colors",
+                                                        (false, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600 text-slate-300 hover:bg-slate-500 transition-colors",
+                                                    }
+                                                }
+                                                on:click=move |_| {
+                                                    if contexts.get_untracked().contains(&label_click) {
+                                                        let l = label_click.clone();
+                                                        contexts.update(|v| v.retain(|c| *c != l));
+                                                    } else {
+                                                        let v = label_click.clone();
+                                                        contexts.update(|list| list.push(v));
+                                                    }
+                                                    replace_contexts.dispatch(contexts.get_untracked());
+                                                }
+                                            >
+                                                {ctx}
+                                            </button>
+                                        }
+                                    }).collect_view()}
+                                </div>
+                                // Free-text input for new contexts
+                                <div class="flex items-center gap-2 mt-1.5">
+                                    <input
+                                        type="text"
+                                        class="bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 flex-1 min-w-0 border border-slate-600 focus:border-slate-500 focus:outline-none"
+                                        placeholder="@context"
+                                        prop:value=move || context_input.get()
+                                        on:input=move |ev| context_input.set(event_target_value(&ev))
+                                        on:keydown=move |ev| {
+                                            if ev.key() == "Enter" {
+                                                ev.prevent_default();
+                                                add_ctx(context_input.get_untracked());
+                                            }
+                                        }
+                                    />
+                                    <button
+                                        type="button"
+                                        class="text-slate-400 hover:text-teal-400 px-2 py-1 text-sm leading-none"
+                                        on:click=move |_| add_ctx(context_input.get_untracked())
+                                    >"+"</button>
+                                </div>
+                            }
+                        })}
                     </div>
                 })}
                 // Since (only if different from created, minute-precise)
