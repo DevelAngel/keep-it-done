@@ -13,4 +13,5 @@ pub trait TaskService {
     async fn update(id: Uuid, details: TaskDetailsPatch);
     async fn complete(id: Uuid, reopen: bool);
     async fn categories() -> Vec<TaskCategory>;
+    async fn recategorize(id: Uuid, category: TaskCategory);
 }

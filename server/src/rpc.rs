@@ -107,6 +107,13 @@ impl TaskService for RpcService {
         }
     }
 
+    async fn recategorize(self, _: Context, id: Uuid, category: TaskCategory) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id) {
+            task.set_category(category);
+        }
+    }
+
     async fn categories(self, _: Context) -> Vec<TaskCategory> {
         let task_cache = self.task_cache.read().await;
         task_cache

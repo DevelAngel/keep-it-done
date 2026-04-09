@@ -68,6 +68,9 @@ async fn main() -> Result<()> {
         } => {
             update(&server, &id, details).await?;
         }
+        Commands::Recategorize { server, id, category } => {
+            recategorize(&server, &id, category).await?;
+        }
         Commands::Categories { server } => {
             categories(&server).await?;
         }
@@ -200,6 +203,17 @@ async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to update details of the task {id}"))?;
+    Ok(())
+}
+
+async fn recategorize(server: &ServerArgs, id: &Uuid, category: String) -> Result<()> {
+    let category: TaskCategory = category.parse().map_err(|e| miette::miette!("{e}"))?;
+    let client = connect(&server.addr).await?;
+    client
+        .recategorize(context::current(), *id, category)
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to recategorize task {id}"))?;
     Ok(())
 }
 

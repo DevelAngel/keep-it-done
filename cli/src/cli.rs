@@ -104,6 +104,18 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+    /// Change the category of a task
+    Recategorize {
+        /// Task ID
+        #[clap(short, long)]
+        id: Uuid,
+        /// New category
+        #[clap(short, long)]
+        category: String,
+        /// server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
     /// Complete task (or reopen it)
     Complete {
         /// Task ID
