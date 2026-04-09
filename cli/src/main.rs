@@ -71,6 +71,9 @@ async fn main() -> Result<()> {
         Commands::Recategorize { server, id, category } => {
             recategorize(&server, &id, category).await?;
         }
+        Commands::AddContexts { server, id, contexts } => {
+            add_contexts(&server, &id, contexts).await?;
+        }
         Commands::ReplaceContexts { server, id, contexts } => {
             replace_contexts(&server, &id, contexts).await?;
         }
@@ -217,6 +220,20 @@ async fn recategorize(server: &ServerArgs, id: &Uuid, category: String) -> Resul
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to recategorize task {id}"))?;
+    Ok(())
+}
+
+async fn add_contexts(server: &ServerArgs, id: &Uuid, contexts: Vec<String>) -> Result<()> {
+    let contexts: IndexSet<TaskContext> = contexts
+        .iter()
+        .map(|s| s.parse().map_err(|e| miette::miette!("{e}")))
+        .collect::<Result<_>>()?;
+    let client = connect(&server.addr).await?;
+    client
+        .add_contexts(context::current(), *id, contexts)
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to add contexts to task {id}"))?;
     Ok(())
 }
 

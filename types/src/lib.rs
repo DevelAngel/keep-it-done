@@ -42,6 +42,7 @@ pub trait TaskInfos<'a> {
     fn set_category(&'a mut self, category: TaskCategory);
     fn contexts(&'a self) -> &'a IndexSet<TaskContext>;
     fn set_contexts(&'a mut self, contexts: IndexSet<TaskContext>);
+    fn extend_contexts(&'a mut self, contexts: IndexSet<TaskContext>);
 
     //provides
     fn is_done(&'a self) -> bool {

@@ -16,4 +16,5 @@ pub trait TaskService {
     async fn categories() -> Vec<TaskCategory>;
     async fn recategorize(id: Uuid, category: TaskCategory);
     async fn replace_contexts(id: Uuid, contexts: IndexSet<TaskContext>);
+    async fn add_contexts(id: Uuid, contexts: IndexSet<TaskContext>);
 }

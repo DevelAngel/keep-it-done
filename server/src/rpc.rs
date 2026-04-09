@@ -122,6 +122,13 @@ impl TaskService for RpcService {
         }
     }
 
+    async fn add_contexts(self, _: Context, id: Uuid, contexts: IndexSet<TaskContext>) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id) {
+            task.extend_contexts(contexts);
+        }
+    }
+
     async fn categories(self, _: Context) -> Vec<TaskCategory> {
         let task_cache = self.task_cache.read().await;
         task_cache

@@ -451,6 +451,9 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
     fn set_contexts(&'a mut self, contexts: IndexSet<Context>) {
         self.1.set_contexts(contexts);
     }
+    fn extend_contexts(&'a mut self, contexts: IndexSet<Context>) {
+        self.1.extend_contexts(contexts);
+    }
 }
 
 impl<'a> TaskInfos<'a> for Task {
@@ -478,6 +481,9 @@ impl<'a> TaskInfos<'a> for Task {
     fn set_contexts(&'a mut self, contexts: IndexSet<Context>) {
         self.info.set_contexts(contexts);
     }
+    fn extend_contexts(&'a mut self, contexts: IndexSet<Context>) {
+        self.info.extend_contexts(contexts);
+    }
 }
 
 impl<'a> TaskInfos<'a> for Infos {
@@ -504,6 +510,9 @@ impl<'a> TaskInfos<'a> for Infos {
     }
     fn set_contexts(&'a mut self, contexts: IndexSet<Context>) {
         self.contexts = contexts;
+    }
+    fn extend_contexts(&'a mut self, contexts: IndexSet<Context>) {
+        self.contexts.extend(contexts);
     }
 }
 
