@@ -594,6 +594,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
     let summary = RwSignal::new(task.summary().to_string());
     let category = RwSignal::new(task.category().to_string());
+    let contexts: StoredValue<Vec<String>> = StoredValue::new(task.contexts().iter().map(|c| c.to_string()).collect());
     let since = *task.since();
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
@@ -659,7 +660,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary category=category since=since/>
+                <TaskDetails task=id summary=summary category=category contexts=contexts since=since/>
             </Show>
         </div>
     }
@@ -752,7 +753,7 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: StoredValue<Vec<String>>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
@@ -1175,6 +1176,22 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                         })
                     }}
                 </Suspense>
+                // Contexts
+                {move || (!contexts.with_value(Vec::is_empty)).then(|| view! {
+                    <div class="relative">
+                        <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
+                            <span class="text-xs text-slate-300 font-bold">"@"</span>
+                        </div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Contexts"</div>
+                        <div class="flex flex-wrap gap-1.5">
+                            {contexts.get_value().into_iter().map(|ctx| view! {
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
+                                    {ctx}
+                                </span>
+                            }).collect_view()}
+                        </div>
+                    </div>
+                })}
                 // Since (only if different from created, minute-precise)
                 {show_since.then(|| view! {
                     <div class="relative">
