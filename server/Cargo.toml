@@ -21,6 +21,7 @@ axum.workspace = true
 clap.workspace = true
 clap-verbosity-flag.workspace = true
 futures.workspace = true
+indexmap.workspace = true
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum.workspace = true
 miette = { workspace = true, features = ["fancy"] }

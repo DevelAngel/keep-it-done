@@ -116,6 +116,18 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+    /// Replace all contexts of a task
+    ReplaceContexts {
+        /// Task ID
+        #[clap(short, long)]
+        id: Uuid,
+        /// Contexts (GTD-style, must start with '@', e.g. @home @computer)
+        #[clap(short = 'a', long = "context")]
+        contexts: Vec<String>,
+        /// server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
     /// Complete task (or reopen it)
     Complete {
         /// Task ID

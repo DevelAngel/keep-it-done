@@ -3,7 +3,8 @@ use crate::SharedTaskCache;
 pub use kid_types::rpc::TaskService;
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskCategory, TaskInfos, TaskSummary, Uuid};
+use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskSummary, Uuid};
+use indexmap::IndexSet;
 use std::collections::BTreeSet;
 
 use futures::{future, prelude::*};
@@ -111,6 +112,13 @@ impl TaskService for RpcService {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id) {
             task.set_category(category);
+        }
+    }
+
+    async fn replace_contexts(self, _: Context, id: Uuid, contexts: IndexSet<TaskContext>) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id) {
+            task.set_contexts(contexts);
         }
     }
 

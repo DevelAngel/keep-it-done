@@ -1,6 +1,7 @@
 use crate::task::Details as TaskDetails;
 use crate::task::DetailsPatch as TaskDetailsPatch;
-use crate::{Task, TaskCategory, TaskSummary, Uuid};
+use crate::{Task, TaskCategory, TaskContext, TaskSummary, Uuid};
+use indexmap::IndexSet;
 
 use tarpc::service;
 
@@ -14,4 +15,5 @@ pub trait TaskService {
     async fn complete(id: Uuid, reopen: bool);
     async fn categories() -> Vec<TaskCategory>;
     async fn recategorize(id: Uuid, category: TaskCategory);
+    async fn replace_contexts(id: Uuid, contexts: IndexSet<TaskContext>);
 }
