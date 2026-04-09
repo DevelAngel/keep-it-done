@@ -848,18 +848,33 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
         }
     });
     let context_input = RwSignal::new(String::new());
-    let failed_contexts: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    let failed_additions: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    let failed_removals: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    let last_saved_contexts: RwSignal<Vec<String>> = RwSignal::new(contexts.get_untracked());
     let replace_contexts = Action::new(move |new_contexts: &Vec<String>| {
-        let snapshot = new_contexts.clone();
+        let new_contexts = new_contexts.clone();
+        let last_saved = last_saved_contexts.get_untracked();
+        let added: Vec<String> = new_contexts.iter()
+            .filter(|c| !last_saved.contains(c))
+            .cloned()
+            .collect();
+        let removed: Vec<String> = last_saved.iter()
+            .filter(|c| !new_contexts.contains(c))
+            .cloned()
+            .collect();
         let parsed: Vec<_> = new_contexts.iter()
             .filter_map(|s| s.parse::<TaskContext>().ok())
             .collect();
         async move {
             if let Err(e) = server::replace_task_contexts(id, parsed).await {
                 tracing::error!("replace contexts failed: {e}");
-                failed_contexts.set(snapshot);
+                contexts.set(last_saved);   // rollback
+                failed_additions.set(added);
+                failed_removals.set(removed);
             } else {
-                failed_contexts.set(vec![]);
+                last_saved_contexts.set(new_contexts);
+                failed_additions.set(vec![]);
+                failed_removals.set(vec![]);
             }
         }
     });
@@ -1241,14 +1256,15 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                         view! {
                                             <button
                                                 type="button"
-                                                class=move || {
-                                                    let active = contexts.get().contains(&label_class);
-                                                    let failed = failed_contexts.get().contains(&label_class);
-                                                    match (active, failed) {
-                                                        (true, true) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-800 text-red-200 hover:bg-red-700 transition-colors",
-                                                        (true, false) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-700 text-teal-100 hover:bg-teal-800 transition-colors",
-                                                        (false, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600 text-slate-300 hover:bg-slate-500 transition-colors",
-                                                    }
+                                                class=move || match (
+                                                    contexts.get().contains(&label_class),
+                                                    failed_additions.get().contains(&label_class),
+                                                    failed_removals.get().contains(&label_class),
+                                                ) {
+                                                    (false, true, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-800 text-red-200 hover:bg-red-700 transition-colors",
+                                                    (true, _, true)  => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-700 text-amber-100 hover:bg-amber-800 transition-colors",
+                                                    (true, _, false) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-700 text-teal-100 hover:bg-teal-800 transition-colors",
+                                                    (false, false, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600 text-slate-300 hover:bg-slate-500 transition-colors",
                                                 }
                                                 on:click=move |_| {
                                                     if contexts.get_untracked().contains(&label_click) {
