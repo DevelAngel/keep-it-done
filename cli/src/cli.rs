@@ -104,6 +104,12 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+    /// List all contexts in use
+    Contexts {
+        /// server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
     /// Change the category of a task
     Recategorize {
         /// Task ID

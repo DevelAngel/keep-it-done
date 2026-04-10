@@ -80,6 +80,9 @@ async fn main() -> Result<()> {
         Commands::Categories { server } => {
             categories(&server).await?;
         }
+        Commands::Contexts { server } => {
+            contexts(&server).await?;
+        }
         Commands::Complete { server, id, reopen } => {
             complete(&server, &id, reopen).await?;
         }
@@ -248,6 +251,19 @@ async fn replace_contexts(server: &ServerArgs, id: &Uuid, contexts: Vec<String>)
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to change contexts of task {id}"))?;
+    Ok(())
+}
+
+async fn contexts(server: &ServerArgs) -> Result<()> {
+    let client = connect(&server.addr).await?;
+    let ctxs = client
+        .contexts(context::current())
+        .await
+        .into_diagnostic()
+        .wrap_err("failed to fetch contexts")?;
+    for ctx in ctxs {
+        println!("{ctx}");
+    }
     Ok(())
 }
 

@@ -138,4 +138,14 @@ impl TaskService for RpcService {
             .into_iter()
             .collect()
     }
+
+    async fn contexts(self, _: Context) -> Vec<TaskContext> {
+        let task_cache = self.task_cache.read().await;
+        task_cache
+            .iter()
+            .flat_map(|(_, task)| task.info().contexts().iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
 }
