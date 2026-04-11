@@ -470,7 +470,7 @@ fn TaskList() -> impl IntoView {
                     }
                 })}
                 <div class="py-2">
-                    <Suspense fallback=move || view! {
+                    <Transition fallback=move || view! {
                         <div class="px-6 py-6 text-center text-slate-400">"Loading tasks..."</div>
                     }>
                         <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
@@ -569,7 +569,7 @@ fn TaskList() -> impl IntoView {
                                 })
                             }}
                         </ErrorBoundary>
-                    </Suspense>
+                    </Transition>
                 </div>
                 <Show when=move || edit_mode.get()>
                     <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); }/>
