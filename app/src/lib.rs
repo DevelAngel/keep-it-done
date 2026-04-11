@@ -308,10 +308,10 @@ fn TaskList() -> impl IntoView {
     let filter_open = RwSignal::new(false);
     let active_filters: RwSignal<HashMap<View, Vec<String>>> = RwSignal::new(HashMap::new());
     let filter_ctx_resource = Resource::new(|| (), |_| server::fetch_contexts());
-    let filter_suggestion_list: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    let available_contexts_ctx: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     Effect::new(move |_| {
         if let Some(Ok(fetched)) = filter_ctx_resource.get() {
-            filter_suggestion_list.update(|v| {
+            available_contexts_ctx.update(|v| {
                 for ctx in fetched {
                     let s = ctx.to_string();
                     if !v.contains(&s) { v.push(s); }
@@ -319,7 +319,7 @@ fn TaskList() -> impl IntoView {
             });
         }
     });
-    provide_context(AvailableContextsCtx(filter_suggestion_list));
+    provide_context(AvailableContextsCtx(available_contexts_ctx));
 
     window_event_listener(leptos::ev::keydown, move |ev| {
         if ev.key() == key::ESCAPE && !ev.default_prevented() {
@@ -469,7 +469,7 @@ fn TaskList() -> impl IntoView {
                     view! {
                         <div class="px-4 py-3 bg-slate-800 border-b border-slate-700">
                             <div class="flex flex-wrap gap-1.5">
-                                {move || filter_suggestion_list.get().into_iter().map(|ctx| {
+                                {move || available_contexts_ctx.get().into_iter().map(|ctx| {
                                     let label_class = ctx.clone();
                                     let label_click = ctx.clone();
                                     view! {
