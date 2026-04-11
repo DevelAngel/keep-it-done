@@ -764,6 +764,7 @@ fn EditableField(
 
     let do_save = move || {
         let v = value.get_untracked();
+        if v == saved.get_value() { return; }
         saved.set_value(v.clone());
         on_save.run(v);
     };
