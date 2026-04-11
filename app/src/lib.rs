@@ -95,11 +95,19 @@ mod key {
 #[derive(Clone, Copy, Default)]
 struct EditMode(RwSignal<bool>);
 
+#[derive(Clone, Copy)]
+struct AvailableCategoriesCtx(RwSignal<Vec<String>>);
+
 impl Deref for EditMode {
     type Target = RwSignal<bool>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
+}
+
+impl Deref for AvailableCategoriesCtx {
+    type Target = RwSignal<Vec<String>>;
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, EnumCount, FromRepr)]
@@ -270,6 +278,19 @@ fn TaskList() -> impl IntoView {
     let (completion_version, set_completion_version) = signal(0u32);
     let category_version = RwSignal::new(0u32);
     provide_context(category_version);
+    let available_categories_res = Resource::new(move || category_version.get(), |_| server::fetch_categories());
+    let available_categories_ctx: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    Effect::new(move |_| {
+        if let Some(Ok(fetched)) = available_categories_res.get() {
+            available_categories_ctx.update(|v| {
+                for cat in fetched {
+                    let s = cat.to_string();
+                    if !v.contains(&s) { v.push(s); }
+                }
+            });
+        }
+    });
+    provide_context(AvailableCategoriesCtx(available_categories_ctx));
 
     let current_view = RwSignal::new(View::MyDay);
     let switch_count = RwSignal::new(0u32);
@@ -844,7 +865,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     let created = created.to_relative_time();
     let since = since.to_relative_time();
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
-    let available_categories = Resource::new(|| (), |_| server::fetch_categories());
+    let available_categories = *use_context::<AvailableCategoriesCtx>()
+        .expect("available_categories context missing");
     let available_contexts = Resource::new(|| (), |_| server::fetch_contexts());
     // Local suggestion list seeded from the resource; new text-input contexts appended directly.
     let suggestion_list: RwSignal<Vec<String>> = RwSignal::new(vec![]);
@@ -1000,37 +1022,30 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                 {move || category_error.get().map(|msg| view! {
                     <div class="text-xs text-red-400 mb-2">{msg}</div>
                 })}
-                <Suspense>
-                    {move || Suspend::new(async move {
-                        let cats = available_categories.await.unwrap_or_default();
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                    {move || available_categories.get().into_iter().map(|cat| {
+                        let label = StoredValue::new(cat);
                         view! {
-                            <div class="flex flex-wrap gap-1.5 mb-3">
-                                {cats.into_iter().map(|cat| {
-                                    let label = StoredValue::new(cat.to_string());
-                                    view! {
-                                        <button
-                                            type="button"
-                                            class=move || if category.get() == label.get_value() {
-                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white cursor-default"
-                                            } else {
-                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
-                                            }
-                                            on:click=move |_| {
-                                                let v = label.get_value();
-                                                if category.get_untracked() != v {
-                                                    category.set(v.clone());
-                                                    update_category.dispatch(v);
-                                                }
-                                            }
-                                        >
-                                            {move || label.get_value()}
-                                        </button>
+                            <button
+                                type="button"
+                                class=move || if category.get() == label.get_value() {
+                                    "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white cursor-default"
+                                } else {
+                                    "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                }
+                                on:click=move |_| {
+                                    let v = label.get_value();
+                                    if category.get_untracked() != v {
+                                        category.set(v.clone());
+                                        update_category.dispatch(v);
                                     }
-                                }).collect_view()}
-                            </div>
+                                }
+                            >
+                                {move || label.get_value()}
+                            </button>
                         }
-                    })}
-                </Suspense>
+                    }).collect_view()}
+                </div>
             })}
             // Vertical timeline with connecting line
             <div class="relative pl-8 space-y-4">
