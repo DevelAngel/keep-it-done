@@ -98,6 +98,9 @@ struct EditMode(RwSignal<bool>);
 #[derive(Clone, Copy)]
 struct AvailableCategoriesCtx(RwSignal<Vec<String>>);
 
+#[derive(Clone, Copy)]
+struct AvailableContextsCtx(RwSignal<Vec<String>>);
+
 impl Deref for EditMode {
     type Target = RwSignal<bool>;
     fn deref(&self) -> &Self::Target {
@@ -106,6 +109,11 @@ impl Deref for EditMode {
 }
 
 impl Deref for AvailableCategoriesCtx {
+    type Target = RwSignal<Vec<String>>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl Deref for AvailableContextsCtx {
     type Target = RwSignal<Vec<String>>;
     fn deref(&self) -> &Self::Target { &self.0 }
 }
@@ -311,6 +319,7 @@ fn TaskList() -> impl IntoView {
             });
         }
     });
+    provide_context(AvailableContextsCtx(filter_suggestion_list));
 
     window_event_listener(leptos::ev::keydown, move |ev| {
         if ev.key() == key::ESCAPE && !ev.default_prevented() {
@@ -867,19 +876,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
     let available_categories = *use_context::<AvailableCategoriesCtx>()
         .expect("available_categories context missing");
-    let available_contexts = Resource::new(|| (), |_| server::fetch_contexts());
-    // Local suggestion list seeded from the resource; new text-input contexts appended directly.
-    let suggestion_list: RwSignal<Vec<String>> = RwSignal::new(vec![]);
-    Effect::new(move |_| {
-        if let Some(Ok(fetched)) = available_contexts.get() {
-            suggestion_list.update(|v| {
-                for ctx in fetched {
-                    let s = ctx.to_string();
-                    if !v.contains(&s) { v.push(s); }
-                }
-            });
-        }
-    });
+    // Shared context: stable across remounts, only ever grows.
+    let available_contexts = *use_context::<AvailableContextsCtx>()
+        .expect("available_contexts context missing");
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
     let category_version = use_context::<RwSignal<u32>>().expect("category_version context missing");
     let summary_last_saved = StoredValue::new(summary.get_untracked());
@@ -1342,14 +1341,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                 if val.is_empty() { return; }
                                 if !val.starts_with('@') { val = format!("@{val}"); }
                                 contexts.update(|v| { if !v.contains(&val) { v.push(val.clone()); } });
-                                suggestion_list.update(|v| { if !v.contains(&val) { v.push(val); } });
+                                available_contexts.update(|v| { if !v.contains(&val) { v.push(val); } });
                                 replace_contexts.dispatch(contexts.get_untracked());
                                 context_input.set(String::new());
                             };
                             view! {
                                 // Suggestions: teal = active (click to remove), gray = inactive (click to add)
                                 <div class="flex flex-wrap gap-1.5">
-                                    {move || suggestion_list.get().into_iter().map(|ctx| {
+                                    {move || available_contexts.get().into_iter().map(|ctx| {
                                         let label_class = ctx.clone();
                                         let label_click = ctx.clone();
                                         view! {
