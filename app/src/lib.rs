@@ -913,6 +913,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
         .expect("available_contexts context missing");
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
     let category_version = use_context::<RwSignal<u32>>().expect("category_version context missing");
+    let scroll_to_task_id = use_context::<ScrollToTaskId>();
     let summary_last_saved = StoredValue::new(summary.get_untracked());
     let summary_error: RwSignal<Option<String>> = RwSignal::new(None);
     let rename_task = Action::new(move |value: &String| {
@@ -974,6 +975,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     Ok(()) => {
                         category_last_saved.set_value(value);
                         category_version.update(|v| *v += 1);
+                        if let Some(scroll_to) = scroll_to_task_id {
+                            scroll_to.set(Some(id));
+                        }
                     }
                     Err(e) => {
                         tracing::error!("update category failed: {e}");
