@@ -75,16 +75,19 @@ pub async fn fetch_quick_wins() -> Result<Vec<(Uuid, task::Infos)>, ServerFnErro
 pub async fn fetch_recently_changed() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
+    let cutoff = Utc::now() - TimeDelta::hours(24);
     let mut list: Vec<_> = cache
         .iter()
-        .filter(|(_, task)| {
-            Utc::now().signed_duration_since(task.info().since().with_timezone(&Utc))
-                <= TimeDelta::hours(24)
+        .filter_map(|(id, task)| {
+            let last_change = task
+                .touched()
+                .map(|t| t.with_timezone(&Utc))
+                .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
+            (last_change > cutoff).then(|| (id.to_owned(), task.info().to_owned(), last_change))
         })
-        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
-    list.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
-    Ok(list)
+    list.sort_by(|(_, _, a), (_, _, b)| b.cmp(a));
+    Ok(list.into_iter().map(|(id, info, _)| (id, info)).collect())
 }
 
 #[cfg(feature = "ssr")]
