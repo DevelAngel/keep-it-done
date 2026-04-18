@@ -620,6 +620,9 @@ fn TaskList() -> impl IntoView {
                 <Show when=move || edit_mode.get()>
                     <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); }/>
                 </Show>
+                <footer class="py-4 text-center text-xs text-slate-600 select-none" title="keep it done">
+                    {concat!("kid ", env!("CARGO_PKG_VERSION"))}
+                </footer>
             </div>
             <Show when=move || edit_mode.get()>
                 <div class="fixed top-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
