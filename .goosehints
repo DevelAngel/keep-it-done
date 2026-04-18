@@ -1,0 +1,11 @@
+# .goosehints
+
+## Commits
+
+The user commits manually. Never create commits. Instead, provide the
+commit text (message + body) once changes are complete and reviewed.
+
+## Code Style
+
+Always implement the `Deref` trait for single-field newtype wrappers to
+avoid `.0` field access.
