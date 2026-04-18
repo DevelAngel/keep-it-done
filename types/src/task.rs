@@ -194,6 +194,8 @@ pub struct Task {
     info: Infos,
     #[serde(flatten)]
     details: Details,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    touched: Option<DateTime<FixedOffset>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -696,7 +698,7 @@ impl Task {
     pub fn new(summary: Summary) -> Self {
         let info = Infos::new(summary);
         let details = Details::default();
-        Self { info, details }
+        Self { info, details, touched: None }
     }
 
     pub fn with_category(mut self, category: Category) -> Self {
@@ -712,6 +714,14 @@ impl Task {
     pub fn with_details(mut self, details: Details) -> Self {
         self.details = details;
         self
+    }
+
+    pub fn touch(&mut self) {
+        self.touched = Some(Utc::now().fixed_offset());
+    }
+
+    pub fn touched(&self) -> Option<&DateTime<FixedOffset>> {
+        self.touched.as_ref()
     }
 
     pub fn info(&self) -> &Infos {
@@ -831,7 +841,8 @@ mod tests {
                     status: Status::ToDo { since: _ },
                     ..
                 },
-                details: Details { .. }
+                details: Details { .. },
+                ..
             }
         ));
     }
@@ -849,7 +860,8 @@ mod tests {
                     status: Status::Done { since: _ },
                     ..
                 },
-                details: Details { .. }
+                details: Details { .. },
+                ..
             }
         ));
     }
@@ -866,7 +878,8 @@ mod tests {
                     status: Status::ToDo { since: _ },
                     ..
                 },
-                details: Details { .. }
+                details: Details { .. },
+                ..
             }
         ));
     }
@@ -883,7 +896,8 @@ mod tests {
                     status: Status::Done { since: _ },
                     ..
                 },
-                details: Details { .. }
+                details: Details { .. },
+                ..
             }
         ));
     }
