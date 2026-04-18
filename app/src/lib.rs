@@ -277,7 +277,10 @@ fn TaskList() -> impl IntoView {
         let summary = summary.clone();
         async move {
             match summary.parse::<TaskSummary>() {
-                Ok(s) => { let _ = server::add_task(s).await; }
+                Ok(s) => match server::add_task(s).await {
+                    Ok(id) => set_expanded_task_id.set(Some(id)),
+                    Err(e) => tracing::error!("add task failed: {e}"),
+                },
                 Err(e) => tracing::error!("invalid summary: {e}"),
             }
         }
