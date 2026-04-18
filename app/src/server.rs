@@ -119,16 +119,16 @@ pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), Serve
 }
 
 #[server(endpoint = "add_task")]
-pub async fn add_task(summary: TaskSummary) -> Result<(), ServerFnError> {
+pub async fn add_task(summary: TaskSummary) -> Result<Uuid, ServerFnError> {
     use kid_types::Task;
     tracing::info!("add task with summary {summary}");
     let task = Task::new(summary);
     tracing::debug!("task created: {task:?}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
-    let replaced = cache.add(task);
-    tracing::debug!("task replaced: {replaced}");
-    Ok(())
+    let id = cache.add(task);
+    tracing::debug!("task added with id: {id}");
+    Ok(id)
 }
 
 #[server(endpoint = "rename_task")]

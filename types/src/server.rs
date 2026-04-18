@@ -171,10 +171,11 @@ impl TaskCache {
         self.tasks.shift_remove(id).is_some()
     }
 
-    pub fn add(&mut self, task: Task) -> bool {
+    pub fn add(&mut self, task: Task) -> Uuid {
         let id = TaskCache::create_id();
         self.dirty.insert(id);
-        self.tasks.insert(id, task).is_some()
+        self.tasks.insert(id, task);
+        id
     }
 
     /*
