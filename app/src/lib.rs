@@ -101,6 +101,9 @@ struct AvailableCategoriesCtx(RwSignal<Vec<String>>);
 #[derive(Clone, Copy)]
 struct AvailableContextsCtx(RwSignal<Vec<String>>);
 
+#[derive(Clone, Copy)]
+struct ScrollToTaskId(RwSignal<Option<Uuid>>);
+
 impl Deref for EditMode {
     type Target = RwSignal<bool>;
     fn deref(&self) -> &Self::Target {
@@ -115,6 +118,11 @@ impl Deref for AvailableCategoriesCtx {
 
 impl Deref for AvailableContextsCtx {
     type Target = RwSignal<Vec<String>>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl Deref for ScrollToTaskId {
+    type Target = RwSignal<Option<Uuid>>;
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
@@ -271,6 +279,8 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
+    let scroll_to_task_id = ScrollToTaskId(RwSignal::new(None));
+    provide_context(scroll_to_task_id);
     let group_collapse = GroupCollapseState::new();
 
     let add_task = Action::new(move |summary: &String| {
@@ -278,7 +288,10 @@ fn TaskList() -> impl IntoView {
         async move {
             match summary.parse::<TaskSummary>() {
                 Ok(s) => match server::add_task(s).await {
-                    Ok(id) => set_expanded_task_id.set(Some(id)),
+                    Ok(id) => {
+                        set_expanded_task_id.set(Some(id));
+                        scroll_to_task_id.set(Some(id));
+                    }
                     Err(e) => tracing::error!("add task failed: {e}"),
                 },
                 Err(e) => tracing::error!("invalid summary: {e}"),
@@ -689,6 +702,21 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     spinner_gradient: &'static str,
 ) -> impl IntoView {
     let id = *task.id();
+    let task_ref = NodeRef::<leptos::html::Div>::new();
+
+    // Scroll to this task when it was just created
+    if let Some(scroll_to) = use_context::<ScrollToTaskId>() {
+        Effect::new(move || {
+            if scroll_to.get() == Some(id) {
+                set_timeout(move || {
+                    if let Some(el) = task_ref.get() {
+                        el.scroll_into_view();
+                        scroll_to.set(None);
+                    }
+                }, std::time::Duration::from_millis(100));
+            }
+        });
+    }
 
     let (checked, set_checked) = signal(task.is_done());
     let complete_task = Action::new(move |(id, checked): &(_, _)| {
@@ -732,6 +760,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
     view! {
         <div
+            node_ref=task_ref
             class="transition-colors"
             class:bg-slate-800=is_expanded
         >
