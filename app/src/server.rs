@@ -124,7 +124,7 @@ pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), Serve
 #[server(endpoint = "add_task")]
 pub async fn add_task(summary: TaskSummary) -> Result<Uuid, ServerFnError> {
     use kid_types::Task;
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("add task with summary {summary}");
     let task = Task::new(summary);
     tracing::debug!("task created: {task:?}");
@@ -137,7 +137,7 @@ pub async fn add_task(summary: TaskSummary) -> Result<Uuid, ServerFnError> {
 
 #[server(endpoint = "rename_task")]
 pub async fn rename_task(id: Uuid, summary: TaskSummary) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("rename task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -162,7 +162,7 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
 
 #[server(endpoint = "update_task_priority")]
 pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("update priority for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -178,7 +178,7 @@ pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> R
 
 #[server(endpoint = "update_task_time_estimate")]
 pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstimate>) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("update time estimate for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -194,7 +194,7 @@ pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstima
 
 #[server(endpoint = "update_task_due_date")]
 pub async fn update_task_due_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("update due date for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -210,7 +210,7 @@ pub async fn update_task_due_date(id: Uuid, date: Option<TaskDate>) -> Result<()
 
 #[server(endpoint = "update_task_start_date")]
 pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("update start date for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -226,7 +226,7 @@ pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<
 
 #[server(endpoint = "update_task_category")]
 pub async fn update_task_category(id: Uuid, category: TaskCategory) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("update category for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -250,7 +250,7 @@ pub async fn fetch_contexts() -> Result<Vec<TaskContext>, ServerFnError> {
 
 #[server(endpoint = "replace_task_contexts")]
 pub async fn replace_task_contexts(id: Uuid, contexts: Vec<TaskContext>) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("replace contexts for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -263,7 +263,7 @@ pub async fn replace_task_contexts(id: Uuid, contexts: Vec<TaskContext>) -> Resu
 
 #[server(endpoint = "update_task_notes")]
 pub async fn update_task_notes(id: Uuid, notes: String) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("update notes for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -280,7 +280,7 @@ pub async fn update_task_notes(id: Uuid, notes: String) -> Result<(), ServerFnEr
 
 #[server(endpoint = "complete_task")]
 pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
-    let actor = self::ssr::use_actor()?;
+    let actor = self::ssr::use_actor().await?;
     tracing::info!("change status for task with id {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -334,7 +334,15 @@ pub mod ssr {
         cache
     }
 
-    pub fn use_actor() -> Result<String, ServerFnError> {
+    pub async fn use_actor() -> Result<String, ServerFnError> {
+        let headers: http::HeaderMap = leptos_axum::extract().await?;
+        if let Some(user) = headers
+            .get("Remote-User")
+            .and_then(|v| v.to_str().ok())
+        {
+            return Ok(user.to_owned());
+        }
+
         use leptos::context::use_context;
         let Some(fallback) = use_context::<FallbackUser>() else {
             unreachable!("fallback user context missing")
