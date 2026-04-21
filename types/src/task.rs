@@ -196,6 +196,8 @@ pub struct Task {
     details: Details,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     touched: Option<DateTime<FixedOffset>>,
+    #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
+    authors: IndexSet<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -698,7 +700,7 @@ impl Task {
     pub fn new(summary: Summary) -> Self {
         let info = Infos::new(summary);
         let details = Details::default();
-        Self { info, details, touched: None }
+        Self { info, details, touched: None, authors: IndexSet::new() }
     }
 
     pub fn with_category(mut self, category: Category) -> Self {
@@ -722,6 +724,14 @@ impl Task {
 
     pub fn touched(&self) -> Option<&DateTime<FixedOffset>> {
         self.touched.as_ref()
+    }
+
+    pub fn add_author(&mut self, actor: impl Into<String>) {
+        self.authors.insert(actor.into());
+    }
+
+    pub fn authors(&self) -> &IndexSet<String> {
+        &self.authors
     }
 
     pub fn info(&self) -> &Infos {
