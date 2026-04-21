@@ -124,23 +124,25 @@ pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), Serve
 #[server(endpoint = "add_task")]
 pub async fn add_task(summary: TaskSummary) -> Result<Uuid, ServerFnError> {
     use kid_types::Task;
+    let actor = self::ssr::use_actor()?;
     tracing::info!("add task with summary {summary}");
     let task = Task::new(summary);
     tracing::debug!("task created: {task:?}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
-    let id = cache.add(task);
+    let id = cache.add(task, actor);
     tracing::debug!("task added with id: {id}");
     Ok(id)
 }
 
 #[server(endpoint = "rename_task")]
 pub async fn rename_task(id: Uuid, summary: TaskSummary) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("rename task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     task.rename(summary);
     Ok(())
@@ -148,6 +150,7 @@ pub async fn rename_task(id: Uuid, summary: TaskSummary) -> Result<(), ServerFnE
 
 #[server(endpoint = "delete_task")]
 pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
+    // no actor needed — delete does not track authorship
     tracing::info!("delete task with id {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
@@ -159,11 +162,12 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
 
 #[server(endpoint = "update_task_priority")]
 pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("update priority for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     match priority {
         Some(p) => task.set_priority(p),
@@ -174,11 +178,12 @@ pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> R
 
 #[server(endpoint = "update_task_time_estimate")]
 pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstimate>) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("update time estimate for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     match estimate {
         Some(e) => task.set_time_estimate(e),
@@ -189,11 +194,12 @@ pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstima
 
 #[server(endpoint = "update_task_due_date")]
 pub async fn update_task_due_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("update due date for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     match date {
         Some(d) => task.set_due_date(d),
@@ -204,11 +210,12 @@ pub async fn update_task_due_date(id: Uuid, date: Option<TaskDate>) -> Result<()
 
 #[server(endpoint = "update_task_start_date")]
 pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("update start date for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     match date {
         Some(d) => task.set_start_date(d),
@@ -219,11 +226,12 @@ pub async fn update_task_start_date(id: Uuid, date: Option<TaskDate>) -> Result<
 
 #[server(endpoint = "update_task_category")]
 pub async fn update_task_category(id: Uuid, category: TaskCategory) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("update category for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     task.set_category(category);
     Ok(())
@@ -242,11 +250,12 @@ pub async fn fetch_contexts() -> Result<Vec<TaskContext>, ServerFnError> {
 
 #[server(endpoint = "replace_task_contexts")]
 pub async fn replace_task_contexts(id: Uuid, contexts: Vec<TaskContext>) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("replace contexts for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     task.set_contexts(contexts.into_iter().collect::<IndexSet<_>>());
     Ok(())
@@ -254,11 +263,12 @@ pub async fn replace_task_contexts(id: Uuid, contexts: Vec<TaskContext>) -> Resu
 
 #[server(endpoint = "update_task_notes")]
 pub async fn update_task_notes(id: Uuid, notes: String) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("update notes for task {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, &actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     if notes.is_empty() {
         task.clear_notes();
@@ -270,11 +280,12 @@ pub async fn update_task_notes(id: Uuid, notes: String) -> Result<(), ServerFnEr
 
 #[server(endpoint = "complete_task")]
 pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor()?;
     tracing::info!("change status for task with id {id}");
     let cache = self::ssr::use_task_cache();
     let mut cache = cache.write().await;
     let mut task = cache
-        .get_mut(&id)
+        .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     if completed {
         task.mark_done();
@@ -297,12 +308,42 @@ pub mod ssr {
 
     pub type SharedTaskCache = Arc<RwLock<TaskCache>>;
 
+    /// Fallback actor for web mutations when no
+    /// `Remote-User` header is present (e.g. dev mode).
+    #[derive(Clone, Debug)]
+    pub struct FallbackUser(Option<String>);
+
+    impl FallbackUser {
+        pub fn new(user: Option<String>) -> Self {
+            Self(user)
+        }
+    }
+
+    impl std::ops::Deref for FallbackUser {
+        type Target = Option<String>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
     pub fn use_task_cache() -> SharedTaskCache {
         use leptos::context::use_context;
         let Some(cache) = use_context::<SharedTaskCache>() else {
             unreachable!("task cache missing")
         };
         cache
+    }
+
+    pub fn use_actor() -> Result<String, ServerFnError> {
+        use leptos::context::use_context;
+        let Some(fallback) = use_context::<FallbackUser>() else {
+            unreachable!("fallback user context missing")
+        };
+        (*fallback).clone().ok_or_else(|| {
+            ServerFnError::ServerError(
+                "no authenticated user".into(),
+            )
+        })
     }
 
     pub fn task_not_exist_error(id: &Uuid) -> ServerFnError {

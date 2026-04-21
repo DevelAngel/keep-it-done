@@ -25,8 +25,10 @@ impl RpcServer {
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
     ) -> Result<()> {
+        let actor = std::env::var("KID_CLI_USER")
+            .unwrap_or_else(|_| "ai-assistant".to_owned());
         tracing::info!(
-            "RPC server will listen to: {}",
+            "RPC server will listen to: {} (actor: {actor})",
             listener.local_addr().unwrap()
         );
         let mut listener = tcp::listen_on(listener, Json::default)
@@ -38,7 +40,8 @@ impl RpcServer {
             .map(server::BaseChannel::with_defaults)
             .map(|channel| {
                 let task_cache = task_cache.clone();
-                let server = RpcService { task_cache };
+                let actor = actor.clone();
+                let server = RpcService { task_cache, actor };
                 channel.execute(server.serve()).for_each(Self::spawn)
             })
             .buffer_unordered(10);
@@ -59,6 +62,7 @@ impl RpcServer {
 #[derive(Clone)]
 struct RpcService {
     task_cache: SharedTaskCache,
+    actor: String,
 }
 
 impl TaskService for RpcService {
@@ -72,26 +76,26 @@ impl TaskService for RpcService {
 
     async fn add(self, _: Context, task: Task) {
         let mut task_cache = self.task_cache.write().await;
-        task_cache.add(task);
+        task_cache.add(task, &self.actor);
     }
 
     async fn rename(self, _: Context, id: Uuid, summary: TaskSummary) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             task.rename(summary);
         }
     }
 
     async fn replace(self, _: Context, id: Uuid, details: TaskDetails) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             task.set_details(details);
         }
     }
 
     async fn update(self, _: Context, id: Uuid, details: TaskDetailsPatch) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             tracing::debug!("Patch details: {details:#?}");
             task.patch_details(details);
         }
@@ -99,7 +103,7 @@ impl TaskService for RpcService {
 
     async fn complete(self, _: Context, id: Uuid, reopen: bool) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             if reopen {
                 task.mark_todo();
             } else {
@@ -110,21 +114,21 @@ impl TaskService for RpcService {
 
     async fn recategorize(self, _: Context, id: Uuid, category: TaskCategory) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             task.set_category(category);
         }
     }
 
     async fn replace_contexts(self, _: Context, id: Uuid, contexts: IndexSet<TaskContext>) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             task.set_contexts(contexts);
         }
     }
 
     async fn add_contexts(self, _: Context, id: Uuid, contexts: IndexSet<TaskContext>) {
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id) {
+        if let Some(mut task) = task_cache.get_mut(&id, &self.actor) {
             task.extend_contexts(contexts);
         }
     }

@@ -1,4 +1,5 @@
 use crate::SharedTaskCache;
+use kid_app::server::ssr::FallbackUser;
 use kid_app::{App, shell};
 
 use axum::Router;
@@ -17,6 +18,18 @@ impl HttpServer {
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
     ) -> Result<()> {
+        let fallback_user = FallbackUser::new(
+            std::env::var("KID_FALLBACK_USER").ok(),
+        );
+        let fallback_label = match fallback_user.as_deref() {
+            Some(user) => format!("fallback: {user}"),
+            None => "no fallback, Remote-User required".into(),
+        };
+        tracing::info!(
+            "HTTP server listening on http://{} ({fallback_label})",
+            listener.local_addr().unwrap()
+        );
+
         let routes = generate_route_list(App);
 
         let app = {
@@ -25,7 +38,10 @@ impl HttpServer {
                 .leptos_routes_with_context(
                     &leptos_options,
                     routes,
-                    move || provide_context(task_cache.clone()),
+                    move || {
+                        provide_context(task_cache.clone());
+                        provide_context(fallback_user.clone());
+                    },
                     {
                         let leptos_options = leptos_options.clone();
                         move || shell(leptos_options.clone())
@@ -34,13 +50,6 @@ impl HttpServer {
                 .fallback(leptos_axum::file_and_error_handler(shell))
                 .with_state(leptos_options)
         };
-
-        // run our app with hyper
-        // `axum::Server` is a re-export of `hyper::Server`
-        tracing::info!(
-            "HTTP server listening on http://{}",
-            &listener.local_addr().unwrap()
-        );
         axum::serve(listener, app.into_make_service())
             .with_graceful_shutdown(async move {
                 shutdown.cancelled().await;

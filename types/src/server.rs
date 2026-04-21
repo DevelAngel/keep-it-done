@@ -25,6 +25,7 @@ pub struct TaskMutGuard<'a> {
     id: Uuid,
     task: &'a mut Task,
     dirty: &'a mut ChangeSet,
+    actor: String,
 }
 
 pub type TaskLoadResult<T> = Result<T, LoadErrors>;
@@ -171,7 +172,8 @@ impl TaskCache {
         self.tasks.shift_remove(id).is_some()
     }
 
-    pub fn add(&mut self, task: Task) -> Uuid {
+    pub fn add(&mut self, mut task: Task, actor: impl Into<String>) -> Uuid {
+        task.add_author(&actor.into());
         let id = TaskCache::create_id();
         self.dirty.insert(id);
         self.tasks.insert(id, task);
@@ -182,12 +184,14 @@ impl TaskCache {
      * Note: get() is accessable via Deref trait
      */
 
-    pub fn get_mut(&mut self, id: &Uuid) -> Option<TaskMutGuard<'_>> {
+    pub fn get_mut(&mut self, id: &Uuid, actor: impl Into<String>) -> Option<TaskMutGuard<'_>> {
         let dirty = &mut self.dirty;
+        let actor = actor.into();
         self.tasks.get_mut(id).map(|task| TaskMutGuard {
             id: *id,
             dirty,
             task,
+            actor,
         })
     }
 
@@ -482,6 +486,7 @@ impl<'a> DerefMut for TaskMutGuard<'a> {
 impl<'a> Drop for TaskMutGuard<'a> {
     fn drop(&mut self) {
         self.task.touch();
+        self.task.add_author(&self.actor);
         self.dirty.insert(self.id);
     }
 }
