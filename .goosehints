@@ -9,3 +9,13 @@ commit text (message + body) once changes are complete and reviewed.
 
 Always implement the `Deref` trait for single-field newtype wrappers to
 avoid `.0` field access.
+
+## Web UI Design
+
+ADHD-friendly UX is a hard requirement. Prioritize:
+- Add salience, don't subtract it (highlight important items
+  rather than dimming less important ones)
+- Minimal visual channels per distinction (one signal, not three)
+- Equal readability everywhere — hierarchy through accent, not deficit
+- Reduce cognitive load: fewer competing visual patterns, consistent
+  sizing, no unnecessary animation
