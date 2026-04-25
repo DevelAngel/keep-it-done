@@ -5,6 +5,7 @@ pub mod server;
 pub mod task;
 
 pub use crate::task::{
+    Authors as TaskAuthors,
     Category as TaskCategory,
     Context as TaskContext,
     Date as TaskDate,

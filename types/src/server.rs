@@ -485,7 +485,6 @@ impl<'a> DerefMut for TaskMutGuard<'a> {
 
 impl<'a> Drop for TaskMutGuard<'a> {
     fn drop(&mut self) {
-        self.task.touch();
         self.task.add_author(&self.actor);
         self.dirty.insert(self.id);
     }

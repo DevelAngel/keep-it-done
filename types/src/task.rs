@@ -8,7 +8,7 @@ use kid_types_derive::Patchable;
 
 use chrono::{DateTime, FixedOffset, Timelike, Utc};
 use derive_more::Display;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -194,11 +194,29 @@ pub struct Task {
     info: Infos,
     #[serde(flatten)]
     details: Details,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    touched: Option<DateTime<FixedOffset>>,
-    #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
-    #[cfg_attr(feature = "cli", schemars(with = "Vec<String>"))]
-    authors: IndexSet<String>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    #[cfg_attr(feature = "cli", schemars(with = "std::collections::HashMap<String, DateTime<FixedOffset>>"))]
+    authors: IndexMap<String, DateTime<FixedOffset>>,
+}
+
+/// Snapshot of task authors with their last-active timestamps.
+///
+/// Produced from the internal `IndexMap` storage; intended for
+/// transfer across the server-function boundary.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Authors(Vec<(String, DateTime<FixedOffset>)>);
+
+impl std::ops::Deref for Authors {
+    type Target = Vec<(String, DateTime<FixedOffset>)>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<&IndexMap<String, DateTime<FixedOffset>>> for Authors {
+    fn from(map: &IndexMap<String, DateTime<FixedOffset>>) -> Self {
+        Self(map.iter().map(|(name, ts)| (name.clone(), *ts)).collect())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -701,7 +719,7 @@ impl Task {
     pub fn new(summary: Summary) -> Self {
         let info = Infos::new(summary);
         let details = Details::default();
-        Self { info, details, touched: None, authors: IndexSet::new() }
+        Self { info, details, authors: IndexMap::new() }
     }
 
     pub fn with_category(mut self, category: Category) -> Self {
@@ -719,19 +737,12 @@ impl Task {
         self
     }
 
-    pub fn touch(&mut self) {
-        self.touched = Some(Utc::now().fixed_offset());
-    }
-
-    pub fn touched(&self) -> Option<&DateTime<FixedOffset>> {
-        self.touched.as_ref()
-    }
-
     pub fn add_author(&mut self, actor: impl Into<String>) {
-        self.authors.insert(actor.into());
+        let now = Utc::now().with_nanosecond(0).unwrap().fixed_offset();
+        self.authors.insert(actor.into(), now);
     }
 
-    pub fn authors(&self) -> &IndexSet<String> {
+    pub fn authors(&self) -> &IndexMap<String, DateTime<FixedOffset>> {
         &self.authors
     }
 

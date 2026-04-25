@@ -11,6 +11,7 @@ use indexmap::IndexMap;
 
 use serde::{Serialize, Deserialize};
 
+use kid_types::TaskAuthors;
 use kid_types::TaskCategory;
 use kid_types::TaskContext;
 use kid_types::TaskDate;
@@ -78,7 +79,8 @@ pub async fn fetch_quick_wins() -> Result<Vec<(Uuid, task::Infos)>, ServerFnErro
 pub struct RecentChange {
     pub id: Uuid,
     pub info: task::Infos,
-    pub authors: Vec<String>,
+    pub authors: TaskAuthors,
+    pub ai_last: bool,
     pub ai_involved: bool,
 }
 
@@ -90,17 +92,20 @@ pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError
     let mut list: Vec<_> = cache
         .iter()
         .filter_map(|(id, task)| {
-            let last_change = task
-                .touched()
+            let last_change = task.authors().values().max()
                 .map(|t| t.with_timezone(&Utc))
                 .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
             (last_change > cutoff).then(|| {
-                let authors: Vec<String> = task.authors().iter().cloned().collect();
-                let ai_involved = authors.iter().any(|a| a.starts_with("ai:"));
+                let authors = TaskAuthors::from(task.authors());
+                let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
+                let ai_last = authors.iter()
+                    .max_by_key(|(_, ts)| ts)
+                    .is_some_and(|(a, _)| a.starts_with("ai:"));
                 (last_change, RecentChange {
                     id: id.to_owned(),
                     info: task.info().to_owned(),
                     authors,
+                    ai_last,
                     ai_involved,
                 })
             })
@@ -131,14 +136,14 @@ pub async fn fetch_categories() -> Result<Vec<TaskCategory>, ServerFnError> {
 }
 
 #[server(endpoint = "fetch_task_details")]
-pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details, Vec<String>), ServerFnError> {
+pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details, TaskAuthors), ServerFnError> {
     tracing::info!("fetch details for task id {id}");
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let task = cache
         .get(&id)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
-    let authors: Vec<String> = task.authors().iter().cloned().collect();
+    let authors = TaskAuthors::from(task.authors());
     Ok((id, task.details().to_owned(), authors))
 }
 

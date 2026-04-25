@@ -620,10 +620,11 @@ fn TaskList() -> impl IntoView {
                                                             each=move || tasks.clone()
                                                             key=|rc| rc.id
                                                             children=move |rc| {
+                                                                let ai_last = rc.ai_last;
                                                                 let ai_involved = rc.ai_involved;
                                                                 let task = (rc.id, rc.info);
                                                                 view! {
-                                                                    <div class=if ai_involved { "border-l-4 border-sky-500/70" } else { "" }>
+                                                                    <div class=if ai_last { "border-l-4 border-amber-500" } else if ai_involved { "border-l-4 border-violet-500" } else { "" }>
                                                                         <TaskItem task=task
                                                                             expanded_task_id=expanded_task_id
                                                                             set_expanded_task_id=set_expanded_task_id
@@ -1385,7 +1386,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                     })}
                                     // Authors (fetched from server, shown in all views)
                                     {(!authors.is_empty()).then(|| {
-                                        let label = authors.join(", ");
                                         view! {
                                             <div class="relative">
                                                 <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-violet-700 border-4 border-slate-900 shadow flex items-center justify-center">
@@ -1394,7 +1394,18 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                                     </svg>
                                                 </div>
                                                 <div class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-0.5">"Authors"</div>
-                                                <div class="text-sm text-slate-200">{label}</div>
+                                                <div class="space-y-1">
+                                                    {authors.iter().map(|(name, ts)| {
+                                                        let display_name = name.clone();
+                                                        let display_ts = ts.to_relative_time();
+                                                        view! {
+                                                            <div class="flex items-baseline gap-2">
+                                                                <span class="text-sm text-slate-200">{display_name}</span>
+                                                                <span class="text-xs text-slate-500">{display_ts}</span>
+                                                            </div>
+                                                        }
+                                                    }).collect_view()}
+                                                </div>
                                             </div>
                                         }
                                     })}
