@@ -133,14 +133,15 @@ pub async fn fetch_categories() -> Result<Vec<TaskCategory>, ServerFnError> {
 }
 
 #[server(endpoint = "fetch_task_details")]
-pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details), ServerFnError> {
+pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details, Vec<String>), ServerFnError> {
     tracing::info!("fetch details for task id {id}");
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let task = cache
         .get(&id)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
-    Ok((id, task.details().to_owned()))
+    let authors: Vec<String> = task.authors().iter().cloned().collect();
+    Ok((id, task.details().to_owned(), authors))
 }
 
 #[server(endpoint = "add_task")]

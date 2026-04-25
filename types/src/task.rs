@@ -197,6 +197,7 @@ pub struct Task {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     touched: Option<DateTime<FixedOffset>>,
     #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
+    #[cfg_attr(feature = "cli", schemars(with = "Vec<String>"))]
     authors: IndexSet<String>,
 }
 

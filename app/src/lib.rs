@@ -621,7 +621,6 @@ fn TaskList() -> impl IntoView {
                                                             key=|rc| rc.id
                                                             children=move |rc| {
                                                                 let ai_involved = rc.ai_involved;
-                                                                let authors = rc.authors;
                                                                 let task = (rc.id, rc.info);
                                                                 view! {
                                                                     <div class=if ai_involved { "border-l-4 border-sky-500/70" } else { "" }>
@@ -632,7 +631,6 @@ fn TaskList() -> impl IntoView {
                                                                             strikethrough_when_done=false
                                                                             checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                             spinner_gradient={view.spinner_gradient()}
-                                                                            authors=authors
                                                                         />
                                                                     </div>
                                                                 }
@@ -734,7 +732,6 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     strikethrough_when_done: bool,
     checkbox_checked_classes: &'static str,
     spinner_gradient: &'static str,
-    #[prop(optional)] authors: Vec<String>,
 ) -> impl IntoView {
     let id = *task.id();
     let task_ref = NodeRef::<leptos::html::Div>::new();
@@ -840,7 +837,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary category=category contexts=contexts since=since authors=authors.clone()/>
+                <TaskDetails task=id summary=summary category=category contexts=contexts since=since/>
             </Show>
         </div>
     }
@@ -934,13 +931,15 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, since: DateTime<FixedOffset>, #[prop(optional)] authors: Vec<String>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
     let created = created.to_relative_time();
     let since = since.to_relative_time();
-    let details = Resource::new(move || (), move |_| server::fetch_task_details(id));
+    let details = Resource::new(move || (), move |_| async move {
+        server::fetch_task_details(id).await.map(|(_, details, authors)| (details, authors))
+    });
     let available_categories = *use_context::<AvailableCategoriesCtx>()
         .expect("available_categories context missing");
     // Shared context: stable across remounts, only ever grows.
@@ -1124,7 +1123,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                 <Suspense>
                     {move || {
                         Suspend::new(async move {
-                            details.await.map(|task| {
+                            details.await.map(|(task, authors)| {
                                 let priority_value = RwSignal::new(task.priority().cloned());
                                 let priority_initially_set = priority_value.get_untracked().is_some();
                                 let due_date_value = RwSignal::new(task.due_date().cloned());
@@ -1384,6 +1383,21 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                             }}
                                         </div>
                                     })}
+                                    // Authors (fetched from server, shown in all views)
+                                    {(!authors.is_empty()).then(|| {
+                                        let label = authors.join(", ");
+                                        view! {
+                                            <div class="relative">
+                                                <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-violet-700 border-4 border-slate-900 shadow flex items-center justify-center">
+                                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                                                    </svg>
+                                                </div>
+                                                <div class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-0.5">"Authors"</div>
+                                                <div class="text-sm text-slate-200">{label}</div>
+                                            </div>
+                                        }
+                                    })}
                                 }
                             })
                         })
@@ -1475,21 +1489,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                             }
                         })}
                     </div>
-                })}
-                // Authors (only shown when the task has tracked authors)
-                {(!authors.is_empty()).then(|| {
-                    let label = authors.join(", ");
-                    view! {
-                        <div class="relative">
-                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-violet-700 border-4 border-slate-900 shadow flex items-center justify-center">
-                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                                </svg>
-                            </div>
-                            <div class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-0.5">"Authors"</div>
-                            <div class="text-sm text-slate-200">{label}</div>
-                        </div>
-                    }
                 })}
                 // Since (only if different from created, minute-precise)
                 {show_since.then(|| view! {
