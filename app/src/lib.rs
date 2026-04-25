@@ -370,8 +370,21 @@ fn TaskList() -> impl IntoView {
         }
     });
 
+    // Midnight rollover: check every 60 s whether the UTC date changed.
+    // Bumping this signal triggers a resource refetch + fresh day labels.
+    // Guard: set_interval is wasm-bindgen and panics on native (SSR).
+    let today_signal = RwSignal::new(Utc::now().date_naive());
+    if cfg!(target_arch = "wasm32") {
+        set_interval(move || {
+            let now = Utc::now().date_naive();
+            if now != today_signal.get_untracked() {
+                today_signal.set(now);
+            }
+        }, std::time::Duration::from_secs(60));
+    }
+
     let task_list = Resource::new(
-        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get()),
+        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get(), today_signal.get()),
         move |_| async move {
             match current_view.get_untracked() {
                 View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
