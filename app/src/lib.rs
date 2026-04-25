@@ -1121,6 +1121,93 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
             <div class="relative pl-8 space-y-4">
                 // Vertical line
                 <div class="absolute left-3 top-0 -bottom-4 w-0.5 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500"></div>
+                // Contexts
+                {move || (!contexts.get().is_empty() || edit_mode.get()).then(|| view! {
+                    <div class="relative">
+                        <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
+                            <span class="text-xs text-slate-300 font-bold">"@"</span>
+                        </div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Contexts"</div>
+                        // View mode: plain chips
+                        {move || (!edit_mode.get()).then(|| view! {
+                            <div class="flex flex-wrap gap-1.5">
+                                {contexts.get().into_iter().map(|ctx| view! {
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
+                                        {ctx}
+                                    </span>
+                                }).collect_view()}
+                            </div>
+                        })}
+                        {move || edit_mode.get().then(|| {
+                            let add_ctx = move |val: String| {
+                                let mut val = val.trim().to_string();
+                                if val.is_empty() { return; }
+                                if !val.starts_with('@') { val = format!("@{val}"); }
+                                contexts.update(|v| { if !v.contains(&val) { v.push(val.clone()); } });
+                                available_contexts.update(|v| { if !v.contains(&val) { v.push(val); } });
+                                replace_contexts.dispatch(contexts.get_untracked());
+                                context_input.set(String::new());
+                            };
+                            view! {
+                                // Suggestions: teal = active (click to remove), gray = inactive (click to add)
+                                <div class="flex flex-wrap gap-1.5">
+                                    {move || available_contexts.get().into_iter().map(|ctx| {
+                                        let label_class = ctx.clone();
+                                        let label_click = ctx.clone();
+                                        view! {
+                                            <button
+                                                type="button"
+                                                class=move || match (
+                                                    contexts.get().contains(&label_class),
+                                                    failed_additions.get().contains(&label_class),
+                                                    failed_removals.get().contains(&label_class),
+                                                ) {
+                                                    (false, true, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-800 text-red-200 hover:bg-red-700 transition-colors",
+                                                    (true, _, true)  => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-700 text-amber-100 hover:bg-amber-800 transition-colors",
+                                                    (true, _, false) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-700 text-teal-100 hover:bg-teal-800 transition-colors",
+                                                    (false, false, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600 text-slate-300 hover:bg-slate-500 transition-colors",
+                                                }
+                                                on:click=move |_| {
+                                                    if contexts.get_untracked().contains(&label_click) {
+                                                        let l = label_click.clone();
+                                                        contexts.update(|v| v.retain(|c| *c != l));
+                                                    } else {
+                                                        let v = label_click.clone();
+                                                        contexts.update(|list| list.push(v));
+                                                    }
+                                                    replace_contexts.dispatch(contexts.get_untracked());
+                                                }
+                                            >
+                                                {ctx}
+                                            </button>
+                                        }
+                                    }).collect_view()}
+                                </div>
+                                // Free-text input for new contexts
+                                <div class="flex items-center gap-2 mt-1.5">
+                                    <input
+                                        type="text"
+                                        class="bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 flex-1 min-w-0 border border-slate-600 focus:border-slate-500 focus:outline-none"
+                                        placeholder="@context"
+                                        prop:value=move || context_input.get()
+                                        on:input=move |ev| context_input.set(event_target_value(&ev))
+                                        on:keydown=move |ev| {
+                                            if ev.key() == "Enter" {
+                                                ev.prevent_default();
+                                                add_ctx(context_input.get_untracked());
+                                            }
+                                        }
+                                    />
+                                    <button
+                                        type="button"
+                                        class="text-slate-400 hover:text-teal-400 px-2 py-1 text-sm leading-none"
+                                        on:click=move |_| add_ctx(context_input.get_untracked())
+                                    >"+"</button>
+                                </div>
+                            }
+                        })}
+                    </div>
+                })}
                 <Suspense>
                     {move || {
                         Suspend::new(async move {
@@ -1414,93 +1501,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                         })
                     }}
                 </Suspense>
-                // Contexts
-                {move || (!contexts.get().is_empty() || edit_mode.get()).then(|| view! {
-                    <div class="relative">
-                        <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
-                            <span class="text-xs text-slate-300 font-bold">"@"</span>
-                        </div>
-                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Contexts"</div>
-                        // View mode: plain chips
-                        {move || (!edit_mode.get()).then(|| view! {
-                            <div class="flex flex-wrap gap-1.5">
-                                {contexts.get().into_iter().map(|ctx| view! {
-                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
-                                        {ctx}
-                                    </span>
-                                }).collect_view()}
-                            </div>
-                        })}
-                        {move || edit_mode.get().then(|| {
-                            let add_ctx = move |val: String| {
-                                let mut val = val.trim().to_string();
-                                if val.is_empty() { return; }
-                                if !val.starts_with('@') { val = format!("@{val}"); }
-                                contexts.update(|v| { if !v.contains(&val) { v.push(val.clone()); } });
-                                available_contexts.update(|v| { if !v.contains(&val) { v.push(val); } });
-                                replace_contexts.dispatch(contexts.get_untracked());
-                                context_input.set(String::new());
-                            };
-                            view! {
-                                // Suggestions: teal = active (click to remove), gray = inactive (click to add)
-                                <div class="flex flex-wrap gap-1.5">
-                                    {move || available_contexts.get().into_iter().map(|ctx| {
-                                        let label_class = ctx.clone();
-                                        let label_click = ctx.clone();
-                                        view! {
-                                            <button
-                                                type="button"
-                                                class=move || match (
-                                                    contexts.get().contains(&label_class),
-                                                    failed_additions.get().contains(&label_class),
-                                                    failed_removals.get().contains(&label_class),
-                                                ) {
-                                                    (false, true, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-800 text-red-200 hover:bg-red-700 transition-colors",
-                                                    (true, _, true)  => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-700 text-amber-100 hover:bg-amber-800 transition-colors",
-                                                    (true, _, false) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-700 text-teal-100 hover:bg-teal-800 transition-colors",
-                                                    (false, false, _) => "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-600 text-slate-300 hover:bg-slate-500 transition-colors",
-                                                }
-                                                on:click=move |_| {
-                                                    if contexts.get_untracked().contains(&label_click) {
-                                                        let l = label_click.clone();
-                                                        contexts.update(|v| v.retain(|c| *c != l));
-                                                    } else {
-                                                        let v = label_click.clone();
-                                                        contexts.update(|list| list.push(v));
-                                                    }
-                                                    replace_contexts.dispatch(contexts.get_untracked());
-                                                }
-                                            >
-                                                {ctx}
-                                            </button>
-                                        }
-                                    }).collect_view()}
-                                </div>
-                                // Free-text input for new contexts
-                                <div class="flex items-center gap-2 mt-1.5">
-                                    <input
-                                        type="text"
-                                        class="bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 flex-1 min-w-0 border border-slate-600 focus:border-slate-500 focus:outline-none"
-                                        placeholder="@context"
-                                        prop:value=move || context_input.get()
-                                        on:input=move |ev| context_input.set(event_target_value(&ev))
-                                        on:keydown=move |ev| {
-                                            if ev.key() == "Enter" {
-                                                ev.prevent_default();
-                                                add_ctx(context_input.get_untracked());
-                                            }
-                                        }
-                                    />
-                                    <button
-                                        type="button"
-                                        class="text-slate-400 hover:text-teal-400 px-2 py-1 text-sm leading-none"
-                                        on:click=move |_| add_ctx(context_input.get_untracked())
-                                    >"+"</button>
-                                </div>
-                            }
-                        })}
-                    </div>
-                })}
                 // Since (only if different from created, minute-precise)
                 {show_since.then(|| view! {
                     <div class="relative">
