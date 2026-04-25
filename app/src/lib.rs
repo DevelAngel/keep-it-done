@@ -260,7 +260,14 @@ impl GroupCollapseState {
 }
 
 fn group_recent_by_day(tasks: Vec<server::RecentChange>) -> Vec<(NaiveDate, Vec<server::RecentChange>)> {
+    let today = Utc::now().date_naive();
     let mut groups: IndexMap<NaiveDate, Vec<server::RecentChange>> = IndexMap::new();
+    // Always show today + 2 calendar days (initial window).
+    for i in 0..3u32 {
+        let day = today.checked_sub_days(chrono::Days::new(i as u64)).unwrap();
+        groups.entry(day).or_default();
+    }
+    // Extra days only appear when they carry data.
     for rc in tasks {
         groups.entry(rc.last_changed.date_naive()).or_default().push(rc);
     }
@@ -383,14 +390,18 @@ fn TaskList() -> impl IntoView {
         }, std::time::Duration::from_secs(60));
     }
 
+    let extra_days = RwSignal::new(0u32);
+
     let task_list = Resource::new(
-        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get(), today_signal.get()),
+        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get(), today_signal.get(), extra_days.get()),
         move |_| async move {
             match current_view.get_untracked() {
                 View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
                 View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
                 View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::Flat),
-                View::RecentlyChanged => server::fetch_recently_changed().await.map(|v| TaskListData::DayGrouped(group_recent_by_day(v))),
+                View::RecentlyChanged => {
+                    server::fetch_recently_changed(extra_days.get_untracked()).await.map(|v| TaskListData::DayGrouped(group_recent_by_day(v)))
+                },
             }
         },
     );
@@ -568,7 +579,7 @@ fn TaskList() -> impl IntoView {
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
                                             TaskListData::Flat(v) => v.is_empty(),
-                                            TaskListData::DayGrouped(v) => v.is_empty(),
+                                            TaskListData::DayGrouped(v) => v.iter().all(|(_, t)| t.is_empty()),
                                         };
                                         if is_empty {
                                             Either::Left(view! {
@@ -661,26 +672,39 @@ fn TaskList() -> impl IntoView {
                                                                                 {label}
                                                                             </span>
                                                                         </div>
-                                                                        {tasks.into_iter().map(|rc| {
-                                                                            let ai_last = rc.ai_last;
-                                                                            let ai_involved = rc.ai_involved;
-                                                                            let task = (rc.id, rc.info);
-                                                                            view! {
-                                                                                <div class=if ai_last { "border-l-4 border-amber-500" } else if ai_involved { "border-l-4 border-violet-500" } else { "" }>
-                                                                                    <TaskItem task=task
-                                                                                        expanded_task_id=expanded_task_id
-                                                                                        set_expanded_task_id=set_expanded_task_id
-                                                                                        set_completion_version=set_completion_version
-                                                                                        strikethrough_when_done=false
-                                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
-                                                                                        spinner_gradient={view.spinner_gradient()}
-                                                                                    />
-                                                                                </div>
-                                                                            }
-                                                                        }).collect_view()}
+                                                                        {if tasks.is_empty() {
+                                                                            Either::Left(view! {
+                                                                                <p class="px-6 pb-1 text-xs text-slate-600">"—"</p>
+                                                                            })
+                                                                        } else {
+                                                                            Either::Right(tasks.into_iter().map(|rc| {
+                                                                                let ai_last = rc.ai_last;
+                                                                                let ai_involved = rc.ai_involved;
+                                                                                let task = (rc.id, rc.info);
+                                                                                view! {
+                                                                                    <div class=if ai_last { "border-l-4 border-amber-500" } else if ai_involved { "border-l-4 border-violet-500" } else { "" }>
+                                                                                        <TaskItem task=task
+                                                                                            expanded_task_id=expanded_task_id
+                                                                                            set_expanded_task_id=set_expanded_task_id
+                                                                                            set_completion_version=set_completion_version
+                                                                                            strikethrough_when_done=false
+                                                                                            checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                            spinner_gradient={view.spinner_gradient()}
+                                                                                        />
+                                                                                    </div>
+                                                                                }
+                                                                            }).collect_view())
+                                                                        }}
                                                                     </div>
                                                                 }
                                                             }).collect_view()}
+                                                            <button
+                                                                type="button"
+                                                                class="w-full py-3 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+                                                                on:click=move |_| extra_days.update(|n| *n += 2)
+                                                            >
+                                                                "▾ 2 more days"
+                                                            </button>
                                                         </div>
                                                     }))
                                                 }

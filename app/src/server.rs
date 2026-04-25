@@ -86,37 +86,54 @@ pub struct RecentChange {
     pub ai_involved: bool,
 }
 
+/// Fetch recently changed tasks.
+///
+/// Always includes the last 3 calendar days (today + 2).
+/// `extra_days` requests additional older days that actually
+/// contain data — empty days are skipped.
 #[server(endpoint = "fetch_recently_changed")]
-pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError> {
+pub async fn fetch_recently_changed(extra_days: u32) -> Result<Vec<RecentChange>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let cutoff = Utc::now().date_naive()
+    let calendar_cutoff = Utc::now().date_naive()
         .checked_sub_days(chrono::Days::new(2)).unwrap();
-    let mut list: Vec<_> = cache
+    let mut all: Vec<_> = cache
         .iter()
         .filter_map(|(id, task)| {
             let last_change = task.authors().values().max()
                 .map(|t| t.with_timezone(&Utc))
                 .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
-            (last_change.date_naive() >= cutoff).then(|| {
-                let authors = TaskAuthors::from(task.authors());
-                let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
-                let ai_last = authors.iter()
-                    .max_by_key(|(_, ts)| ts)
-                    .is_some_and(|(a, _)| a.starts_with("ai:"));
-                (last_change, RecentChange {
-                    id: id.to_owned(),
-                    info: task.info().to_owned(),
-                    authors,
-                    last_changed: last_change.fixed_offset(),
-                    ai_last,
-                    ai_involved,
-                })
-            })
+            let day = last_change.date_naive();
+            let authors = TaskAuthors::from(task.authors());
+            let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
+            let ai_last = authors.iter()
+                .max_by_key(|(_, ts)| ts)
+                .is_some_and(|(a, _)| a.starts_with("ai:"));
+            Some((last_change, day, RecentChange {
+                id: id.to_owned(),
+                info: task.info().to_owned(),
+                authors,
+                last_changed: last_change.fixed_offset(),
+                ai_last,
+                ai_involved,
+            }))
         })
         .collect();
-    list.sort_by(|(a, _), (b, _)| b.cmp(a));
-    Ok(list.into_iter().map(|(_, rc)| rc).collect())
+    all.sort_by(|(a, _, _), (b, _, _)| b.cmp(a));
+    // Always include the 3 calendar days. Beyond that, collect
+    // up to `extra_days` distinct older days that have data.
+    let mut older_days: IndexSet<chrono::NaiveDate> = IndexSet::new();
+    let result = all.into_iter().filter(|(_, day, _)| {
+        if *day >= calendar_cutoff {
+            true
+        } else if older_days.len() < extra_days as usize {
+            older_days.insert(*day);
+            true
+        } else {
+            older_days.contains(day)
+        }
+    }).map(|(_, _, rc)| rc).collect();
+    Ok(result)
 }
 
 #[cfg(feature = "ssr")]
