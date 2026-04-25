@@ -86,8 +86,6 @@ pub struct RecentChange {
 pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let cli_actor = std::env::var("KID_CLI_USER")
-        .unwrap_or_else(|_| "ai-assistant".to_owned());
     let cutoff = Utc::now() - TimeDelta::hours(24);
     let mut list: Vec<_> = cache
         .iter()
@@ -98,7 +96,7 @@ pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError
                 .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
             (last_change > cutoff).then(|| {
                 let authors: Vec<String> = task.authors().iter().cloned().collect();
-                let ai_involved = authors.iter().any(|a| a == &cli_actor);
+                let ai_involved = authors.iter().any(|a| a.starts_with("ai:"));
                 (last_change, RecentChange {
                     id: id.to_owned(),
                     info: task.info().to_owned(),

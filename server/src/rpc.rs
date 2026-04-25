@@ -25,8 +25,10 @@ impl RpcServer {
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
     ) -> Result<()> {
-        let actor = std::env::var("KID_CLI_USER")
-            .unwrap_or_else(|_| "ai-assistant".to_owned());
+        let actor = format!(
+            "ai:{}",
+            std::env::var("KID_CLI_USER").unwrap_or_else(|_| "assistant".to_owned())
+        );
         tracing::info!(
             "RPC server will listen to: {} (actor: {actor})",
             listener.local_addr().unwrap()
