@@ -9,6 +9,8 @@ cfg_if::cfg_if! {
 
 use indexmap::IndexMap;
 
+use serde::{Serialize, Deserialize};
+
 use kid_types::TaskCategory;
 use kid_types::TaskContext;
 use kid_types::TaskDate;
@@ -71,10 +73,21 @@ pub async fn fetch_quick_wins() -> Result<Vec<(Uuid, task::Infos)>, ServerFnErro
     Ok(list.into_iter().map(|(id, info, _)| (id, info)).collect())
 }
 
+/// Per-task metadata for the Recent Changes view.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RecentChange {
+    pub id: Uuid,
+    pub info: task::Infos,
+    pub authors: Vec<String>,
+    pub ai_involved: bool,
+}
+
 #[server(endpoint = "fetch_recently_changed")]
-pub async fn fetch_recently_changed() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
+    let cli_actor = std::env::var("KID_CLI_USER")
+        .unwrap_or_else(|_| "ai-assistant".to_owned());
     let cutoff = Utc::now() - TimeDelta::hours(24);
     let mut list: Vec<_> = cache
         .iter()
@@ -83,11 +96,20 @@ pub async fn fetch_recently_changed() -> Result<Vec<(Uuid, task::Infos)>, Server
                 .touched()
                 .map(|t| t.with_timezone(&Utc))
                 .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
-            (last_change > cutoff).then(|| (id.to_owned(), task.info().to_owned(), last_change))
+            (last_change > cutoff).then(|| {
+                let authors: Vec<String> = task.authors().iter().cloned().collect();
+                let ai_involved = authors.iter().any(|a| a == &cli_actor);
+                (last_change, RecentChange {
+                    id: id.to_owned(),
+                    info: task.info().to_owned(),
+                    authors,
+                    ai_involved,
+                })
+            })
         })
         .collect();
-    list.sort_by(|(_, _, a), (_, _, b)| b.cmp(a));
-    Ok(list.into_iter().map(|(id, info, _)| (id, info)).collect())
+    list.sort_by(|(a, _), (b, _)| b.cmp(a));
+    Ok(list.into_iter().map(|(_, rc)| rc).collect())
 }
 
 #[cfg(feature = "ssr")]

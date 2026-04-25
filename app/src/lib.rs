@@ -227,6 +227,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     Flat(Vec<(Uuid, task::Infos)>),
+    Authored(Vec<server::RecentChange>),
 }
 
 #[derive(Copy, Clone)]
@@ -266,6 +267,9 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
     match data {
         TaskListData::Flat(tasks) => TaskListData::Flat(
             tasks.into_iter().filter(|(_, info)| matches(info)).collect()
+        ),
+        TaskListData::Authored(tasks) => TaskListData::Authored(
+            tasks.into_iter().filter(|rc| matches(&rc.info)).collect()
         ),
         TaskListData::Grouped(groups) => TaskListData::Grouped(
             groups.into_iter().filter_map(|(cat, tasks)| {
@@ -351,7 +355,7 @@ fn TaskList() -> impl IntoView {
                 View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
                 View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
                 View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::Flat),
-                View::RecentlyChanged => server::fetch_recently_changed().await.map(TaskListData::Flat),
+                View::RecentlyChanged => server::fetch_recently_changed().await.map(TaskListData::Authored),
             }
         },
     );
@@ -529,6 +533,7 @@ fn TaskList() -> impl IntoView {
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
                                             TaskListData::Flat(v) => v.is_empty(),
+                                            TaskListData::Authored(v) => v.is_empty(),
                                         };
                                         if is_empty {
                                             Either::Left(view! {
@@ -590,7 +595,7 @@ fn TaskList() -> impl IntoView {
                                                     })
                                                 }
                                                 TaskListData::Flat(tasks) => {
-                                                    Either::Right(view! {
+                                                    Either::Right(Either::Left(view! {
                                                         <For
                                                             each=move || tasks.clone()
                                                             key=|task| *task.id()
@@ -607,7 +612,33 @@ fn TaskList() -> impl IntoView {
                                                                 }
                                                             }
                                                         />
-                                                    })
+                                                    }))
+                                                }
+                                                TaskListData::Authored(tasks) => {
+                                                    Either::Right(Either::Right(view! {
+                                                        <For
+                                                            each=move || tasks.clone()
+                                                            key=|rc| rc.id
+                                                            children=move |rc| {
+                                                                let ai_involved = rc.ai_involved;
+                                                                let authors = rc.authors;
+                                                                let task = (rc.id, rc.info);
+                                                                view! {
+                                                                    <div class=if ai_involved { "border-l-4 border-sky-500/70" } else { "" }>
+                                                                        <TaskItem task=task
+                                                                            expanded_task_id=expanded_task_id
+                                                                            set_expanded_task_id=set_expanded_task_id
+                                                                            set_completion_version=set_completion_version
+                                                                            strikethrough_when_done=false
+                                                                            checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                            spinner_gradient={view.spinner_gradient()}
+                                                                            authors=authors
+                                                                        />
+                                                                    </div>
+                                                                }
+                                                            }
+                                                        />
+                                                    }))
                                                 }
                                             })
                                         }
@@ -703,6 +734,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     strikethrough_when_done: bool,
     checkbox_checked_classes: &'static str,
     spinner_gradient: &'static str,
+    #[prop(optional)] authors: Vec<String>,
 ) -> impl IntoView {
     let id = *task.id();
     let task_ref = NodeRef::<leptos::html::Div>::new();
@@ -808,7 +840,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary category=category contexts=contexts since=since/>
+                <TaskDetails task=id summary=summary category=category contexts=contexts since=since authors=authors.clone()/>
             </Show>
         </div>
     }
@@ -902,7 +934,7 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, since: DateTime<FixedOffset>, #[prop(optional)] authors: Vec<String>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
@@ -1443,6 +1475,21 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                             }
                         })}
                     </div>
+                })}
+                // Authors (only shown when the task has tracked authors)
+                {(!authors.is_empty()).then(|| {
+                    let label = authors.join(", ");
+                    view! {
+                        <div class="relative">
+                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-violet-700 border-4 border-slate-900 shadow flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                                </svg>
+                            </div>
+                            <div class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-0.5">"Authors"</div>
+                            <div class="text-sm text-slate-200">{label}</div>
+                        </div>
+                    }
                 })}
                 // Since (only if different from created, minute-precise)
                 {show_since.then(|| view! {
