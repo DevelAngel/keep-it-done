@@ -175,7 +175,7 @@ impl View {
             View::MyDay          => "Open tasks · ↓ category · oldest first",
             View::WhatIFinished  => "Completed tasks · ↓ category · recent first",
             View::QuickWins      => "Open tasks with estimate · shortest first",
-            View::RecentlyChanged => "Changed within 24 h · most recent first",
+            View::RecentlyChanged => "Today + 2 days · grouped by day",
         }
     }
 
@@ -184,7 +184,7 @@ impl View {
             View::MyDay => "Nothing left for today.",
             View::WhatIFinished => "Nothing finished yet.",
             View::QuickWins => "No estimated tasks.",
-            View::RecentlyChanged => "No changes in the last 24 hours.",
+            View::RecentlyChanged => "No changes in the last 3 days.",
         }
     }
 
@@ -227,7 +227,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     Flat(Vec<(Uuid, task::Infos)>),
-    Authored(Vec<server::RecentChange>),
+    DayGrouped(Vec<(String, Vec<server::RecentChange>)>),
 }
 
 #[derive(Copy, Clone)]
@@ -259,6 +259,25 @@ impl GroupCollapseState {
     }
 }
 
+fn group_recent_by_day(tasks: Vec<server::RecentChange>) -> Vec<(String, Vec<server::RecentChange>)> {
+    let today = Utc::now().date_naive();
+    let yesterday = today.checked_sub_days(chrono::Days::new(1)).unwrap();
+    let mut groups: IndexMap<NaiveDate, Vec<server::RecentChange>> = IndexMap::new();
+    for rc in tasks {
+        groups.entry(rc.last_changed.date_naive()).or_default().push(rc);
+    }
+    groups.into_iter().map(|(day, tasks)| {
+        let label = if day == today {
+            "Today".to_string()
+        } else if day == yesterday {
+            "Yesterday".to_string()
+        } else {
+            day.format("%A, %d.%m.").to_string()
+        };
+        (label, tasks)
+    }).collect()
+}
+
 fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
     if filters.is_empty() { return data; }
     let matches = |info: &task::Infos| -> bool {
@@ -268,8 +287,11 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
         TaskListData::Flat(tasks) => TaskListData::Flat(
             tasks.into_iter().filter(|(_, info)| matches(info)).collect()
         ),
-        TaskListData::Authored(tasks) => TaskListData::Authored(
-            tasks.into_iter().filter(|rc| matches(&rc.info)).collect()
+        TaskListData::DayGrouped(groups) => TaskListData::DayGrouped(
+            groups.into_iter().filter_map(|(label, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|rc| matches(&rc.info)).collect();
+                if filtered.is_empty() { None } else { Some((label, filtered)) }
+            }).collect()
         ),
         TaskListData::Grouped(groups) => TaskListData::Grouped(
             groups.into_iter().filter_map(|(cat, tasks)| {
@@ -355,7 +377,7 @@ fn TaskList() -> impl IntoView {
                 View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
                 View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
                 View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::Flat),
-                View::RecentlyChanged => server::fetch_recently_changed().await.map(TaskListData::Authored),
+                View::RecentlyChanged => server::fetch_recently_changed().await.map(|v| TaskListData::DayGrouped(group_recent_by_day(v))),
             }
         },
     );
@@ -533,7 +555,7 @@ fn TaskList() -> impl IntoView {
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
                                             TaskListData::Flat(v) => v.is_empty(),
-                                            TaskListData::Authored(v) => v.is_empty(),
+                                            TaskListData::DayGrouped(v) => v.is_empty(),
                                         };
                                         if is_empty {
                                             Either::Left(view! {
@@ -614,29 +636,38 @@ fn TaskList() -> impl IntoView {
                                                         />
                                                     }))
                                                 }
-                                                TaskListData::Authored(tasks) => {
+                                                TaskListData::DayGrouped(groups) => {
                                                     Either::Right(Either::Right(view! {
-                                                        <For
-                                                            each=move || tasks.clone()
-                                                            key=|rc| rc.id
-                                                            children=move |rc| {
-                                                                let ai_last = rc.ai_last;
-                                                                let ai_involved = rc.ai_involved;
-                                                                let task = (rc.id, rc.info);
+                                                        <div>
+                                                            {groups.into_iter().enumerate().map(|(i, (label, tasks))| {
                                                                 view! {
-                                                                    <div class=if ai_last { "border-l-4 border-amber-500" } else if ai_involved { "border-l-4 border-violet-500" } else { "" }>
-                                                                        <TaskItem task=task
-                                                                            expanded_task_id=expanded_task_id
-                                                                            set_expanded_task_id=set_expanded_task_id
-                                                                            set_completion_version=set_completion_version
-                                                                            strikethrough_when_done=false
-                                                                            checkbox_checked_classes={view.checkbox_checked_classes()}
-                                                                            spinner_gradient={view.spinner_gradient()}
-                                                                        />
+                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
+                                                                        <div class="px-6 pt-3 pb-1">
+                                                                            <span class="text-sm font-semibold text-slate-400">
+                                                                                {label}
+                                                                            </span>
+                                                                        </div>
+                                                                        {tasks.into_iter().map(|rc| {
+                                                                            let ai_last = rc.ai_last;
+                                                                            let ai_involved = rc.ai_involved;
+                                                                            let task = (rc.id, rc.info);
+                                                                            view! {
+                                                                                <div class=if ai_last { "border-l-4 border-amber-500" } else if ai_involved { "border-l-4 border-violet-500" } else { "" }>
+                                                                                    <TaskItem task=task
+                                                                                        expanded_task_id=expanded_task_id
+                                                                                        set_expanded_task_id=set_expanded_task_id
+                                                                                        set_completion_version=set_completion_version
+                                                                                        strikethrough_when_done=false
+                                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                        spinner_gradient={view.spinner_gradient()}
+                                                                                    />
+                                                                                </div>
+                                                                            }
+                                                                        }).collect_view()}
                                                                     </div>
                                                                 }
-                                                            }
-                                                        />
+                                                            }).collect_view()}
+                                                        </div>
                                                     }))
                                                 }
                                             })

@@ -1,12 +1,13 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use chrono::{TimeDelta, Utc};
+        use chrono::Utc;
         use kid_types::{TaskDetails, TaskInfos};
         use std::collections::BTreeMap;
         use indexmap::IndexSet;
     }
 }
 
+use chrono::{DateTime, FixedOffset};
 use indexmap::IndexMap;
 
 use serde::{Serialize, Deserialize};
@@ -80,6 +81,7 @@ pub struct RecentChange {
     pub id: Uuid,
     pub info: task::Infos,
     pub authors: TaskAuthors,
+    pub last_changed: DateTime<FixedOffset>,
     pub ai_last: bool,
     pub ai_involved: bool,
 }
@@ -88,14 +90,15 @@ pub struct RecentChange {
 pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let cutoff = Utc::now() - TimeDelta::hours(24);
+    let cutoff = Utc::now().date_naive()
+        .checked_sub_days(chrono::Days::new(2)).unwrap();
     let mut list: Vec<_> = cache
         .iter()
         .filter_map(|(id, task)| {
             let last_change = task.authors().values().max()
                 .map(|t| t.with_timezone(&Utc))
                 .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
-            (last_change > cutoff).then(|| {
+            (last_change.date_naive() >= cutoff).then(|| {
                 let authors = TaskAuthors::from(task.authors());
                 let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
                 let ai_last = authors.iter()
@@ -105,6 +108,7 @@ pub async fn fetch_recently_changed() -> Result<Vec<RecentChange>, ServerFnError
                     id: id.to_owned(),
                     info: task.info().to_owned(),
                     authors,
+                    last_changed: last_change.fixed_offset(),
                     ai_last,
                     ai_involved,
                 })
