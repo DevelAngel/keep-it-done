@@ -227,7 +227,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     Flat(Vec<(Uuid, task::Infos)>),
-    DayGrouped(Vec<(String, Vec<server::RecentChange>)>),
+    DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
 #[derive(Copy, Clone)]
@@ -259,23 +259,23 @@ impl GroupCollapseState {
     }
 }
 
-fn group_recent_by_day(tasks: Vec<server::RecentChange>) -> Vec<(String, Vec<server::RecentChange>)> {
-    let today = Utc::now().date_naive();
-    let yesterday = today.checked_sub_days(chrono::Days::new(1)).unwrap();
+fn group_recent_by_day(tasks: Vec<server::RecentChange>) -> Vec<(NaiveDate, Vec<server::RecentChange>)> {
     let mut groups: IndexMap<NaiveDate, Vec<server::RecentChange>> = IndexMap::new();
     for rc in tasks {
         groups.entry(rc.last_changed.date_naive()).or_default().push(rc);
     }
-    groups.into_iter().map(|(day, tasks)| {
-        let label = if day == today {
-            "Today".to_string()
-        } else if day == yesterday {
-            "Yesterday".to_string()
-        } else {
-            day.format("%A, %d.%m.").to_string()
-        };
-        (label, tasks)
-    }).collect()
+    groups.into_iter().collect()
+}
+
+fn day_label(day: NaiveDate) -> String {
+    let today = Utc::now().date_naive();
+    if day == today {
+        "Today".to_string()
+    } else if day == today.checked_sub_days(chrono::Days::new(1)).unwrap() {
+        "Yesterday".to_string()
+    } else {
+        day.format("%A, %d.%m.").to_string()
+    }
 }
 
 fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
@@ -288,9 +288,9 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
             tasks.into_iter().filter(|(_, info)| matches(info)).collect()
         ),
         TaskListData::DayGrouped(groups) => TaskListData::DayGrouped(
-            groups.into_iter().filter_map(|(label, tasks)| {
+            groups.into_iter().filter_map(|(day, tasks)| {
                 let filtered: Vec<_> = tasks.into_iter().filter(|rc| matches(&rc.info)).collect();
-                if filtered.is_empty() { None } else { Some((label, filtered)) }
+                if filtered.is_empty() { None } else { Some((day, filtered)) }
             }).collect()
         ),
         TaskListData::Grouped(groups) => TaskListData::Grouped(
@@ -639,7 +639,8 @@ fn TaskList() -> impl IntoView {
                                                 TaskListData::DayGrouped(groups) => {
                                                     Either::Right(Either::Right(view! {
                                                         <div>
-                                                            {groups.into_iter().enumerate().map(|(i, (label, tasks))| {
+                                                            {groups.into_iter().enumerate().map(|(i, (day, tasks))| {
+                                                                let label = day_label(day);
                                                                 view! {
                                                                     <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
                                                                         <div class="px-6 pt-3 pb-1">
