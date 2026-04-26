@@ -195,11 +195,11 @@ pub struct Task {
     #[serde(flatten)]
     details: Details,
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[cfg_attr(feature = "cli", schemars(with = "std::collections::HashMap<String, DateTime<FixedOffset>>"))]
-    authors: IndexMap<String, DateTime<FixedOffset>>,
+    #[cfg_attr(feature = "cli", schemars(with = "std::collections::HashMap<String, Vec<DateTime<FixedOffset>>>"))]
+    authors: IndexMap<String, Vec<DateTime<FixedOffset>>>,
 }
 
-/// Snapshot of task authors with their last-active timestamps.
+/// Snapshot of task authors with their edit timestamps.
 ///
 /// Produced from the internal `IndexMap` storage; intended for
 /// transfer across the server-function boundary.
@@ -213,9 +213,15 @@ impl std::ops::Deref for Authors {
     }
 }
 
-impl From<&IndexMap<String, DateTime<FixedOffset>>> for Authors {
-    fn from(map: &IndexMap<String, DateTime<FixedOffset>>) -> Self {
-        Self(map.iter().map(|(name, ts)| (name.clone(), *ts)).collect())
+impl From<&IndexMap<String, Vec<DateTime<FixedOffset>>>> for Authors {
+    fn from(map: &IndexMap<String, Vec<DateTime<FixedOffset>>>) -> Self {
+        let mut entries: Vec<_> = map.iter()
+            .flat_map(|(name, timestamps)| {
+                timestamps.iter().map(move |ts| (name.clone(), *ts))
+            })
+            .collect();
+        entries.sort_by(|(_, a), (_, b)| b.cmp(a));
+        Self(entries)
     }
 }
 
@@ -739,10 +745,10 @@ impl Task {
 
     pub fn add_author(&mut self, actor: impl Into<String>) {
         let now = Utc::now().with_nanosecond(0).unwrap().fixed_offset();
-        self.authors.insert(actor.into(), now);
+        self.authors.entry(actor.into()).or_default().push(now);
     }
 
-    pub fn authors(&self) -> &IndexMap<String, DateTime<FixedOffset>> {
+    pub fn authors(&self) -> &IndexMap<String, Vec<DateTime<FixedOffset>>> {
         &self.authors
     }
 

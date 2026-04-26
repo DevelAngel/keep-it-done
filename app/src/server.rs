@@ -100,7 +100,7 @@ pub async fn fetch_recently_changed(extra_days: u32) -> Result<Vec<RecentChange>
     let mut all: Vec<_> = cache
         .iter()
         .filter_map(|(id, task)| {
-            let last_change = task.authors().values().max()
+            let last_change = task.authors().values().flatten().max()
                 .map(|t| t.with_timezone(&Utc))
                 .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
             let day = last_change.date_naive();
