@@ -40,42 +40,46 @@ async fn main() -> Result<()> {
         }
         Commands::Add {
             server,
+            actor,
             summary,
             category,
             contexts,
             details,
         } => {
-            add(&server, summary, category, contexts, details.as_deref()).await?;
+            add(&server, &actor.build(), summary, category, contexts, details.as_deref()).await?;
         }
         Commands::Rename {
             server,
+            actor,
             id,
             summary,
         } => {
-            rename(&server, &id, summary).await?;
+            rename(&server, &actor.build(), &id, summary).await?;
         }
         Commands::Replace {
             server,
+            actor,
             id,
             details,
         } => {
-            replace(&server, &id, details).await?;
+            replace(&server, &actor.build(), &id, details).await?;
         }
         Commands::Update {
             server,
+            actor,
             id,
             details,
         } => {
-            update(&server, &id, details).await?;
+            update(&server, &actor.build(), &id, details).await?;
         }
-        Commands::Recategorize { server, id, category } => {
-            recategorize(&server, &id, category).await?;
+        Commands::Recategorize { server, actor, id, category } => {
+            recategorize(&server, &actor.build(), &id, category).await?;
         }
-        Commands::AddContexts { server, id, contexts } => {
-            add_contexts(&server, &id, contexts).await?;
+        Commands::AddContexts { server, actor, id, contexts } => {
+            add_contexts(&server, &actor.build(), &id, contexts).await?;
         }
-        Commands::ReplaceContexts { server, id, contexts } => {
-            replace_contexts(&server, &id, contexts).await?;
+        Commands::ReplaceContexts { server, actor, id, contexts } => {
+            replace_contexts(&server, &actor.build(), &id, contexts).await?;
         }
         Commands::Categories { server } => {
             categories(&server).await?;
@@ -83,8 +87,8 @@ async fn main() -> Result<()> {
         Commands::Contexts { server } => {
             contexts(&server).await?;
         }
-        Commands::Complete { server, id, reopen } => {
-            complete(&server, &id, reopen).await?;
+        Commands::Complete { server, actor, id, reopen } => {
+            complete(&server, &actor.build(), &id, reopen).await?;
         }
     }
     Ok(())
@@ -153,7 +157,7 @@ async fn list(server: &ServerArgs, json: bool, pretty: bool) -> Result<()> {
     Ok(())
 }
 
-async fn add(server: &ServerArgs, summary: String, category: String, contexts: Vec<String>, details: Option<&str>) -> Result<()> {
+async fn add(server: &ServerArgs, actor: &str, summary: String, category: String, contexts: Vec<String>, details: Option<&str>) -> Result<()> {
     let summary: TaskSummary = summary.parse().map_err(|e| miette::miette!("{e}"))?;
     let category: TaskCategory = category.parse().map_err(|e| miette::miette!("{e}"))?;
     let contexts: IndexSet<TaskContext> = contexts
@@ -169,36 +173,36 @@ async fn add(server: &ServerArgs, summary: String, category: String, contexts: V
 
     let client = connect(&server.addr).await?;
     client
-        .add(context::current(), task)
+        .add(context::current(), task, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err("failed to add task")?;
     Ok(())
 }
 
-async fn rename(server: &ServerArgs, id: &Uuid, summary: String) -> Result<()> {
+async fn rename(server: &ServerArgs, actor: &str, id: &Uuid, summary: String) -> Result<()> {
     let summary: TaskSummary = summary.parse().map_err(|e| miette::miette!("{e}"))?;
     let client = connect(&server.addr).await?;
     client
-        .rename(context::current(), *id, summary)
+        .rename(context::current(), *id, summary, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to rename the task {id}"))?;
     Ok(())
 }
 
-async fn replace(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
+async fn replace(server: &ServerArgs, actor: &str, id: &Uuid, details: String) -> Result<()> {
     let details: TaskDetails = details.parse()?;
     let client = connect(&server.addr).await?;
     client
-        .replace(context::current(), *id, details.into())
+        .replace(context::current(), *id, details.into(), actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to replace details of the task {id}"))?;
     Ok(())
 }
 
-async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
+async fn update(server: &ServerArgs, actor: &str, id: &Uuid, details: String) -> Result<()> {
     let details: TaskDetailsPatch = details.parse()?;
     tracing::debug!("Update task: {details:#?}");
     let details = details.into();
@@ -208,46 +212,46 @@ async fn update(server: &ServerArgs, id: &Uuid, details: String) -> Result<()> {
     );
     let client = connect(&server.addr).await?;
     client
-        .update(context::current(), *id, details)
+        .update(context::current(), *id, details, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to update details of the task {id}"))?;
     Ok(())
 }
 
-async fn recategorize(server: &ServerArgs, id: &Uuid, category: String) -> Result<()> {
+async fn recategorize(server: &ServerArgs, actor: &str, id: &Uuid, category: String) -> Result<()> {
     let category: TaskCategory = category.parse().map_err(|e| miette::miette!("{e}"))?;
     let client = connect(&server.addr).await?;
     client
-        .recategorize(context::current(), *id, category)
+        .recategorize(context::current(), *id, category, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to recategorize task {id}"))?;
     Ok(())
 }
 
-async fn add_contexts(server: &ServerArgs, id: &Uuid, contexts: Vec<String>) -> Result<()> {
+async fn add_contexts(server: &ServerArgs, actor: &str, id: &Uuid, contexts: Vec<String>) -> Result<()> {
     let contexts: IndexSet<TaskContext> = contexts
         .iter()
         .map(|s| s.parse().map_err(|e| miette::miette!("{e}")))
         .collect::<Result<_>>()?;
     let client = connect(&server.addr).await?;
     client
-        .add_contexts(context::current(), *id, contexts)
+        .add_contexts(context::current(), *id, contexts, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to add contexts to task {id}"))?;
     Ok(())
 }
 
-async fn replace_contexts(server: &ServerArgs, id: &Uuid, contexts: Vec<String>) -> Result<()> {
+async fn replace_contexts(server: &ServerArgs, actor: &str, id: &Uuid, contexts: Vec<String>) -> Result<()> {
     let contexts: IndexSet<TaskContext> = contexts
         .iter()
         .map(|s| s.parse().map_err(|e| miette::miette!("{e}")))
         .collect::<Result<_>>()?;
     let client = connect(&server.addr).await?;
     client
-        .replace_contexts(context::current(), *id, contexts)
+        .replace_contexts(context::current(), *id, contexts, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to change contexts of task {id}"))?;
@@ -280,11 +284,11 @@ async fn categories(server: &ServerArgs) -> Result<()> {
     Ok(())
 }
 
-async fn complete(server: &ServerArgs, id: &Uuid, reopen: bool) -> Result<()> {
+async fn complete(server: &ServerArgs, actor: &str, id: &Uuid, reopen: bool) -> Result<()> {
     tracing::warn!("task({id}): {}", if reopen { "reopened" } else { "closed" });
     let client = connect(&server.addr).await?;
     client
-        .complete(context::current(), *id, reopen)
+        .complete(context::current(), *id, reopen, actor.to_owned())
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to change the status of task {id}"))?;

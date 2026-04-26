@@ -55,7 +55,10 @@ pub enum Commands {
         /// Task details as JSON string (see schema)
         #[clap(short, long)]
         details: Option<String>,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -70,7 +73,10 @@ pub enum Commands {
         /// New summary
         #[clap(short, long)]
         summary: String,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -82,7 +88,10 @@ pub enum Commands {
         /// New task details as JSON string (see schema)
         #[clap(short, long)]
         details: String,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -94,7 +103,10 @@ pub enum Commands {
         /// New task details as JSON string (see schema)
         #[clap(short, long)]
         details: String,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -118,7 +130,10 @@ pub enum Commands {
         /// New category
         #[clap(short, long)]
         category: String,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -130,7 +145,10 @@ pub enum Commands {
         /// Contexts to add (GTD-style, must start with '@', e.g. @home @computer)
         #[clap(short = 'a', long = "context")]
         contexts: Vec<String>,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -142,7 +160,10 @@ pub enum Commands {
         /// Contexts (GTD-style, must start with '@', e.g. @home @computer)
         #[clap(short = 'a', long = "context")]
         contexts: Vec<String>,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -154,7 +175,10 @@ pub enum Commands {
         /// Reopen the task instead of completing it
         #[clap(short, long, default_value_t = false)]
         reopen: bool,
-        /// server options
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -162,11 +186,30 @@ pub enum Commands {
 
 #[derive(Debug, Args)]
 #[clap(next_help_heading = "Server Options")]
-#[clap(after_help = "The Server Options are not relevant for AI assistants.")]
 pub struct ServerArgs {
     /// Sets the server address to connect to.
     #[clap(long = "server", env = "KID_SERVER_ADDR", default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9000))]
+    #[clap(hide_short_help = true)]
     pub addr: SocketAddr,
+}
+
+#[derive(Debug, Args)]
+#[clap(next_help_heading = "Actor Options")]
+pub struct ActorArgs {
+    /// Name of AI assistant who performed this action
+    #[clap(long, env = "KID_CLI_ASSISTANT", default_value = "assistant")]
+    #[clap(hide_short_help = true)]
+    pub assistant: String,
+    /// Human who initiated this action
+    #[clap(short, long, value_name = "HUMAN")]
+    pub on_behalf_of: String,
+}
+
+impl ActorArgs {
+    /// Build the full actor string: `ai:<assistant>:<human>`.
+    pub fn build(&self) -> String {
+        format!("ai:{}:{}", self.assistant, self.on_behalf_of)
+    }
 }
 
 #[cfg(debug_assertions)]
