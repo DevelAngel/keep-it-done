@@ -745,7 +745,14 @@ impl Task {
 
     pub fn add_author(&mut self, actor: impl Into<String>) {
         let now = Utc::now().with_nanosecond(0).unwrap().fixed_offset();
-        self.authors.entry(actor.into()).or_default().push(now);
+        let timestamps = self.authors.entry(actor.into()).or_default();
+
+        // Debounce: if the author's last edit was < 5 min ago,
+        // update it in place instead of appending a duplicate.
+        match timestamps.last_mut() {
+            Some(last) if (now - *last).num_minutes() < 5 => *last = now,
+            _ => timestamps.push(now),
+        }
     }
 
     pub fn authors(&self) -> &IndexMap<String, Vec<DateTime<FixedOffset>>> {
