@@ -39,7 +39,7 @@ derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, features = ["serde"] }
 miette = { workspace = true, features = ["fancy-no-syscall"], optional = true }
 rand = { workspace = true, optional = true }
-schemars = { workspace = true, features = ["std", "derive", "chrono04", "preserve_order"], optional = true }
+schemars = { workspace = true, features = ["std", "derive", "chrono04", "indexmap2", "preserve_order"], optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["indexmap", "preserve_order"], optional = true }
 serde_with.workspace = true

@@ -195,7 +195,7 @@ pub struct Task {
     #[serde(flatten)]
     details: Details,
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[cfg_attr(feature = "cli", schemars(with = "std::collections::HashMap<String, Vec<DateTime<FixedOffset>>>"))]
+    #[cfg_attr(feature = "cli", schemars(with = "IndexMap<String, Vec<DateTime<FixedOffset>>>"))]
     authors: IndexMap<String, Vec<DateTime<FixedOffset>>>,
 }
 
