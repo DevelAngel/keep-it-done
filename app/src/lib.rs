@@ -1552,7 +1552,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                                 <div class="text-xs font-semibold text-violet-400 uppercase tracking-wide mb-0.5">"Authors"</div>
                                                 <div class="space-y-1">
                                                     {authors.iter().map(|(name, ts)| {
-                                                        let display_name = name.clone();
+                                                        // Insert thin spaces (U+2009) around colons for readability
+                                                        let display_name = name.replace(":", "\u{2009}:\u{2009}");
                                                         let display_ts = ts.to_relative_time();
                                                         view! {
                                                             <div class="flex items-baseline gap-2">
