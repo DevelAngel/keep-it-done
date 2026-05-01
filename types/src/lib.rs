@@ -44,6 +44,9 @@ pub trait TaskInfos<'a> {
     fn contexts(&'a self) -> &'a IndexSet<TaskContext>;
     fn set_contexts(&'a mut self, contexts: IndexSet<TaskContext>);
     fn extend_contexts(&'a mut self, contexts: IndexSet<TaskContext>);
+    fn priority(&'a self) -> Option<&'a TaskPriority>;
+    fn set_priority(&'a mut self, priority: TaskPriority);
+    fn clear_priority(&'a mut self);
 
     //provides
     fn is_done(&'a self) -> bool {
@@ -68,9 +71,6 @@ pub trait TaskInfos<'a> {
 }
 
 pub trait TaskDetails<'a> {
-    fn priority(&'a self) -> Option<&'a TaskPriority>;
-    fn set_priority(&'a mut self, priority: TaskPriority);
-    fn clear_priority(&'a mut self);
     fn due_date(&'a self) -> Option<&'a TaskDate>;
     fn set_due_date(&'a mut self, due_date: TaskDate);
     fn clear_due_date(&'a mut self);

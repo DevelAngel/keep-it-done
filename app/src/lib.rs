@@ -841,6 +841,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     let summary = RwSignal::new(task.summary().to_string());
     let category = RwSignal::new(task.category().to_string());
     let contexts: RwSignal<Vec<String>> = RwSignal::new(task.contexts().iter().map(|c| c.to_string()).collect());
+    let priority = RwSignal::new(task.priority().copied());
     let since = *task.since();
 
     let is_expanded = move || expanded_task_id.get() == Some(id);
@@ -907,7 +908,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary category=category contexts=contexts since=since/>
+                <TaskDetails task=id summary=summary category=category contexts=contexts priority=priority since=since/>
             </Show>
         </div>
     }
@@ -1001,7 +1002,7 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, priority: RwSignal<Option<TaskPriority>>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
@@ -1048,10 +1049,10 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
             }
         }
     });
-    let update_priority = Action::new(move |priority: &Option<TaskPriority>| {
-        let priority = priority.clone();
+    let update_priority = Action::new(move |new_priority: &Option<TaskPriority>| {
+        let new_priority = *new_priority;
         async move {
-            if let Err(e) = server::update_task_priority(id, priority).await {
+            if let Err(e) = server::update_task_priority(id, new_priority).await {
                 tracing::error!("update priority failed: {e}");
             }
         }
@@ -1277,12 +1278,80 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                         })}
                     </div>
                 })}
+                // Priority (from Infos — renders immediately, no fetch needed)
+                {
+                    let priority_initially_set = priority.get_untracked().is_some();
+                    move || (priority_initially_set || edit_mode.get()).then(|| {
+                        let marker_class = move || match priority.get() {
+                            Some(TaskPriority::A) => "bg-red-500",
+                            Some(TaskPriority::B) => "bg-amber-500",
+                            Some(TaskPriority::C) | None => "bg-sky-400",
+                        };
+                        let label_class = move || match priority.get() {
+                            Some(TaskPriority::A) => "text-red-400",
+                            Some(TaskPriority::B) => "text-amber-500",
+                            Some(TaskPriority::C) | None => "text-sky-400",
+                        };
+                        view! {
+                            <div class="relative">
+                                <div class=move || format!(
+                                    "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-slate-900 shadow flex items-center justify-center {}",
+                                    marker_class()
+                                )>
+                                    <span class=move || format!(
+                                        "text-xs font-bold {}",
+                                        match priority.get() {
+                                            Some(TaskPriority::A) => "text-white",
+                                            _ => "text-slate-900",
+                                        }
+                                    )>
+                                        {move || priority.get().map(|p| p.to_string()).unwrap_or_default()}
+                                    </span>
+                                </div>
+                                <div class=move || format!(
+                                    "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
+                                    label_class()
+                                )>"Priority"</div>
+                                {move || if edit_mode.get() {
+                                    Either::Left(view! {
+                                        <div class="flex gap-2">
+                                            {TaskPriority::iter().map(|variant| {
+                                                let active_class = match variant {
+                                                    TaskPriority::A => "w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold shadow",
+                                                    TaskPriority::B => "w-8 h-8 rounded-full bg-amber-500 text-slate-900 text-xs font-bold shadow",
+                                                    TaskPriority::C => "w-8 h-8 rounded-full bg-sky-400 text-slate-900 text-xs font-bold shadow",
+                                                };
+                                                view! {
+                                                    <button type="button"
+                                                        class=move || if priority.get() == Some(variant) { active_class } else { "w-8 h-8 rounded-full bg-slate-700 text-slate-400 text-xs font-bold" }
+                                                        on:click=move |_| {
+                                                            let new = if priority.get_untracked() == Some(variant) { None } else { Some(variant) };
+                                                            priority.set(new);
+                                                            update_priority.dispatch(new);
+                                                        }
+                                                    >{variant.to_string()}</button>
+                                                }
+                                            }).collect_view()}
+                                        </div>
+                                    })
+                                } else {
+                                    Either::Right(view! {
+                                        <div class="text-sm text-slate-200">{move || match priority.get() {
+                                            Some(TaskPriority::A) => "Critical",
+                                            Some(TaskPriority::B) => "Important",
+                                            Some(TaskPriority::C) => "Routine",
+                                            None => "",
+                                        }}</div>
+                                    })
+                                }}
+                            </div>
+                        }
+                    })
+                }
                 <Suspense>
                     {move || {
                         Suspend::new(async move {
                             details.await.map(|(task, authors)| {
-                                let priority_value = RwSignal::new(task.priority().cloned());
-                                let priority_initially_set = priority_value.get_untracked().is_some();
                                 let due_date_value = RwSignal::new(task.due_date().cloned());
                                 let due_date_initially_set = due_date_value.get_untracked().is_some();
                                 let start_date_value = RwSignal::new(task.start_date().cloned());
@@ -1292,73 +1361,6 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
                                 view! {
-                                    {move || (priority_initially_set || edit_mode.get()).then(|| {
-                                        let marker_class = move || match priority_value.get() {
-                                            Some(TaskPriority::A) => "bg-red-500",
-                                            Some(TaskPriority::B) => "bg-amber-500",
-                                            Some(TaskPriority::C) | None => "bg-sky-400",
-                                        };
-                                        let label_class = move || match priority_value.get() {
-                                            Some(TaskPriority::A) => "text-red-400",
-                                            Some(TaskPriority::B) => "text-amber-500",
-                                            Some(TaskPriority::C) | None => "text-sky-400",
-                                        };
-                                        view! {
-                                            // Priority badge with color coding
-                                            <div class="relative">
-                                                <div class=move || format!(
-                                                    "absolute -left-8 mt-0.5 w-6 h-6 rounded-full border-4 border-slate-900 shadow flex items-center justify-center {}",
-                                                    marker_class()
-                                                )>
-                                                    <span class=move || format!(
-                                                        "text-xs font-bold {}",
-                                                        match priority_value.get() {
-                                                            Some(TaskPriority::A) => "text-white",
-                                                            _ => "text-slate-900",
-                                                        }
-                                                    )>
-                                                        {move || priority_value.get().map(|p| p.to_string()).unwrap_or_default()}
-                                                    </span>
-                                                </div>
-                                                <div class=move || format!(
-                                                    "text-xs font-semibold uppercase tracking-wide mb-0.5 {}",
-                                                    label_class()
-                                                )>"Priority"</div>
-                                                {move || if edit_mode.get() {
-                                                    Either::Left(view! {
-                                                        <div class="flex gap-2">
-                                                            {TaskPriority::iter().map(|variant| {
-                                                                let active_class = match variant {
-                                                                    TaskPriority::A => "w-8 h-8 rounded-full bg-red-500 text-white text-xs font-bold shadow",
-                                                                    TaskPriority::B => "w-8 h-8 rounded-full bg-amber-500 text-slate-900 text-xs font-bold shadow",
-                                                                    TaskPriority::C => "w-8 h-8 rounded-full bg-sky-400 text-slate-900 text-xs font-bold shadow",
-                                                                };
-                                                                view! {
-                                                                    <button type="button"
-                                                                        class=move || if priority_value.get() == Some(variant) { active_class } else { "w-8 h-8 rounded-full bg-slate-700 text-slate-400 text-xs font-bold" }
-                                                                        on:click=move |_| {
-                                                                            let new = if priority_value.get_untracked() == Some(variant) { None } else { Some(variant) };
-                                                                            priority_value.set(new.clone());
-                                                                            update_priority.dispatch(new);
-                                                                        }
-                                                                    >{variant.to_string()}</button>
-                                                                }
-                                                            }).collect_view()}
-                                                        </div>
-                                                    })
-                                                } else {
-                                                    Either::Right(view! {
-                                                        <div class="text-sm text-slate-200">{move || match priority_value.get() {
-                                                            Some(TaskPriority::A) => "Critical",
-                                                            Some(TaskPriority::B) => "Important",
-                                                            Some(TaskPriority::C) => "Routine",
-                                                            None => "",
-                                                        }}</div>
-                                                    })
-                                                }}
-                                            </div>
-                                        }
-                                    })}
                                     {move || (due_date_initially_set || edit_mode.get()).then(|| view! {
                                         <div class="relative">
                                             <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-teal-700 border-4 border-slate-900 shadow flex items-center justify-center">

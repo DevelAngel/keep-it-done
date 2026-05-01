@@ -235,6 +235,8 @@ pub struct Infos {
     #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
     #[cfg_attr(feature = "cli", schemars(with = "Vec<Context>"))]
     contexts: IndexSet<Context>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    priority: Option<Priority>,
 }
 
 #[skip_serializing_none]
@@ -244,7 +246,6 @@ pub struct Infos {
 #[cfg_attr(feature = "ssr", derive(Patchable))]
 #[cfg_attr(feature = "ssr", patch_type(DetailsPatch))]
 pub struct Details {
-    priority: Option<Priority>,
     #[serde(default, deserialize_with = "deserialize_due_date")]
     due_date: Option<Date>,
     #[serde(default, deserialize_with = "deserialize_due_date")]
@@ -483,6 +484,15 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
     fn extend_contexts(&'a mut self, contexts: IndexSet<Context>) {
         self.1.extend_contexts(contexts);
     }
+    fn priority(&'a self) -> Option<&'a Priority> {
+        self.1.priority()
+    }
+    fn set_priority(&'a mut self, priority: Priority) {
+        self.1.set_priority(priority);
+    }
+    fn clear_priority(&'a mut self) {
+        self.1.clear_priority();
+    }
 }
 
 impl<'a> TaskInfos<'a> for Task {
@@ -512,6 +522,15 @@ impl<'a> TaskInfos<'a> for Task {
     }
     fn extend_contexts(&'a mut self, contexts: IndexSet<Context>) {
         self.info.extend_contexts(contexts);
+    }
+    fn priority(&'a self) -> Option<&'a Priority> {
+        self.info.priority()
+    }
+    fn set_priority(&'a mut self, priority: Priority) {
+        self.info.set_priority(priority);
+    }
+    fn clear_priority(&'a mut self) {
+        self.info.clear_priority();
     }
 }
 
@@ -543,18 +562,18 @@ impl<'a> TaskInfos<'a> for Infos {
     fn extend_contexts(&'a mut self, contexts: IndexSet<Context>) {
         self.contexts.extend(contexts);
     }
+    fn priority(&'a self) -> Option<&'a Priority> {
+        self.priority.as_ref()
+    }
+    fn set_priority(&'a mut self, priority: Priority) {
+        self.priority = Some(priority);
+    }
+    fn clear_priority(&'a mut self) {
+        self.priority = None;
+    }
 }
 
 impl<'a> TaskDetails<'a> for (Uuid, Details) {
-    fn priority(&'a self) -> Option<&'a Priority> {
-        self.1.priority()
-    }
-    fn set_priority(&'a mut self, priority: Priority) {
-        self.1.set_priority(priority);
-    }
-    fn clear_priority(&'a mut self) {
-        self.1.clear_priority();
-    }
     fn due_date(&'a self) -> Option<&'a Date> {
         self.1.due_date()
     }
@@ -594,15 +613,6 @@ impl<'a> TaskDetails<'a> for (Uuid, Details) {
 }
 
 impl<'a> TaskDetails<'a> for Task {
-    fn priority(&'a self) -> Option<&'a Priority> {
-        self.details.priority()
-    }
-    fn set_priority(&'a mut self, priority: Priority) {
-        self.details.set_priority(priority);
-    }
-    fn clear_priority(&'a mut self) {
-        self.details.clear_priority();
-    }
     fn due_date(&'a self) -> Option<&'a Date> {
         self.details.due_date()
     }
@@ -642,15 +652,6 @@ impl<'a> TaskDetails<'a> for Task {
 }
 
 impl<'a> TaskDetails<'a> for Details {
-    fn priority(&'a self) -> Option<&'a Priority> {
-        self.priority.as_ref()
-    }
-    fn set_priority(&'a mut self, priority: Priority) {
-        self.priority = Some(priority)
-    }
-    fn clear_priority(&'a mut self) {
-        self.priority = None;
-    }
     fn due_date(&'a self) -> Option<&'a Date> {
         self.due_date.as_ref()
     }
@@ -784,6 +785,7 @@ impl Infos {
             status: Status::default(),
             category: Category::default(),
             contexts: IndexSet::new(),
+            priority: None,
         }
     }
 }
