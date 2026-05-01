@@ -234,7 +234,35 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     EstimateGrouped(Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>),
+    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, usize),
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum DeadlineGroup {
+    Overdue,
+    Today,
+    ThisWeek,
+    NextWeek,
+    Later,
+    ReadyToStart,
+}
+
+impl DeadlineGroup {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Overdue => "Overdue",
+            Self::Today => "Today",
+            Self::ThisWeek => "This Week",
+            Self::NextWeek => "Next Week",
+            Self::Later => "Later",
+            Self::ReadyToStart => "Ready to Start",
+        }
+    }
+
+    fn is_overdue(self) -> bool {
+        matches!(self, Self::Overdue)
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -296,6 +324,14 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
                 let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
                 if filtered.is_empty() { None } else { Some((est, filtered)) }
             }).collect()
+        ),
+        // Backlog count is unaffected by context filters (UXDR).
+        TaskListData::DeadlineGrouped(groups, backlog) => TaskListData::DeadlineGrouped(
+            groups.into_iter().filter_map(|(dg, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
+                if filtered.is_empty() { None } else { Some((dg, filtered)) }
+            }).collect(),
+            backlog,
         ),
         TaskListData::DayGrouped(groups) => TaskListData::DayGrouped(
             groups.into_iter().filter_map(|(day, tasks)| {
