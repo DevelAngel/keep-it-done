@@ -37,8 +37,13 @@ penalising the readability of everything else.
 
 Implementation: a 3 px left border on the task row, using
 the current view's gradient accent color (cyan for My Day,
-emerald for What I Finished, amber for Quick Wins, sky for
-Recent Changes).
+emerald for What I Finished, amber for Quick Wins).
+
+Exception: Recent Changes suppresses the priority-A border
+because the left border is already used for AI-involvement
+indicators (amber = AI last, violet = AI involved). Two
+meanings on the same visual channel would violate the
+one-signal principle.
 
 B and C tasks have no visual distinction from each other in
 the list. Priority details remain visible in the expanded

@@ -217,7 +217,7 @@ impl View {
             View::MyDay => "border-l-[3px] border-l-cyan-500",
             View::WhatIFinished => "border-l-[3px] border-l-emerald-500",
             View::QuickWins => "border-l-[3px] border-l-amber-500",
-            View::RecentlyChanged => "border-l-[3px] border-l-sky-500",
+            View::RecentlyChanged => "",  // left border reserved for AI-involvement
         }
     }
 }
