@@ -1,14 +1,15 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use chrono::Utc;
+        use chrono::{Datelike, Days, Utc};
         use kid_types::{TaskDetails, TaskInfos};
         use std::collections::BTreeMap;
         use indexmap::IndexSet;
     }
 }
 
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use indexmap::IndexMap;
+use super::DeadlineGroup;
 
 use serde::{Serialize, Deserialize};
 
@@ -36,8 +37,8 @@ use leptos::prelude::*;
 * ```
 */
 
-#[server(endpoint = "fetch_my_day")]
-pub async fn fetch_my_day() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
+#[server(endpoint = "fetch_all_open")]
+pub async fn fetch_all_open() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let mut list: Vec<_> = cache
@@ -80,6 +81,94 @@ pub async fn fetch_quick_wins() -> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task
         groups.last_mut().unwrap().1.push((id, info));
     }
     Ok(groups)
+}
+
+/// Fetch open tasks that carry a date, grouped by temporal urgency.
+///
+/// Returns `(groups, backlog_count)` where backlog_count is the number
+/// of open tasks without any date — unaffected by context filters.
+#[server(endpoint = "fetch_upcoming")]
+pub async fn fetch_upcoming(
+    today: NaiveDate,
+) -> Result<(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, usize), ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+
+    // ISO 8601 week boundaries (Monday = start of week).
+    let days_until_sunday = 6 - today.weekday().num_days_from_monday();
+    let this_sunday = today + Days::new(days_until_sunday as u64);
+    let next_sunday = this_sunday + Days::new(7);
+
+    let mut backlog_count: usize = 0;
+    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate)> = Vec::new();
+
+    for (id, task) in cache.iter() {
+        if task.info().is_done() {
+            continue;
+        }
+        let due = task.due_date().map(|d| d.date.date_naive());
+        let start = task.start_date().map(|d| d.date.date_naive());
+
+        // Inclusion: open AND (has due_date OR start_date <= today).
+        // Everything else is backlog.
+        if due.is_none() && start.map_or(true, |s| s > today) {
+            backlog_count += 1;
+            continue;
+        }
+
+        // Group by effective date: due_date if present, else start_date.
+        let (group, sort_date) = if let Some(due_date) = due {
+            let group = if due_date < today {
+                DeadlineGroup::Overdue
+            } else if due_date == today {
+                DeadlineGroup::Today
+            } else if due_date <= this_sunday {
+                DeadlineGroup::ThisWeek
+            } else if due_date <= next_sunday {
+                DeadlineGroup::NextWeek
+            } else {
+                DeadlineGroup::Later
+            };
+            (group, due_date)
+        } else {
+            // start_date <= today, no due_date → Ready to Start
+            (DeadlineGroup::ReadyToStart, start.unwrap())
+        };
+
+        items.push((id.to_owned(), task.info().to_owned(), group, sort_date));
+    }
+
+    // Sort: group order, then within-group rules per UXDR.
+    items.sort_by(|a, b| {
+        (a.2 as u8).cmp(&(b.2 as u8)).then_with(|| {
+            let pri = |info: &task::Infos| -> u8 {
+                info.priority().map(|p| *p as u8).unwrap_or(u8::MAX)
+            };
+            match a.2 {
+                // Today: priority descending (A before B before C), then UUID.
+                DeadlineGroup::Today => {
+                    pri(&a.1).cmp(&pri(&b.1)).then_with(|| a.0.cmp(&b.0))
+                }
+                // All others: date ascending, then priority, then UUID.
+                _ => {
+                    a.3.cmp(&b.3)
+                        .then_with(|| pri(&a.1).cmp(&pri(&b.1)))
+                        .then_with(|| a.0.cmp(&b.0))
+                }
+            }
+        })
+    });
+
+    // Chunk into contiguous groups (items are already in group order).
+    let mut groups: Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)> = Vec::new();
+    for (id, info, group, _) in items {
+        if groups.last().map_or(true, |(key, _)| *key != group) {
+            groups.push((group, Vec::new()));
+        }
+        groups.last_mut().unwrap().1.push((id, info));
+    }
+
+    Ok((groups, backlog_count))
 }
 
 /// Per-task metadata for the Recent Changes view.
