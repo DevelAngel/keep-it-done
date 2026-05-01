@@ -167,6 +167,21 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+    /// Set or clear the priority of a task
+    SetPriority {
+        /// Task ID
+        #[clap(short, long)]
+        id: Uuid,
+        /// Priority (A, B, C) — omit to clear
+        #[clap(short, long)]
+        priority: Option<String>,
+        /// Actor options
+        #[clap(flatten)]
+        actor: ActorArgs,
+        /// Server options
+        #[clap(flatten)]
+        server: ServerArgs,
+    },
     /// Complete task (or reopen it)
     Complete {
         /// Task ID

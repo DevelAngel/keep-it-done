@@ -3,7 +3,7 @@ use crate::SharedTaskCache;
 pub use kid_types::rpc::TaskService;
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskSummary, Uuid};
+use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
 use indexmap::IndexSet;
 use std::collections::BTreeSet;
 
@@ -126,6 +126,16 @@ impl TaskService for RpcService {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id, &actor) {
             task.extend_contexts(contexts);
+        }
+    }
+
+    async fn set_priority(self, _: Context, id: Uuid, priority: Option<TaskPriority>, actor: String) {
+        let mut task_cache = self.task_cache.write().await;
+        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+            match priority {
+                Some(p) => task.set_priority(p),
+                None => task.clear_priority(),
+            }
         }
     }
 

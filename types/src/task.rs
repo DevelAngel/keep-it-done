@@ -331,6 +331,19 @@ pub enum Priority {
     C,
 }
 
+impl FromStr for Priority {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_uppercase().as_str() {
+            "A" => Ok(Self::A),
+            "B" => Ok(Self::B),
+            "C" => Ok(Self::C),
+            _ => Err("priority must be A, B, or C"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub struct Date {

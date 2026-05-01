@@ -1,6 +1,6 @@
 use crate::task::Details as TaskDetails;
 use crate::task::DetailsPatch as TaskDetailsPatch;
-use crate::{Task, TaskCategory, TaskContext, TaskSummary, Uuid};
+use crate::{Task, TaskCategory, TaskContext, TaskPriority, TaskSummary, Uuid};
 use indexmap::IndexSet;
 
 use tarpc::service;
@@ -18,4 +18,5 @@ pub trait TaskService {
     async fn recategorize(id: Uuid, category: TaskCategory, actor: String);
     async fn replace_contexts(id: Uuid, contexts: IndexSet<TaskContext>, actor: String);
     async fn add_contexts(id: Uuid, contexts: IndexSet<TaskContext>, actor: String);
+    async fn set_priority(id: Uuid, priority: Option<TaskPriority>, actor: String);
 }

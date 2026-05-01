@@ -5,7 +5,7 @@ use crate::cli::{Cli, Commands, Parser, ServerArgs};
 use crate::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
 use kid_types::rpc::TaskServiceClient;
-use kid_types::{Task, TaskCategory, TaskContext, TaskSummary, Uuid};
+use kid_types::{Task, TaskCategory, TaskContext, TaskPriority, TaskSummary, Uuid};
 use indexmap::IndexSet;
 
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -86,6 +86,9 @@ async fn main() -> Result<()> {
         }
         Commands::Contexts { server } => {
             contexts(&server).await?;
+        }
+        Commands::SetPriority { server, actor, id, priority } => {
+            set_priority(&server, &actor.build(), &id, priority.as_deref()).await?;
         }
         Commands::Complete { server, actor, id, reopen } => {
             complete(&server, &actor.build(), &id, reopen).await?;
@@ -281,6 +284,19 @@ async fn categories(server: &ServerArgs) -> Result<()> {
     for cat in cats {
         println!("{cat}");
     }
+    Ok(())
+}
+
+async fn set_priority(server: &ServerArgs, actor: &str, id: &Uuid, priority: Option<&str>) -> Result<()> {
+    let priority: Option<TaskPriority> = priority
+        .map(|s| s.parse().map_err(|e| miette::miette!("{e}")))
+        .transpose()?;
+    let client = connect(&server.addr).await?;
+    client
+        .set_priority(context::current(), *id, priority, actor.to_owned())
+        .await
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to set priority of task {id}"))?;
     Ok(())
 }
 
