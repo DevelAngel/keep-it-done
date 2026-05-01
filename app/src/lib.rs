@@ -174,7 +174,7 @@ impl View {
         match self {
             View::MyDay          => "Open tasks · ↓ category · oldest first",
             View::WhatIFinished  => "Completed tasks · ↓ category · recent first",
-            View::QuickWins      => "Open tasks with estimate · shortest first",
+            View::QuickWins      => "Open tasks with estimate · grouped by duration",
             View::RecentlyChanged => "Today + 2 days · grouped by day",
         }
     }
@@ -233,7 +233,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 #[derive(Clone, Serialize, Deserialize)]
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
-    Flat(Vec<(Uuid, task::Infos)>),
+    EstimateGrouped(Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>),
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
@@ -291,8 +291,11 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
         filters.iter().all(|f| info.contexts().iter().any(|c| c.to_string() == *f))
     };
     match data {
-        TaskListData::Flat(tasks) => TaskListData::Flat(
-            tasks.into_iter().filter(|(_, info)| matches(info)).collect()
+        TaskListData::EstimateGrouped(groups) => TaskListData::EstimateGrouped(
+            groups.into_iter().filter_map(|(est, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
+                if filtered.is_empty() { None } else { Some((est, filtered)) }
+            }).collect()
         ),
         TaskListData::DayGrouped(groups) => TaskListData::DayGrouped(
             groups.into_iter().filter_map(|(day, tasks)| {
@@ -398,7 +401,7 @@ fn TaskList() -> impl IntoView {
             match current_view.get_untracked() {
                 View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
                 View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
-                View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::Flat),
+                View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::EstimateGrouped),
                 View::RecentlyChanged => {
                     server::fetch_recently_changed(extra_days.get_untracked()).await.map(|v| TaskListData::DayGrouped(group_recent_by_day(v)))
                 },
@@ -578,7 +581,7 @@ fn TaskList() -> impl IntoView {
                                         let data = apply_filter(data, &filters);
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
-                                            TaskListData::Flat(v) => v.is_empty(),
+                                            TaskListData::EstimateGrouped(v) => v.is_empty(),
                                             TaskListData::DayGrouped(v) => v.iter().all(|(_, t)| t.is_empty()),
                                         };
                                         if is_empty {
@@ -656,25 +659,35 @@ fn TaskList() -> impl IntoView {
                                                         </div>
                                                     })
                                                 }
-                                                TaskListData::Flat(tasks) => {
+                                                TaskListData::EstimateGrouped(groups) => {
                                                     Either::Right(Either::Left(view! {
-                                                        <For
-                                                            each=move || tasks.clone()
-                                                            key=|task| *task.id()
-                                                            children=move |task| {
+                                                        <div>
+                                                            {groups.into_iter().enumerate().map(|(i, (est, tasks))| {
+                                                                let label = est.to_string();
                                                                 view! {
-                                                                    <TaskItem task=task
-                                                                        expanded_task_id=expanded_task_id
-                                                                        set_expanded_task_id=set_expanded_task_id
-                                                                        set_completion_version=set_completion_version
-                                                                        strikethrough_when_done=false
-                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
-                                                                        spinner_gradient={view.spinner_gradient()}
-                                                                        priority_a_border={view.priority_a_border()}
-                                                                    />
+                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
+                                                                        <div class="px-6 pt-3 pb-1">
+                                                                            <span class="text-sm font-semibold text-slate-400">
+                                                                                {label}
+                                                                            </span>
+                                                                        </div>
+                                                                        {tasks.into_iter().map(|task| {
+                                                                            view! {
+                                                                                <TaskItem task=task
+                                                                                    expanded_task_id=expanded_task_id
+                                                                                    set_expanded_task_id=set_expanded_task_id
+                                                                                    set_completion_version=set_completion_version
+                                                                                    strikethrough_when_done=false
+                                                                                    checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                    spinner_gradient={view.spinner_gradient()}
+                                                                                    priority_a_border={view.priority_a_border()}
+                                                                                />
+                                                                            }
+                                                                        }).collect_view()}
+                                                                    </div>
                                                                 }
-                                                            }
-                                                        />
+                                                            }).collect_view()}
+                                                        </div>
                                                     }))
                                                 }
                                                 TaskListData::DayGrouped(groups) => {

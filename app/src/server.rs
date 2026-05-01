@@ -63,16 +63,23 @@ pub async fn fetch_what_i_finished() -> Result<IndexMap<TaskCategory, Vec<(Uuid,
 }
 
 #[server(endpoint = "fetch_quick_wins")]
-pub async fn fetch_quick_wins() -> Result<Vec<(Uuid, task::Infos)>, ServerFnError> {
+pub async fn fetch_quick_wins() -> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let mut list: Vec<_> = cache
         .iter()
         .filter(|(_, task)| !task.info().is_done() && task.time_estimate().is_some())
-        .map(|(id, task)| (id.to_owned(), task.info().to_owned(), task.time_estimate().cloned()))
+        .map(|(id, task)| (id.to_owned(), task.info().to_owned(), task.time_estimate().cloned().unwrap()))
         .collect();
     list.sort_by_key(|(_, _, te)| *te);
-    Ok(list.into_iter().map(|(id, info, _)| (id, info)).collect())
+    let mut groups: Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)> = Vec::new();
+    for (id, info, te) in list {
+        if groups.last().map_or(true, |(key, _)| *key != te) {
+            groups.push((te, Vec::new()));
+        }
+        groups.last_mut().unwrap().1.push((id, info));
+    }
+    Ok(groups)
 }
 
 /// Per-task metadata for the Recent Changes view.
