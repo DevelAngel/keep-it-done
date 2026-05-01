@@ -212,7 +212,14 @@ impl View {
         }
     }
 
-
+    fn priority_a_border(self) -> &'static str {
+        match self {
+            View::MyDay => "border-l-[3px] border-l-cyan-500",
+            View::WhatIFinished => "border-l-[3px] border-l-emerald-500",
+            View::QuickWins => "border-l-[3px] border-l-amber-500",
+            View::RecentlyChanged => "border-l-[3px] border-l-sky-500",
+        }
+    }
 }
 
 fn arrow_opacity_class(switch_count: u32) -> &'static str {
@@ -628,6 +635,7 @@ fn TaskList() -> impl IntoView {
                                                                                                 strikethrough_when_done={view == View::MyDay}
                                                                                                 checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                                 spinner_gradient={view.spinner_gradient()}
+                                                                                                priority_a_border={view.priority_a_border()}
                                                                                             />
                                                                                         }
                                                                                     }
@@ -654,6 +662,7 @@ fn TaskList() -> impl IntoView {
                                                                         strikethrough_when_done=false
                                                                         checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                         spinner_gradient={view.spinner_gradient()}
+                                                                        priority_a_border={view.priority_a_border()}
                                                                     />
                                                                 }
                                                             }
@@ -690,6 +699,7 @@ fn TaskList() -> impl IntoView {
                                                                                             strikethrough_when_done=false
                                                                                             checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                             spinner_gradient={view.spinner_gradient()}
+                                                                                            priority_a_border={view.priority_a_border()}
                                                                                         />
                                                                                     </div>
                                                                                 }
@@ -802,6 +812,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     strikethrough_when_done: bool,
     checkbox_checked_classes: &'static str,
     spinner_gradient: &'static str,
+    priority_a_border: &'static str,
 ) -> impl IntoView {
     let id = *task.id();
     let task_ref = NodeRef::<leptos::html::Div>::new();
@@ -864,7 +875,13 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     view! {
         <div
             node_ref=task_ref
-            class="transition-colors"
+            class=move || {
+                let accent = match priority.get() {
+                    Some(TaskPriority::A) => priority_a_border,
+                    _ => "",
+                };
+                format!("transition-colors {accent}")
+            }
             class:bg-slate-800=is_expanded
         >
             <div
