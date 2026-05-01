@@ -254,7 +254,7 @@ enum TaskListData {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum DeadlineGroup {
+pub enum DeadlineGroup {
     Overdue,
     Today,
     ThisWeek,
@@ -634,16 +634,25 @@ fn TaskList() -> impl IntoView {
                                 Suspend::new(async move {
                                     task_list.await.map(|data| {
                                         let data = apply_filter(data, &filters);
+                                        let backlog_count = match &data {
+                                            TaskListData::DeadlineGrouped(_, count) => *count,
+                                            _ => 0,
+                                        };
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
                                             TaskListData::EstimateGrouped(v) => v.is_empty(),
+                                            TaskListData::DeadlineGrouped(v, _) => v.is_empty(),
                                             TaskListData::DayGrouped(v) => v.iter().all(|(_, t)| t.is_empty()),
                                         };
                                         if is_empty {
                                             Either::Left(view! {
                                                 <div>
                                                     <p class="px-6 py-6 text-center text-slate-400">
-                                                        {view.empty_message()}
+                                                        {if view == View::Upcoming && backlog_count > 0 {
+                                                            format!("{} {} tasks in backlog.", view.empty_message(), backlog_count)
+                                                        } else {
+                                                            view.empty_message().to_string()
+                                                        }}
                                                     </p>
                                                     {if view == View::RecentlyChanged {
                                                         Either::Left(view! {
@@ -745,8 +754,49 @@ fn TaskList() -> impl IntoView {
                                                         </div>
                                                     }))
                                                 }
+                                                TaskListData::DeadlineGrouped(groups, backlog) => {
+                                                    Either::Right(Either::Right(Either::Left(view! {
+                                                        <div>
+                                                            {groups.into_iter().enumerate().map(|(i, (dg, tasks))| {
+                                                                let label = dg.label();
+                                                                let header_class = if dg.is_overdue() {
+                                                                    "text-sm font-semibold text-rose-400"
+                                                                } else {
+                                                                    "text-sm font-semibold text-slate-400"
+                                                                };
+                                                                view! {
+                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
+                                                                        <div class="px-6 pt-3 pb-1">
+                                                                            <span class=header_class>
+                                                                                {label}
+                                                                            </span>
+                                                                        </div>
+                                                                        {tasks.into_iter().map(|task| {
+                                                                            view! {
+                                                                                <TaskItem task=task
+                                                                                    expanded_task_id=expanded_task_id
+                                                                                    set_expanded_task_id=set_expanded_task_id
+                                                                                    set_completion_version=set_completion_version
+                                                                                    strikethrough_when_done=false
+                                                                                    checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                    spinner_gradient={view.spinner_gradient()}
+                                                                                    priority_a_border={view.priority_a_border()}
+                                                                                />
+                                                                            }
+                                                                        }).collect_view()}
+                                                                    </div>
+                                                                }
+                                                            }).collect_view()}
+                                                            {(backlog > 0).then(|| view! {
+                                                                <p class="text-xs text-slate-500 text-center py-3 border-t border-slate-700">
+                                                                    {format!("── {} tasks without deadline in backlog ──", backlog)}
+                                                                </p>
+                                                            })}
+                                                        </div>
+                                                    })))
+                                                }
                                                 TaskListData::DayGrouped(groups) => {
-                                                    Either::Right(Either::Right(view! {
+                                                    Either::Right(Either::Right(Either::Right(view! {
                                                         <div>
                                                             {groups.into_iter().enumerate().map(|(i, (day, tasks))| {
                                                                 let label = day_label(day);
@@ -786,7 +836,7 @@ fn TaskList() -> impl IntoView {
                                                                 "▾ 2 more days"
                                                             </button>
                                                         </div>
-                                                    }))
+                                                    })))
                                                 }
                                             })
                                         }
