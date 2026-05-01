@@ -128,7 +128,8 @@ impl Deref for ScrollToTaskId {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, EnumCount, FromRepr)]
 enum View {
-    MyDay,
+    Upcoming,
+    AllOpen,
     WhatIFinished,
     QuickWins,
     RecentlyChanged,
@@ -137,27 +138,32 @@ enum View {
 impl View {
     fn title(self) -> &'static str {
         match self {
-            View::MyDay => "My Day",
-            View::WhatIFinished => "What I Finished",
-            View::QuickWins => "Quick Wins",
+            View::Upcoming        => "Upcoming",
+            View::AllOpen         => "All Open",
+            View::WhatIFinished   => "What I Finished",
+            View::QuickWins       => "Quick Wins",
             View::RecentlyChanged => "Recent Changes",
         }
     }
 
+    /// Mono-hue gradients — one color family per view for instant
+    /// ADHD-friendly recognition ("the pink one", "the blue one", …).
     fn header_gradient(self) -> &'static str {
         match self {
-            View::MyDay => "from-cyan-600 to-teal-700",
-            View::WhatIFinished => "from-teal-600 to-emerald-700",
-            View::QuickWins => "from-amber-500 to-amber-700",
+            View::Upcoming        => "from-rose-500 to-rose-700",
+            View::AllOpen         => "from-cyan-500 to-cyan-700",
+            View::WhatIFinished   => "from-emerald-500 to-emerald-700",
+            View::QuickWins       => "from-amber-500 to-amber-700",
             View::RecentlyChanged => "from-sky-500 to-sky-700",
         }
     }
 
     fn dot_active_color(self) -> &'static str {
         match self {
-            View::MyDay => "bg-cyan-200",
-            View::WhatIFinished => "bg-emerald-200",
-            View::QuickWins => "bg-amber-200",
+            View::Upcoming        => "bg-rose-200",
+            View::AllOpen         => "bg-cyan-200",
+            View::WhatIFinished   => "bg-emerald-200",
+            View::QuickWins       => "bg-amber-200",
             View::RecentlyChanged => "bg-sky-200",
         }
     }
@@ -172,27 +178,34 @@ impl View {
 
     fn subtitle(self) -> &'static str {
         match self {
-            View::MyDay          => "Open tasks · ↓ category · oldest first",
-            View::WhatIFinished  => "Completed tasks · ↓ category · recent first",
-            View::QuickWins      => "Open tasks with estimate · grouped by duration",
+            View::Upcoming        => "Open tasks with dates · grouped by urgency",
+            View::AllOpen         => "Open tasks · ↓ category · oldest first",
+            View::WhatIFinished   => "Completed tasks · ↓ category · recent first",
+            View::QuickWins       => "Open tasks with estimate · grouped by duration",
             View::RecentlyChanged => "Today + 2 days · grouped by day",
         }
     }
 
     fn empty_message(self) -> &'static str {
         match self {
-            View::MyDay => "Nothing left for today.",
-            View::WhatIFinished => "Nothing finished yet.",
-            View::QuickWins => "No estimated tasks.",
+            View::Upcoming        => "Nothing on the horizon.",
+            View::AllOpen         => "No open tasks.",
+            View::WhatIFinished   => "Nothing finished yet.",
+            View::QuickWins       => "No estimated tasks.",
             View::RecentlyChanged => "No recent changes.",
         }
     }
 
     fn checkbox_checked_classes(self) -> &'static str {
         match self {
-            View::MyDay => "checked:from-cyan-500 checked:to-teal-600 checked:border-cyan-500",
+            View::Upcoming => {
+                "checked:from-rose-400 checked:to-rose-600 checked:border-rose-400"
+            }
+            View::AllOpen => {
+                "checked:from-cyan-400 checked:to-cyan-600 checked:border-cyan-400"
+            }
             View::WhatIFinished => {
-                "checked:from-teal-500 checked:to-emerald-600 checked:border-teal-500"
+                "checked:from-emerald-400 checked:to-emerald-600 checked:border-emerald-400"
             }
             View::QuickWins => {
                 "checked:from-amber-400 checked:to-amber-600 checked:border-amber-400"
@@ -205,18 +218,20 @@ impl View {
 
     fn spinner_gradient(self) -> &'static str {
         match self {
-            View::MyDay => "from-cyan-500 to-teal-600",
-            View::WhatIFinished => "from-teal-500 to-emerald-600",
-            View::QuickWins => "from-amber-400 to-amber-600",
+            View::Upcoming        => "from-rose-400 to-rose-600",
+            View::AllOpen         => "from-cyan-400 to-cyan-600",
+            View::WhatIFinished   => "from-emerald-400 to-emerald-600",
+            View::QuickWins       => "from-amber-400 to-amber-600",
             View::RecentlyChanged => "from-sky-400 to-sky-600",
         }
     }
 
     fn priority_a_border(self) -> &'static str {
         match self {
-            View::MyDay => "border-l-[3px] border-l-cyan-500",
-            View::WhatIFinished => "border-l-[3px] border-l-emerald-500",
-            View::QuickWins => "border-l-[3px] border-l-amber-500",
+            View::Upcoming        => "border-l-[3px] border-l-rose-500",
+            View::AllOpen         => "border-l-[3px] border-l-cyan-500",
+            View::WhatIFinished   => "border-l-[3px] border-l-emerald-500",
+            View::QuickWins       => "border-l-[3px] border-l-amber-500",
             View::RecentlyChanged => "",  // left border reserved for AI-involvement
         }
     }
@@ -388,7 +403,7 @@ fn TaskList() -> impl IntoView {
     });
     provide_context(AvailableCategoriesCtx(available_categories_ctx));
 
-    let current_view = RwSignal::new(View::MyDay);
+    let current_view = RwSignal::new(View::Upcoming);
     let switch_count = RwSignal::new(0u32);
     let edit_mode = EditMode::default();
     provide_context(edit_mode);
@@ -435,7 +450,11 @@ fn TaskList() -> impl IntoView {
         move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get(), today_signal.get(), extra_days.get()),
         move |_| async move {
             match current_view.get_untracked() {
-                View::MyDay          => server::fetch_my_day().await.map(TaskListData::Grouped),
+                View::Upcoming       => {
+                    server::fetch_upcoming(today_signal.get_untracked())
+                        .await.map(|(groups, backlog)| TaskListData::DeadlineGrouped(groups, backlog))
+                },
+                View::AllOpen        => server::fetch_all_open().await.map(TaskListData::Grouped),
                 View::WhatIFinished  => server::fetch_what_i_finished().await.map(TaskListData::Grouped),
                 View::QuickWins      => server::fetch_quick_wins().await.map(TaskListData::EstimateGrouped),
                 View::RecentlyChanged => {
@@ -679,7 +698,7 @@ fn TaskList() -> impl IntoView {
                                                                                                 expanded_task_id=expanded_task_id
                                                                                                 set_expanded_task_id=set_expanded_task_id
                                                                                                 set_completion_version=set_completion_version
-                                                                                                strikethrough_when_done={view == View::MyDay}
+                                                                                                strikethrough_when_done={view == View::AllOpen}
                                                                                                 checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                                 spinner_gradient={view.spinner_gradient()}
                                                                                                 priority_a_border={view.priority_a_border()}
