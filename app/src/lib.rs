@@ -19,6 +19,7 @@ use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
     StaticSegment,
     components::{Route, Router, Routes},
+    hooks::use_query_map,
 };
 use strum::{EnumCount, FromRepr};
 
@@ -126,6 +127,11 @@ impl Deref for ScrollToTaskId {
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
+/// SSR-evaluated auto-expand: when `?expand=first` is set, a [`Memo`]
+/// resolves to the first task ID once the resource has loaded.
+#[derive(Clone, Copy)]
+struct AutoExpandFirst(Memo<Option<Uuid>>);
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, EnumCount, FromRepr)]
 enum View {
     Upcoming,
@@ -223,6 +229,21 @@ impl View {
             View::AllOpen         => "from-violet-400 to-violet-600",
             View::WhatIFinished   => "from-amber-400 to-amber-600",
             View::RecentlyChanged => "from-teal-400 to-teal-600",
+        }
+    }
+
+    /// Parse a `?view=` query-parameter value into a [`View`].
+    ///
+    /// Used by SSR to render a specific view on initial page load,
+    /// enabling screenshot automation without WASM hydration.
+    fn from_query_param(s: &str) -> Option<Self> {
+        match s {
+            "upcoming"  => Some(View::Upcoming),
+            "quickwins" => Some(View::QuickWins),
+            "allopen"   => Some(View::AllOpen),
+            "finished"  => Some(View::WhatIFinished),
+            "recent"    => Some(View::RecentlyChanged),
+            _           => None,
         }
     }
 
@@ -328,6 +349,26 @@ fn day_label(day: NaiveDate) -> String {
     }
 }
 
+impl TaskListData {
+    /// Return the ID of the first task across all groups.
+    fn first_task_id(&self) -> Option<Uuid> {
+        match self {
+            TaskListData::Grouped(m) => {
+                m.values().flatten().next().map(|(id, _)| *id)
+            }
+            TaskListData::EstimateGrouped(v) => {
+                v.iter().flat_map(|(_, t)| t).next().map(|(id, _)| *id)
+            }
+            TaskListData::DeadlineGrouped(v, _) => {
+                v.iter().flat_map(|(_, t)| t).next().map(|(id, _)| *id)
+            }
+            TaskListData::DayGrouped(v) => {
+                v.iter().flat_map(|(_, t)| t).next().map(|rc| rc.id)
+            }
+        }
+    }
+}
+
 fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
     if filters.is_empty() { return data; }
     let matches = |info: &task::Infos| -> bool {
@@ -403,7 +444,13 @@ fn TaskList() -> impl IntoView {
     });
     provide_context(AvailableCategoriesCtx(available_categories_ctx));
 
-    let current_view = RwSignal::new(View::Upcoming);
+    let params = use_query_map().get_untracked();
+    let current_view = RwSignal::new(
+        params.get("view")
+            .and_then(|v| View::from_query_param(&v))
+            .unwrap_or(View::Upcoming)
+    );
+    let expand_first = params.get("expand").is_some_and(|v| v == "first");
     let switch_count = RwSignal::new(0u32);
     let edit_mode = EditMode::default();
     provide_context(edit_mode);
@@ -463,6 +510,18 @@ fn TaskList() -> impl IntoView {
             }
         },
     );
+
+    // ?expand=first — pre-expand the first task (used by screenshot tests).
+    // Provided as context so TaskItem can check it during the SSR pass
+    // (Effect doesn't run during SSR).
+    if expand_first {
+        let auto_id = Memo::new(move |_| {
+            task_list.get()
+                .and_then(|r| r.ok())
+                .and_then(|d| d.first_task_id())
+        });
+        provide_context(AutoExpandFirst(auto_id));
+    }
 
     let go_prev = move |_| {
         if let Some(prev) = current_view.get_untracked().prev() {
@@ -977,7 +1036,11 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     let priority = RwSignal::new(task.priority().copied());
     let since = *task.since();
 
-    let is_expanded = move || expanded_task_id.get() == Some(id);
+    let auto_expand = use_context::<AutoExpandFirst>();
+    let is_expanded = move || {
+        expanded_task_id.get() == Some(id)
+            || auto_expand.is_some_and(|ae| ae.0.get() == Some(id))
+    };
 
     // Handle task row click (except checkbox)
     let handle_task_click = move |_| {
