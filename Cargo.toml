@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["cli", "frontend", "server"]
+members = ["cli", "end2end", "frontend", "server"]
 
 # need to be applied only to wasm build
 [profile.release]

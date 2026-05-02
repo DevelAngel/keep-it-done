@@ -159,8 +159,7 @@ impl TaskCache {
         }
     }
 
-    #[allow(dead_code)]
-    fn with_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
+    pub fn with_dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
         self.dir = dir.into();
         assert!(self.dir.is_dir(), "invalid directory");
         self

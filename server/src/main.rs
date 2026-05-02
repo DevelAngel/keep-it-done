@@ -1,11 +1,8 @@
-mod builder;
-mod cache;
 mod cli;
-mod http;
-mod rpc;
 
-use crate::builder::ServerBuilder;
-use crate::cache::{SharedTaskCache, TaskCacheFlush};
+use kid_server::builder::ServerBuilder;
+use kid_server::cache::graceful_shutdown;
+use kid_server::SharedTaskCache;
 use crate::cli::{Cli, Parser};
 
 use leptos::prelude::get_configuration;
@@ -65,13 +62,6 @@ async fn setup_signals() {
                 .await
         } => tracing::info!("signal received: terminate"),
     }
-}
-
-async fn graceful_shutdown(shutdown: CancellationToken, task_cache: SharedTaskCache) {
-    shutdown.cancel();
-    tracing::warn!("Gracefully shutdown started..");
-    task_cache.final_flush().await;
-    tracing::info!("Gracefully shutdown finished.");
 }
 
 fn init_miette_report() {

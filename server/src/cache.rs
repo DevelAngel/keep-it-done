@@ -3,7 +3,15 @@ pub use kid_app::server::ssr::SharedTaskCache;
 use tokio::time::{self, Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
-pub trait TaskCacheFlush<'a>: Default {
+/// Cancel the shutdown token, flush all dirty tasks, and log progress.
+pub async fn graceful_shutdown(shutdown: CancellationToken, task_cache: SharedTaskCache) {
+    shutdown.cancel();
+    tracing::warn!("Gracefully shutdown started..");
+    task_cache.final_flush().await;
+    tracing::info!("Gracefully shutdown finished.");
+}
+
+pub(crate) trait TaskCacheFlush<'a>: Default {
     const FLUSH_INTERVAL: Duration;
     const FLUSH_TIMEOUT: Duration;
 

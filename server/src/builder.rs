@@ -1,6 +1,7 @@
 use crate::http::HttpServer;
 use crate::rpc::RpcServer;
-use crate::{SharedTaskCache, TaskCacheFlush};
+use crate::SharedTaskCache;
+use crate::cache::TaskCacheFlush;
 
 use leptos::prelude::*;
 use miette::{IntoDiagnostic, Result};
@@ -27,7 +28,7 @@ pub struct ServerBuilder<RPC, HTTP, LeptosOptions> {
 }
 
 #[doc(hidden)]
-pub(super) struct Unset;
+pub struct Unset;
 
 impl ServerBuilder<Unset, Unset, Unset> {
     pub fn new(shutdown: &CancellationToken, task_cache: &SharedTaskCache) -> Self {

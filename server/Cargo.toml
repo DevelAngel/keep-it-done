@@ -4,6 +4,14 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
+[lib] # used for end2end tests 
+name = "kid_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kid-server"
+path = "src/main.rs"
+
 [lints]
 workspace = true
 
