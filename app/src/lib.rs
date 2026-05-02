@@ -147,24 +147,24 @@ impl View {
     }
 
     /// Mono-hue gradients — one color family per view for instant
-    /// ADHD-friendly recognition ("the pink one", "the blue one", …).
+    /// ADHD-friendly recognition ("the teal one", "the green one", …).
     fn header_gradient(self) -> &'static str {
         match self {
-            View::Upcoming        => "from-rose-500 to-rose-700",
-            View::AllOpen         => "from-cyan-500 to-cyan-700",
-            View::WhatIFinished   => "from-emerald-500 to-emerald-700",
-            View::QuickWins       => "from-amber-500 to-amber-700",
-            View::RecentlyChanged => "from-sky-500 to-sky-700",
+            View::Upcoming        => "from-cyan-500 to-cyan-700",
+            View::QuickWins       => "from-emerald-500 to-emerald-700",
+            View::AllOpen         => "from-violet-500 to-violet-700",
+            View::WhatIFinished   => "from-amber-500 to-amber-700",
+            View::RecentlyChanged => "from-teal-500 to-teal-700",
         }
     }
 
     fn dot_active_color(self) -> &'static str {
         match self {
-            View::Upcoming        => "bg-rose-200",
-            View::AllOpen         => "bg-cyan-200",
-            View::WhatIFinished   => "bg-emerald-200",
-            View::QuickWins       => "bg-amber-200",
-            View::RecentlyChanged => "bg-sky-200",
+            View::Upcoming        => "bg-cyan-200",
+            View::QuickWins       => "bg-emerald-200",
+            View::AllOpen         => "bg-violet-200",
+            View::WhatIFinished   => "bg-amber-200",
+            View::RecentlyChanged => "bg-teal-200",
         }
     }
 
@@ -199,39 +199,39 @@ impl View {
     fn checkbox_checked_classes(self) -> &'static str {
         match self {
             View::Upcoming => {
-                "checked:from-rose-400 checked:to-rose-600 checked:border-rose-400"
-            }
-            View::AllOpen => {
                 "checked:from-cyan-400 checked:to-cyan-600 checked:border-cyan-400"
             }
-            View::WhatIFinished => {
+            View::QuickWins => {
                 "checked:from-emerald-400 checked:to-emerald-600 checked:border-emerald-400"
             }
-            View::QuickWins => {
+            View::AllOpen => {
+                "checked:from-violet-400 checked:to-violet-600 checked:border-violet-400"
+            }
+            View::WhatIFinished => {
                 "checked:from-amber-400 checked:to-amber-600 checked:border-amber-400"
             }
             View::RecentlyChanged => {
-                "checked:from-sky-400 checked:to-sky-600 checked:border-sky-400"
+                "checked:from-teal-400 checked:to-teal-600 checked:border-teal-400"
             }
         }
     }
 
     fn spinner_gradient(self) -> &'static str {
         match self {
-            View::Upcoming        => "from-rose-400 to-rose-600",
-            View::AllOpen         => "from-cyan-400 to-cyan-600",
-            View::WhatIFinished   => "from-emerald-400 to-emerald-600",
-            View::QuickWins       => "from-amber-400 to-amber-600",
-            View::RecentlyChanged => "from-sky-400 to-sky-600",
+            View::Upcoming        => "from-cyan-400 to-cyan-600",
+            View::QuickWins       => "from-emerald-400 to-emerald-600",
+            View::AllOpen         => "from-violet-400 to-violet-600",
+            View::WhatIFinished   => "from-amber-400 to-amber-600",
+            View::RecentlyChanged => "from-teal-400 to-teal-600",
         }
     }
 
     fn priority_a_border(self) -> &'static str {
         match self {
-            View::Upcoming        => "border-l-[3px] border-l-rose-500",
-            View::AllOpen         => "border-l-[3px] border-l-cyan-500",
-            View::WhatIFinished   => "border-l-[3px] border-l-emerald-500",
-            View::QuickWins       => "border-l-[3px] border-l-amber-500",
+            View::Upcoming        => "border-l-[3px] border-l-cyan-500",
+            View::QuickWins       => "border-l-[3px] border-l-emerald-500",
+            View::AllOpen         => "border-l-[3px] border-l-violet-500",
+            View::WhatIFinished   => "border-l-[3px] border-l-amber-500",
             View::RecentlyChanged => "",  // left border reserved for AI-involvement
         }
     }
@@ -481,7 +481,7 @@ fn TaskList() -> impl IntoView {
         <div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900">
             <div class="max-w-2xl mx-auto min-h-screen bg-slate-900 shadow-2xl">
                 <header class=move || format!(
-                    "px-6 pt-4 pb-5 bg-gradient-to-br {} text-white select-none",
+                    "px-6 pt-4 pb-5 bg-gradient-to-b {} text-white select-none",
                     current_view.get().header_gradient()
                 )>
                     <div class="relative text-center">
@@ -760,7 +760,7 @@ fn TaskList() -> impl IntoView {
                                                             {groups.into_iter().enumerate().map(|(i, (dg, tasks))| {
                                                                 let label = dg.label();
                                                                 let header_class = if dg.is_overdue() {
-                                                                    "text-sm font-semibold text-rose-400"
+                                                                    "text-sm font-semibold text-cyan-300"
                                                                 } else {
                                                                     "text-sm font-semibold text-slate-400"
                                                                 };

@@ -39,11 +39,11 @@ Chosen option: "Upcoming first, Quick Wins second" (urgency → dopamine-led). A
 
 | # | View | Color | One-word ID | Mental model |
 |---|---|---|---|---|
-| 1 | **Upcoming** | Rose (`from-rose-500 to-rose-700`) | "the pink one" | "What's due or overdue?" |
-| 2 | **Quick Wins** | Amber (`from-amber-500 to-amber-700`) | "the orange one" | "What can I quickly knock out?" |
-| 3 | **All Open** | Cyan (`from-cyan-500 to-cyan-700`) | "the blue one" | "Everything on my plate" |
-| 4 | **What I Finished** | Emerald (`from-emerald-500 to-emerald-700`) | "the green one" | "What did I accomplish?" |
-| 5 | **Recent Changes** | Sky (`from-sky-500 to-sky-700`) | "the light blue one" | "What changed lately?" |
+| 1 | **Upcoming** | Cyan (`cyan-600`) | "the blue one" | "What's due or overdue?" |
+| 2 | **Quick Wins** | Emerald (`emerald-600`) | "the green one" | "What can I quickly knock out?" |
+| 3 | **All Open** | Violet (`violet-600`) | "the purple one" | "Everything on my plate" |
+| 4 | **What I Finished** | Amber (`amber-600`) | "the orange one" | "What did I accomplish?" |
+| 5 | **Recent Changes** | Teal (`teal-600`) | "the teal one" | "What changed lately?" |
 
 ### Landing View: Upcoming
 
@@ -74,23 +74,26 @@ The former "My Day" showed all open tasks grouped by category — a complete, no
 
 ### Color Sequence and ADHD Mono-Hue Principle
 
-**Principle:** each view's gradient stays within a single hue family. Cross-hue gradients (e.g. `rose → teal`) blur identity — ADHD users process "which view am I in?" subconsciously via color, and ambiguous gradients delay that recognition. A mono-hue gradient lets the brain match a single color name to a single view without analysis.
+**Principle:** each view's gradient stays within a single hue family (`from-{hue}-500 to-{hue}-700`, vertical). ADHD users process "which view am I in?" subconsciously via color — a mono-hue gradient lets the brain match a single color name to a single view without analysis.
 
 The five-view palette reads left to right:
 
 ```
-Rose → Amber → Cyan → Emerald → Sky
+Cyan → Emerald → Violet → Amber → Teal
 ```
 
-Each pair of adjacent views uses a different hue family:
-- Rose → Amber: warm pink to warm orange (both warm, but distinct hues — ~45° separation on the color wheel; "the pink one" vs. "the orange one")
-- Amber → Cyan: warm orange to cool blue (maximum temperature jump)
-- Cyan → Emerald: blue to green (distinct families, no shared midpoint)
-- Emerald → Sky: green to light blue (cool-to-cool, but clearly distinct hues)
+**Logo alignment:** Upcoming (position 1, landing view) uses Cyan — matching the app's logo palette (cyan/teal checkmark on dark navy). The first thing users see *is* the brand identity.
 
-**Change from existing palette:** the former cross-hue gradients `from-cyan-600 to-teal-700` (My Day) and `from-teal-600 to-emerald-700` (What I Finished) shared a teal midpoint, making swipe transitions between them ambiguous. Both are replaced by mono-hue gradients. The corresponding dot-active, checkbox, spinner, and priority-A-border colors update to match the new single-hue base.
+**Change from Rose:** Rose was rejected for the landing view because its alarm-like warmth felt off-putting rather than welcoming. Cyan is calming yet distinctive, and the logo alignment creates brand coherence.
 
-**Hue collision check — Cyan vs. Sky:** positions 3 and 5 are both in the blue family. At `cyan-500` (#06b6d4) vs. `sky-500` (#0ea5e9) the hues are close. This is acceptable because the views are never adjacent (2 positions apart, with Emerald between them) and the one-word IDs differ ("the blue one" vs. "the light blue one"). If user testing reveals confusion, Cyan can shift to Indigo (`from-indigo-500 to-indigo-700`, "the purple one") as a fallback.
+**Semantic color choices:**
+- Quick Wins: Emerald (green = "go", action-oriented)
+- All Open: Violet (purple = comprehensive, overview)
+- What I Finished: Amber (gold = achievement, trophy)
+
+**Rejected: split gradients with neighbor-color hints.** Tinting the left/right edges toward adjacent views' colors was explored (dark -900 hints, 4-stop CSS gradients, various widths). All variants either created a rainbow effect or added visual noise without meaningful benefit. Mono-hue is cleaner and sufficient — the dot indicators already show position.
+
+**Hue proximity check — Cyan vs. Teal:** positions 1 and 5 are neighbors on the color wheel. At `cyan-500` (#06b6d4, blue-leaning) vs. `teal-500` (#14b8a6, green-leaning) the hues are close but visually distinct. This is acceptable because the views are maximally separated (4 positions apart, never adjacent during swipe) and the one-word IDs differ ("the blue one" vs. "the teal one").
 
 ### Swipe Navigation Impact
 
@@ -110,11 +113,11 @@ Each pair of adjacent views uses a different hue family:
 - Good, because Quick Wins at position 2 provides an early dopamine hit — ADHD users build momentum from fast completions before facing the full task list
 - Good, because five views remain within the comfortable range for linear swipe navigation
 - Good, because mono-hue gradients give each view a single-word color identity — instant recognition for ADHD users
-- Good, because eliminating the shared teal midpoint removes swipe-transition ambiguity between positions 2 and 3
+- Good, because semantic color choices reinforce view purpose (green=go, gold=achievement, purple=overview)
+- Good, because Upcoming's Cyan matches the app logo — the landing view *is* the brand
 - Neutral, because users familiar with "My Day" as position 1 must relearn — mitigated by the view name being always visible in the header
 - Bad, because users without dated tasks see an empty landing view on every open — mitigated by the backlog counter and single-swipe access to Quick Wins
-- Bad, because Cyan (position 3) and Sky (position 5) are both blue-family — mitigated by 2 positions of distance and fallback to Indigo if testing reveals confusion
-- Bad, because Rose (position 1) and Amber (position 2) are both warm-toned — mitigated by ~45° hue separation (pink vs. orange) and distinct one-word IDs
+- Bad, because Cyan (position 1) and Sky (position 5) are both blue-family — mitigated by 4 positions of maximum distance
 
 ## Pros and Cons of the Options
 
