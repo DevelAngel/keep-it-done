@@ -129,9 +129,9 @@ impl Deref for ScrollToTaskId {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, EnumCount, FromRepr)]
 enum View {
     Upcoming,
+    QuickWins,
     AllOpen,
     WhatIFinished,
-    QuickWins,
     RecentlyChanged,
 }
 

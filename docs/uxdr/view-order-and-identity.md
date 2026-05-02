@@ -1,6 +1,7 @@
 ---
-status: proposed
-date: 2026-05-01
+status: accepted
+date: 2026-05-02
+supersedes: 2026-05-01 (reorder: Quick Wins moved to position 2)
 ---
 
 # View Order, Landing View, and View Identity
@@ -18,29 +19,30 @@ These decisions are coupled: the landing view determines position 1, and the ren
 ## Decision Drivers
 
 - ADHD-friendly: the most time-critical information must require the least effort to reach (zero swipes)
-- Daily rhythm: the swipe sequence should mirror a natural usage flow (urgency check → planning → reflection → opportunistic → audit)
+- Daily rhythm: the swipe sequence should mirror a natural usage flow (urgency check → quick wins → planning → reflection → audit)
 - Discoverability: five dots remain legible and tappable on mobile (≥44px tap targets at 375px viewport)
 - Naming clarity: each view name should answer "what will I see?" without explanation
 - Instant color recognition (ADHD): each view must be identifiable by a single color name — "the pink one", "the blue one", "the green one". This requires mono-hue gradients (no cross-hue blending) and maximum hue separation between views, especially adjacent ones
 
 ## Considered Options (Order)
 
-- Upcoming first, open-tasks second (urgency-led)
+- Upcoming first, Quick Wins second (urgency → dopamine-led) — **chosen**
+- Upcoming first, open-tasks second (urgency → planning-led)
 - Open-tasks first, Upcoming second (planning-led, status quo spirit)
 - Chronological: Upcoming → open-tasks → Quick Wins → What I Finished → Recent Changes
 
 ## Decision Outcome
 
-Chosen option: "Upcoming first, open-tasks second" (urgency-led), because the primary reason users open the app is to check what demands immediate attention. Broad planning is important but not time-critical — one swipe away is acceptable.
+Chosen option: "Upcoming first, Quick Wins second" (urgency → dopamine-led). After checking what's due, the natural ADHD impulse is "what can I knock out quickly?" — the dopamine kick from fast completions builds momentum *before* the potentially overwhelming full overview. Broad planning (All Open) is two swipes away, which is acceptable because it's not time-critical.
 
 ### Final View Order
 
 | # | View | Color | One-word ID | Mental model |
 |---|---|---|---|---|
 | 1 | **Upcoming** | Rose (`from-rose-500 to-rose-700`) | "the pink one" | "What's due or overdue?" |
-| 2 | **All Open** | Cyan (`from-cyan-500 to-cyan-700`) | "the blue one" | "Everything on my plate" |
-| 3 | **What I Finished** | Emerald (`from-emerald-500 to-emerald-700`) | "the green one" | "What did I accomplish?" |
-| 4 | **Quick Wins** | Amber (`from-amber-500 to-amber-700`) | "the orange one" | "I have a moment — what's short?" |
+| 2 | **Quick Wins** | Amber (`from-amber-500 to-amber-700`) | "the orange one" | "What can I quickly knock out?" |
+| 3 | **All Open** | Cyan (`from-cyan-500 to-cyan-700`) | "the blue one" | "Everything on my plate" |
+| 4 | **What I Finished** | Emerald (`from-emerald-500 to-emerald-700`) | "the green one" | "What did I accomplish?" |
 | 5 | **Recent Changes** | Sky (`from-sky-500 to-sky-700`) | "the light blue one" | "What changed lately?" |
 
 ### Landing View: Upcoming
@@ -49,7 +51,7 @@ The landing view (position 1, shown on app open) is Upcoming. Rationale:
 
 - Overdue tasks and today-deadlines demand *immediate* awareness — they should not require navigation
 - Users who have no dated tasks see a brief empty state with a backlog counter (see UXDR: Upcoming View) that naturally points them to swipe right
-- The daily rhythm begins with "what's urgent?" before broadening to "what's everything?" — mirroring how people triage email (flagged first, then inbox)
+- The daily rhythm begins with "what's urgent?", followed by "what's quick?" for an early dopamine hit, before broadening to "what's everything?"
 
 ### Rename: "My Day" → "All Open"
 
@@ -77,18 +79,18 @@ The former "My Day" showed all open tasks grouped by category — a complete, no
 The five-view palette reads left to right:
 
 ```
-Rose → Cyan → Emerald → Amber → Sky
+Rose → Amber → Cyan → Emerald → Sky
 ```
 
 Each pair of adjacent views uses a different hue family:
-- Rose → Cyan: warm pink to cool blue (maximum separation)
+- Rose → Amber: warm pink to warm orange (both warm, but distinct hues — ~45° separation on the color wheel; "the pink one" vs. "the orange one")
+- Amber → Cyan: warm orange to cool blue (maximum temperature jump)
 - Cyan → Emerald: blue to green (distinct families, no shared midpoint)
-- Emerald → Amber: cool green to warm orange (temperature jump)
-- Amber → Sky: warm orange to cool blue (temperature jump)
+- Emerald → Sky: green to light blue (cool-to-cool, but clearly distinct hues)
 
 **Change from existing palette:** the former cross-hue gradients `from-cyan-600 to-teal-700` (My Day) and `from-teal-600 to-emerald-700` (What I Finished) shared a teal midpoint, making swipe transitions between them ambiguous. Both are replaced by mono-hue gradients. The corresponding dot-active, checkbox, spinner, and priority-A-border colors update to match the new single-hue base.
 
-**Hue collision check — Cyan vs. Sky:** positions 2 and 5 are both in the blue family. At `cyan-500` (#06b6d4) vs. `sky-500` (#0ea5e9) the hues are close. This is acceptable because the views are never adjacent (3 positions apart) and the one-word IDs differ ("the blue one" vs. "the light blue one"). If user testing reveals confusion, Cyan can shift to Indigo (`from-indigo-500 to-indigo-700`, "the purple one") as a fallback.
+**Hue collision check — Cyan vs. Sky:** positions 3 and 5 are both in the blue family. At `cyan-500` (#06b6d4) vs. `sky-500` (#0ea5e9) the hues are close. This is acceptable because the views are never adjacent (2 positions apart, with Emerald between them) and the one-word IDs differ ("the blue one" vs. "the light blue one"). If user testing reveals confusion, Cyan can shift to Indigo (`from-indigo-500 to-indigo-700`, "the purple one") as a fallback.
 
 ### Swipe Navigation Impact
 
@@ -104,22 +106,33 @@ Each pair of adjacent views uses a different hue family:
 
 - Good, because the most urgent information requires zero interaction to see
 - Good, because "All Open" is self-explanatory and honest about what the view contains
-- Good, because the daily rhythm (urgency → planning → reflection → opportunistic → audit) maps naturally to left-to-right swipe
+- Good, because the daily rhythm (urgency → quick wins → planning → reflection → audit) maps naturally to left-to-right swipe
+- Good, because Quick Wins at position 2 provides an early dopamine hit — ADHD users build momentum from fast completions before facing the full task list
 - Good, because five views remain within the comfortable range for linear swipe navigation
 - Good, because mono-hue gradients give each view a single-word color identity — instant recognition for ADHD users
 - Good, because eliminating the shared teal midpoint removes swipe-transition ambiguity between positions 2 and 3
 - Neutral, because users familiar with "My Day" as position 1 must relearn — mitigated by the view name being always visible in the header
-- Bad, because users without dated tasks see an empty landing view on every open — mitigated by the backlog counter and single-swipe access to All Open
-- Bad, because Cyan (position 2) and Sky (position 5) are both blue-family — mitigated by 3 positions of distance and fallback to Indigo if testing reveals confusion
+- Bad, because users without dated tasks see an empty landing view on every open — mitigated by the backlog counter and single-swipe access to Quick Wins
+- Bad, because Cyan (position 3) and Sky (position 5) are both blue-family — mitigated by 2 positions of distance and fallback to Indigo if testing reveals confusion
+- Bad, because Rose (position 1) and Amber (position 2) are both warm-toned — mitigated by ~45° hue separation (pink vs. orange) and distinct one-word IDs
 
 ## Pros and Cons of the Options
 
-### Upcoming first (urgency-led) — chosen
+### Upcoming first, Quick Wins second (urgency → dopamine-led) — chosen
 
 - Good, because deadlines and overdue items are the most time-sensitive information in the system
-- Good, because mirrors the triage pattern: urgent first, then everything else
-- Good, because the backlog counter on an empty Upcoming naturally guides users rightward
+- Good, because Quick Wins at position 2 serves the natural follow-up impulse: "what's urgent?" → "what can I knock out fast?"
+- Good, because fast completions generate dopamine before the potentially overwhelming full overview — builds momentum for ADHD users
+- Good, because the backlog counter on an empty Upcoming naturally guides users rightward to Quick Wins
+- Good, because Recent Changes (AI audit) is correctly deprioritized at position 5 — rarely needed by humans
 - Bad, because frequent empty-state for users who rarely use dates
+- Bad, because All Open (full overview) is two swipes away instead of one
+
+### Upcoming first, open-tasks second (urgency → planning-led)
+
+- Good, because the full overview is immediately accessible after the urgency check
+- Bad, because Quick Wins is buried at position 4 — the dopamine hit comes too late in the sequence
+- Bad, because the jump from urgency to full overview can feel overwhelming for ADHD users
 
 ### Open-tasks first (planning-led)
 
@@ -138,7 +151,7 @@ Upcoming → All Open → Quick Wins → What I Finished → Recent Changes
 
 ## More Information
 
-**Migration path:** the `View` enum order changes from `[MyDay, WhatIFinished, QuickWins, RecentlyChanged]` to `[Upcoming, AllOpen, WhatIFinished, QuickWins, RecentlyChanged]`. The `current_view` default changes from `View::MyDay` to `View::Upcoming`. Stored user preferences (if any) referencing the old enum must be handled.
+**Migration path:** the `View` enum order changes from `[Upcoming, AllOpen, WhatIFinished, QuickWins, RecentlyChanged]` to `[Upcoming, QuickWins, AllOpen, WhatIFinished, RecentlyChanged]`. The `current_view` default remains `View::Upcoming`. Stored user preferences (if any) referencing the old enum positions must be handled.
 
 **Relationship to UXDR: View Switching:** the swipe mechanism, progressive affordance, and gesture detection remain unchanged. Only the number of dots and the enum order change. The view-switching UXDR's note about "degradation beyond ~6 views" is not triggered at 5.
 
