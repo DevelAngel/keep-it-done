@@ -58,23 +58,27 @@ open http://localhost:3000
 
 ## Browser View
 
-Four views, switchable by swipe or tap:
+Five views, switchable by swipe or tap:
 
-### My Day
+### Upcoming
 
-![My Day: cyan/teal header, list of open tasks with checkboxes sorted by creation date.](screenshots/task-list-myday.png "My Day view")
-
-### What I Finished
-
-![What I Finished: teal/emerald header, completed tasks sorted by completion date.](screenshots/task-list-whatifinished.png "What I Finished view")
+![Upcoming: list of open tasks with checkboxes sorted by creation date.](screenshots/task-list-upcoming.png "Upcoming view")
 
 ### Quick Wins
 
-![Quick Wins: amber header, open tasks with a time estimate sorted by age.](screenshots/task-list-quickwins.png "Quick Wins view")
+![Quick Wins: open tasks with a time estimate sorted by age.](screenshots/task-list-quickwins.png "Quick Wins view")
+
+### All Open
+
+![All Open: list of open tasks with checkboxes sorted by creation date.](screenshots/task-list-allopen.png "All Open view")
+
+### What I Finished
+
+![What I Finished: completed tasks sorted by completion date.](screenshots/task-list-whatifinished.png "What I Finished view")
 
 ### Recent Changes
 
-![Recent Changes: sky header, tasks updated within the last 24 hours sorted by most recent change.](screenshots/task-list-recentchanges.png "Recent Changes view")
+![Recent Changes: tasks updated within the last 24 hours sorted by most recent change.](screenshots/task-list-recentchanges.png "Recent Changes view")
 
 ### Task Details Expansion
 
