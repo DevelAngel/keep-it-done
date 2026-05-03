@@ -150,10 +150,12 @@ impl TaskCache {
     }
 
     fn with_capacity(capacity: usize) -> Self {
-        let path = env::current_dir().expect("CWD available");
-        let path = path.join("tasks");
+        let dir = match env::var("KID_TASKS_DIR") {
+            Ok(dir) => PathBuf::from(dir),
+            Err(_) => env::current_dir().expect("CWD available").join("tasks"),
+        };
         Self {
-            dir: path.to_path_buf(),
+            dir,
             tasks: DataMap::with_capacity_and_hasher(capacity, RandomState::new()),
             dirty: ChangeSet::with_hasher(RandomState::new()),
         }

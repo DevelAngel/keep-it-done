@@ -478,6 +478,16 @@ fn TaskList() -> impl IntoView {
         }
     });
 
+    // E2E sentinel: signals that WASM hydration completed and event
+    // handlers are attached.  Tests wait for `main[data-hydrated]`.
+    if cfg!(target_arch = "wasm32") {
+        Effect::new(|_| {
+            if let Ok(Some(el)) = document().query_selector("main") {
+                let _ = el.set_attribute("data-hydrated", "");
+            }
+        });
+    }
+
     // Midnight rollover: check every 60 s whether the UTC date changed.
     // Bumping this signal triggers a resource refetch + fresh day labels.
     // Guard: set_interval is wasm-bindgen and panics on native (SSR).

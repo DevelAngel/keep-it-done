@@ -21,6 +21,7 @@ path = "../types"
 features = ["ssr"]
 
 [dev-dependencies]
+# -- existing (screenshot tests) --
 chromiumoxide = "0.9"
 futures.workspace = true
 leptos = { workspace = true, features = ["ssr"] }
@@ -32,3 +33,14 @@ tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 which = "8"
+
+# -- new (cucumber + fantoccini) --
+anyhow.workspace = true
+cucumber = "0.21"
+fantoccini = "0.21"
+pretty_assertions = "1.4"
+url = "2.5"
+
+[[test]]
+name = "app_suite"
+harness = false    # Cucumber controls output instead of libtest
