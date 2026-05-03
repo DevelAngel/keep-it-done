@@ -22,10 +22,24 @@ impl AppWorld {
     }
 }
 
+/// Pixel 8 viewport (CSS pixels) — used for all tests.
+pub const VIEWPORT_WIDTH: u32 = 412;
+pub const VIEWPORT_HEIGHT: u32 = 915;
+
 async fn build_client() -> Result<Client, NewSessionError> {
     let mut cap = Capabilities::new();
-    let arg = serde_json::from_str("{\"args\": [\"-headless\"]}").unwrap();
-    cap.insert("goog:chromeOptions".to_string(), arg);
+    let chrome_opts = serde_json::json!({
+        "args": ["-headless"],
+        "mobileEmulation": {
+            "deviceMetrics": {
+                "width": VIEWPORT_WIDTH,
+                "height": VIEWPORT_HEIGHT,
+                "pixelRatio": 1.0,
+                "mobile": true
+            }
+        }
+    });
+    cap.insert("goog:chromeOptions".to_string(), chrome_opts);
 
     ClientBuilder::native()
         .capabilities(cap)

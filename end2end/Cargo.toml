@@ -5,41 +5,15 @@ edition.workspace = true
 authors.workspace = true
 publish = false
 
-[lints.rust]
-# E2E tests need std::env::set_var (unsafe in edition 2024).
-# Cannot inherit workspace lints because we need to override unsafe_code.
-unsafe_code = "allow"
-
-
 # No lib — this crate only contains integration tests.
 
-[dev-dependencies.kid-server]
-path = "../server"
-
-[dev-dependencies.kid-types]
-path = "../types"
-features = ["ssr"]
-
 [dev-dependencies]
-# -- existing (screenshot tests) --
-chromiumoxide = "0.9"
-futures.workspace = true
-leptos = { workspace = true, features = ["ssr"] }
-miette = { workspace = true, features = ["fancy"] }
-serde_json.workspace = true
-tempfile = "3"
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
-tokio-util.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-which = "8"
-
-# -- new (cucumber + fantoccini) --
 anyhow.workspace = true
 cucumber = "0.21"
 fantoccini = "0.21"
 pretty_assertions = "1.4"
-url = "2.5"
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [[test]]
 name = "app_suite"
