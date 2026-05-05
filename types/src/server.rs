@@ -249,6 +249,16 @@ impl TaskCache {
         }
     }
 
+    /// Clear all cached data and reload from disk.
+    ///
+    /// Used by e2e tests to pick up task files written directly
+    /// to `KID_TASKS_DIR` outside of normal task operations.
+    pub async fn reload(&mut self) -> TaskLoadResult<(usize, usize)> {
+        self.tasks.clear();
+        self.dirty.clear();
+        self.load().await
+    }
+
     pub async fn flush(&mut self) -> TaskFlushResult<usize> {
         if !self.dir.exists() {
             fs::create_dir_all(&self.dir)

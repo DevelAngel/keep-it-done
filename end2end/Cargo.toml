@@ -5,15 +5,22 @@ edition.workspace = true
 authors.workspace = true
 publish = false
 
-# No lib — this crate only contains integration tests.
+# Regular deps are needed by the gen-fixtures binary.
+[dependencies]
+chrono = { workspace = true, features = ["now", "clock"] }
+serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
 cucumber = "0.21"
 fantoccini = "0.21"
 pretty_assertions = "1.4"
-serde_json.workspace = true
+reqwest = { version = "0.12", default-features = false }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[[bin]]
+name = "gen-e2e-fixtures"
+path = "src/gen_fixtures.rs"
 
 [[test]]
 name = "app_suite"

@@ -4,6 +4,10 @@ Feature: Capture README Screenshots
   Screenshots are captured at Pixel 8 viewport (412 x 915)
   and saved to the workspace screenshots/ directory.
 
+  Background:
+    Given the standard task fixtures
+    And tasks are loaded
+
   Scenario Outline: Capture <view> view
     When I open the view <param>
     Then I see the page title is <view>
