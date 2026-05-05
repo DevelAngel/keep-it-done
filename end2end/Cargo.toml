@@ -1,0 +1,15 @@
+[package]
+name = "kid-end2end"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+publish = false
+
+[dev-dependencies]
+anyhow.workspace = true
+cucumber = "0.21"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[[test]]
+name = "example"
+harness = false  # allows Cucumber to print output instead of libtest
