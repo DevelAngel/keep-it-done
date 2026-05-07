@@ -488,6 +488,7 @@ fn TaskList() -> impl IntoView {
                         // Left arrow
                         <button
                             type="button"
+                            data-testid="prev-view-arrow"
                             class=move || {
                                 let opacity = match current_view.get().prev() {
                                     Some(_) => arrow_opacity_class(switch_count.get()),
@@ -514,6 +515,7 @@ fn TaskList() -> impl IntoView {
                         // Right arrow
                         <button
                             type="button"
+                            data-testid="next-view-arrow"
                             class=move || {
                                 let opacity = match current_view.get().next() {
                                     Some(_) => arrow_opacity_class(switch_count.get()),

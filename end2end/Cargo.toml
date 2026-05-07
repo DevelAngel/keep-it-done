@@ -8,6 +8,7 @@ publish = false
 [dev-dependencies]
 anyhow.workspace = true
 cucumber = "0.21"
+strum.workspace = true
 thirtyfour = "0.37.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
@@ -18,3 +19,7 @@ harness = false  # allows Cucumber to print output instead of libtest
 [[test]]
 name = "wiki"
 harness = false
+
+[[test]]
+name = "webapp"
+harness = false # allows Cucumber to print output instead of libtest
