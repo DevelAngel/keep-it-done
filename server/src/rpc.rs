@@ -62,6 +62,11 @@ struct RpcService {
 }
 
 impl TaskService for RpcService {
+    async fn count(self, _: Context) -> usize {
+        let task_cache = self.task_cache.read().await;
+        task_cache.len()
+    }
+
     async fn list(self, _: Context) -> Vec<(Uuid, Task)> {
         let task_cache = self.task_cache.read().await;
         task_cache

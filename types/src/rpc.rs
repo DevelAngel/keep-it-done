@@ -7,6 +7,7 @@ use tarpc::service;
 
 #[service]
 pub trait TaskService {
+    async fn count() -> usize;
     async fn list() -> Vec<(Uuid, Task)>;
     async fn add(task: Task, actor: String);
     async fn rename(id: Uuid, summary: TaskSummary, actor: String);
