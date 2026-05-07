@@ -1,13 +1,12 @@
 use crate::SharedTaskCache;
 
-pub use kid_types::rpc::TaskService;
+pub use kid_types::rpc::{SwitchDirError, TaskService};
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
 use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
-use indexmap::IndexSet;
-use std::collections::BTreeSet;
 
 use futures::{future, prelude::*};
+use indexmap::IndexSet;
 use miette::{IntoDiagnostic, Result};
 use tarpc::context::Context;
 use tarpc::serde_transport::tcp;
@@ -15,6 +14,11 @@ use tarpc::server::{self, Channel};
 use tarpc::tokio_serde::formats::Json;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
+use tracing::Level;
+
+use std::collections::BTreeSet;
+use std::env;
+use std::path::PathBuf;
 
 pub struct RpcServer;
 
@@ -65,6 +69,22 @@ impl TaskService for RpcService {
     async fn count(self, _: Context) -> usize {
         let task_cache = self.task_cache.read().await;
         task_cache.len()
+    }
+
+    async fn switch_dir(self, _: Context, dir: PathBuf) -> Result<usize, SwitchDirError> {
+        let mut cache = self.task_cache.write().await;
+        cache.flush().await.map_err(|e| SwitchDirError::Flush(e.to_string()))?;
+        if dir.is_absolute() {
+            tracing::info!("new tasks directory: {}", dir.display());
+        } else if tracing::enabled!(Level::INFO) {
+            tracing::info!("new tasks directory (relative): {}", dir.display());
+            let cwd = env::current_dir().expect("CWD available");
+            let dir = cwd.join(&dir);
+            tracing::info!("new tasks directory (absolute): {}", dir.display());
+        }
+        cache.reset(dir);
+        let (loaded, _) = cache.load().await.map_err(|e| SwitchDirError::Load(e.to_string()))?;
+        Ok(loaded)
     }
 
     async fn list(self, _: Context) -> Vec<(Uuid, Task)> {

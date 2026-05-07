@@ -2,12 +2,25 @@ use crate::task::Details as TaskDetails;
 use crate::task::DetailsPatch as TaskDetailsPatch;
 use crate::{Task, TaskCategory, TaskContext, TaskPriority, TaskSummary, Uuid};
 use indexmap::IndexSet;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use std::path::PathBuf;
 
 use tarpc::service;
+
+#[derive(Debug, Error, Serialize, Deserialize)]
+pub enum SwitchDirError {
+    #[error("flush failed: {0}")]
+    Flush(String),
+    #[error("load failed: {0}")]
+    Load(String),
+}
 
 #[service]
 pub trait TaskService {
     async fn count() -> usize;
+    async fn switch_dir(dir: PathBuf) -> Result<usize, SwitchDirError>;
     async fn list() -> Vec<(Uuid, Task)>;
     async fn add(task: Task, actor: String);
     async fn rename(id: Uuid, summary: TaskSummary, actor: String);

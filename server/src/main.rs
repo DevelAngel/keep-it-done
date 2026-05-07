@@ -11,8 +11,11 @@ use crate::cli::{Cli, Parser};
 use leptos::prelude::get_configuration;
 use miette::Result;
 use miette::{IntoDiagnostic, MietteHandlerOpts};
+use tracing::Level;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
+
+use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,7 +31,17 @@ async fn main() -> Result<()> {
 
     let task_cache = match args.tasks_dir {
         None => SharedTaskCache::default(),
-        Some(dir) => SharedTaskCache::with_dir(dir),
+        Some(dir) => {
+            if dir.is_absolute() {
+                tracing::info!("tasks directory: {}", dir.display());
+            } else if tracing::enabled!(Level::INFO) {
+                tracing::info!("tasks directory (relative): {}", dir.display());
+                let cwd = env::current_dir().expect("CWD available");
+                let dir = cwd.join(&dir);
+                tracing::info!("tasks directory (absolute): {}", dir.display());
+            }
+            SharedTaskCache::with_dir(dir)
+        }
     };
     task_cache.write().await.load().await.and_then(|(num_loaded, num_to_migrate)| {
         if num_loaded > 0 {

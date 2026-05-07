@@ -164,6 +164,17 @@ impl TaskCache {
         self
     }
 
+    /// Clear all tasks and point at a new directory.
+    ///
+    /// **Caller must flush before calling this** if there are
+    /// unsaved changes — reset discards dirty state silently.
+    pub fn reset(&mut self, dir: impl Into<PathBuf>) {
+        self.dir = dir.into();
+        assert!(self.dir.is_dir(), "invalid directory: {}", self.dir.display());
+        self.tasks.clear();
+        self.dirty.clear();
+    }
+
     pub fn remove(&mut self, id: &Uuid) -> bool {
         assert_eq!(id.get_version_num(), 7, "invalid UUID");
         self.dirty.insert(*id);
