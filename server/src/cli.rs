@@ -28,7 +28,7 @@ pub struct ServerArgs {
 }
 
 #[cfg(debug_assertions)]
-pub type Verbosity = clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>;
+pub type Verbosity = clap_verbosity_flag::Verbosity<clap_verbosity_flag::WarnLevel>;
 
 #[cfg(not(debug_assertions))]
 pub type Verbosity = clap_verbosity_flag::Verbosity;

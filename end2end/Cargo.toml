@@ -7,8 +7,11 @@ publish = false
 
 [dev-dependencies]
 anyhow.workspace = true
+assert_fs.workspace = true
 cucumber = "0.21"
+kid-cli = { path = "../cli" }
 strum.workspace = true
+tarpc.workspace = true
 thirtyfour = "0.37.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
