@@ -26,7 +26,10 @@ async fn main() -> Result<()> {
     let http_addr = leptos_conf.leptos_options.site_addr;
     let rpc_addr = args.server.addr;
 
-    let task_cache = SharedTaskCache::default();
+    let task_cache = match args.tasks_dir {
+        None => SharedTaskCache::default(),
+        Some(dir) => SharedTaskCache::with_dir(dir),
+    };
     task_cache.write().await.load().await.and_then(|(num_loaded, num_to_migrate)| {
         if num_loaded > 0 {
             tracing::info!("{num_loaded} tasks loaded");

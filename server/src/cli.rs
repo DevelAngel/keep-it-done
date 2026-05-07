@@ -2,6 +2,7 @@ use clap::Args;
 pub use clap::Parser;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 
 /// Family task management with assistant-friendly CLI
 #[derive(Parser, Debug)]
@@ -9,6 +10,11 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 pub struct Cli {
     #[clap(flatten)]
     pub server: ServerArgs,
+
+    /// Directory where task JSON files are stored.
+    /// Defaults to the current working directory.
+    #[clap(long, env = "KID_TASKS_DIR")]
+    pub tasks_dir: Option<PathBuf>,
 
     #[command(flatten)]
     pub verbosity: Verbosity,

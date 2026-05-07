@@ -18,7 +18,7 @@ features = ["ssr"]
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
-clap.workspace = true
+clap = { workspace = true, features = ["env"] }
 clap-verbosity-flag.workspace = true
 futures.workspace = true
 indexmap.workspace = true

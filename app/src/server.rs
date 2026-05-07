@@ -447,9 +447,26 @@ pub mod ssr {
     use leptos::prelude::ServerFnError;
     use tokio::sync::RwLock;
 
+    use std::ops::Deref;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
-    pub type SharedTaskCache = Arc<RwLock<TaskCache>>;
+    #[derive(Clone, Debug, Default)]
+    pub struct SharedTaskCache(Arc<RwLock<TaskCache>>);
+
+    impl SharedTaskCache {
+        pub fn with_dir(dir: impl Into<PathBuf>) -> Self {
+            let cache = TaskCache::default().with_dir(dir);
+            Self(Arc::new(RwLock::new(cache)))
+        }
+    }
+
+    impl Deref for SharedTaskCache {
+        type Target = Arc<RwLock<TaskCache>>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
 
     /// Fallback actor for web mutations when no
     /// `Remote-User` header is present (e.g. dev mode).
