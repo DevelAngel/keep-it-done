@@ -75,4 +75,4 @@ watch = false
 env = "DEV"
 tailwind-input-file = "style/tailwind.css"
 end2end-dir = "end2end"
-end2end-cmd = "cargo test --test webapp"
+end2end-cmd = "cargo test --test browser"

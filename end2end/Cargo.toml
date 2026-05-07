@@ -16,5 +16,5 @@ thirtyfour = "0.37.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 
 [[test]]
-name = "webapp"
+name = "browser"
 harness = false # allows Cucumber to print output instead of libtest
