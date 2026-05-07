@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
+[lib]
+name = "kid_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "kid"
 path = "src/main.rs"

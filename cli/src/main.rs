@@ -1,24 +1,17 @@
-mod cli;
-mod task;
+use kid_cli::cli::{Cli, Commands, Parser, ServerArgs};
+use kid_cli::connect;
+use kid_cli::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
-use crate::cli::{Cli, Commands, Parser, ServerArgs};
-use crate::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
-
-use kid_types::rpc::TaskServiceClient;
 use kid_types::{Task, TaskCategory, TaskContext, TaskPriority, TaskSummary, Uuid};
 use indexmap::IndexSet;
 
 use miette::{IntoDiagnostic, Result, WrapErr};
 use schemars::SchemaGenerator;
-use tarpc::client;
 use tarpc::context;
-use tarpc::serde_transport::tcp;
-use tarpc::tokio_serde::formats::Json;
 use tracing::Instrument;
 
 use std::fs::File;
 use std::io::{self, BufWriter};
-use std::net::SocketAddr;
 use std::path::Path;
 
 #[tokio::main]
@@ -98,7 +91,7 @@ async fn main() -> Result<()> {
 }
 
 async fn schema(pretty: bool, outfile: Option<&Path>) -> Result<()> {
-    use crate::task::Details as TaskDetails;
+    use kid_cli::task::Details as TaskDetails;
     let generator = SchemaGenerator::default();
     let schema = generator.into_root_schema_for::<TaskDetails>();
     if let Some(outfile) = outfile {
@@ -309,19 +302,6 @@ async fn complete(server: &ServerArgs, actor: &str, id: &Uuid, reopen: bool) -> 
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to change the status of task {id}"))?;
     Ok(())
-}
-
-async fn connect(addr: &SocketAddr) -> Result<TaskServiceClient> {
-    tracing::info!("CLI will connect to {}", addr);
-    let mut transport = tcp::connect(addr, Json::default);
-    transport.config_mut().max_frame_length(usize::MAX);
-    let transport = transport
-        .await
-        .into_diagnostic()
-        .wrap_err("failed to connect")?;
-
-    let client = TaskServiceClient::new(client::Config::default(), transport).spawn();
-    Ok(client)
 }
 
 fn init_miette_report() {
