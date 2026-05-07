@@ -151,9 +151,8 @@ impl TaskCache {
 
     fn with_capacity(capacity: usize) -> Self {
         let path = env::current_dir().expect("CWD available");
-        let path = path.join("tasks");
         Self {
-            dir: path.to_path_buf(),
+            dir: path,
             tasks: DataMap::with_capacity_and_hasher(capacity, RandomState::new()),
             dirty: ChangeSet::with_hasher(RandomState::new()),
         }
