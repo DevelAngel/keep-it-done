@@ -1,9 +1,7 @@
 use kid_cli::TaskServiceClient;
-use kid_types::task::TimeEstimate;
-use kid_types::{Task, TaskDetails, TaskInfos, TaskPriority};
+use kid_types::{Task, TaskDetails, TaskInfos, TaskPriority, TaskTimeEstimate};
 
 use indexmap::IndexSet;
-use strum::IntoEnumIterator;
 use tarpc::context;
 use uuid::{NoContext, Timestamp, Uuid};
 
@@ -55,7 +53,7 @@ fn build(
         .with_category(category.parse().unwrap())
         .with_contexts(ctx);
     if let Some(e) = estimate {
-        t.set_time_estimate(parse_estimate(e));
+        t.set_time_estimate(e.parse::<TaskTimeEstimate>().unwrap());
     }
     if let Some(p) = priority {
         t.set_priority(p.parse::<TaskPriority>().unwrap());
@@ -64,12 +62,6 @@ fn build(
         t.set_notes(n);
     }
     t
-}
-
-fn parse_estimate(s: &str) -> TimeEstimate {
-    TimeEstimate::iter()
-        .find(|v| v.short_label() == s)
-        .unwrap_or_else(|| panic!("unknown estimate: {s:?}"))
 }
 
 async fn send(rpc: &TaskServiceClient, task: Task, days_ago: u64) {

@@ -446,11 +446,7 @@ impl<'de> Deserialize<'de> for TimeEstimate {
                 Current::Day2    => Self::Day2,
             },
             Raw::Legacy(Legacy::Guess(s)) => {
-                use strum::IntoEnumIterator;
-                let lower = s.trim().to_lowercase();
-                Self::iter()
-                    .find(|v| lower == v.short_label() || lower == v.to_string().to_lowercase())
-                    .unwrap_or(Self::Day2)
+                s.parse().unwrap_or(Self::Day2)
             }
             Raw::Legacy(Legacy::Precise(d)) => d.into(),
         })
@@ -700,6 +696,18 @@ impl<'a> TaskDetails<'a> for Details {
     }
     fn clear_notes(&'a mut self) {
         self.notes = None;
+    }
+}
+
+impl FromStr for TimeEstimate {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use strum::IntoEnumIterator;
+        let lower = s.trim().to_lowercase();
+        Self::iter()
+            .find(|v| lower == v.short_label() || lower == v.to_string().to_lowercase())
+            .ok_or("unknown time estimate")
     }
 }
 
