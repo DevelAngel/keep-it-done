@@ -26,16 +26,21 @@ Feature: View Switching
       | done   | 1        | Brought bottles to recycling center          | Household |          |          |          |                                        |
     When I open the app
     Then I see the page title is Upcoming
+    And I see tasks in the list
     And I save a screenshot as "task-list-upcoming"
     When I click the next view arrow
     Then I see the page title is Quick Wins
+    And I see tasks in the list
     And I save a screenshot as "task-list-quickwins"
     When I click the next view arrow
     Then I see the page title is All Open
+    And I see tasks in the list
     And I save a screenshot as "task-list-allopen"
     When I click the next view arrow
     Then I see the page title is What I Finished
+    And I see tasks in the list
     And I save a screenshot as "task-list-whatifinished"
     When I click the next view arrow
     Then I see the page title is Recent Changes
+    And I see tasks in the list
     And I save a screenshot as "task-list-recentchanges"

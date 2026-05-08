@@ -22,6 +22,16 @@ async fn switch_view_by_arrow(world: &mut AppWorld, dir: ViewSwitch) -> Result<(
     Ok(())
 }
 
+#[then("I see tasks in the list")]
+async fn wait_for_tasks(world: &mut AppWorld) -> Result<()> {
+    // tasks have a checkbox toggle
+    world.http
+        .query(By::Css("input[type='checkbox']"))
+        .first()
+        .await?;
+    Ok(())
+}
+
 #[then(expr = "I see the page title is {}")]
 async fn validate_view_title(
     world: &mut AppWorld,
