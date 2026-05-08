@@ -1,4 +1,5 @@
 use anyhow::Result;
+use cucumber::gherkin::Step;
 use cucumber::given;
 use tarpc::context;
 
@@ -12,94 +13,45 @@ async fn empty_task_list(world: &mut AppWorld) -> Result<()> {
     Ok(())
 }
 
-#[given(expr = "task {string} in {string} at {string} created {int} days ago")]
-async fn open_task(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    context: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_open(&world.rpc, &summary, &category, &context, None, None, None, days_ago).await;
-    Ok(())
-}
+#[given("the following tasks")]
+async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
+    let table = step.table.as_ref().expect("data table required");
+    let headers = &table.rows[0];
 
-#[given(expr = "task {string} in {string} at {string} estimate {string} created {int} days ago")]
-async fn open_task_estimate(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    context: String,
-    estimate: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_open(&world.rpc, &summary, &category, &context, Some(&estimate), None, None, days_ago).await;
-    Ok(())
-}
+    for row in &table.rows[1..] {
+        let col = |name: &str| -> Option<&str> {
+            let idx = headers.iter().position(|h| h == name)
+                .unwrap_or_else(|| panic!("missing column: {name}"));
+            let val = row[idx].trim();
+            if val.is_empty() { None } else { Some(val) }
+        };
 
-#[given(expr = "task {string} in {string} at {string} priority {word} created {int} days ago")]
-async fn open_task_priority(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    context: String,
-    priority: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_open(&world.rpc, &summary, &category, &context, None, Some(&priority), None, days_ago).await;
-    Ok(())
-}
+        let summary = col("summary").expect("summary required");
+        let category = col("category").expect("category required");
+        let status = col("status").expect("status required");
+        let days_ago: u64 = col("days ago").expect("days ago required")
+            .parse().expect("days ago must be a number");
 
-#[given(expr = "task {string} in {string} at {string} estimate {string} note {string} created {int} days ago")]
-async fn open_task_estimate_note(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    context: String,
-    estimate: String,
-    note: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_open(&world.rpc, &summary, &category, &context, Some(&estimate), None, Some(&note), days_ago).await;
-    Ok(())
-}
+        match status {
+            "open" => seeds::add_open(
+                &world.rpc,
+                summary,
+                category,
+                col("context").unwrap_or(""),
+                col("estimate"),
+                col("priority"),
+                col("note"),
+                days_ago,
+            ).await,
+            "done" => seeds::add_done(
+                &world.rpc,
+                summary,
+                category,
+                days_ago,
+            ).await,
+            other => panic!("unknown status: {other}"),
+        }
+    }
 
-#[given(expr = "task {string} in {string} at {string} estimate {string} priority {word} note {string} created {int} days ago")]
-async fn open_task_estimate_priority_note(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    context: String,
-    estimate: String,
-    priority: String,
-    note: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_open(&world.rpc, &summary, &category, &context, Some(&estimate), Some(&priority), Some(&note), days_ago).await;
-    Ok(())
-}
-
-#[given(expr = "task {string} in {string} at {string} estimate {string} priority {word} created {int} days ago")]
-async fn open_task_estimate_priority(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    context: String,
-    estimate: String,
-    priority: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_open(&world.rpc, &summary, &category, &context, Some(&estimate), Some(&priority), None, days_ago).await;
-    Ok(())
-}
-
-#[given(expr = "completed task {string} in {string} created {int} days ago")]
-async fn completed_task(
-    world: &mut AppWorld,
-    summary: String,
-    category: String,
-    days_ago: u64,
-) -> Result<()> {
-    seeds::add_done(&world.rpc, &summary, &category, days_ago).await;
     Ok(())
 }
