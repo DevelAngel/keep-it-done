@@ -1,5 +1,6 @@
 mod helpers;
 mod screenshots;
+mod seeds;
 mod steps;
 mod world;
 

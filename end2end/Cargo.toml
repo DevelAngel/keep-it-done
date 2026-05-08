@@ -9,11 +9,14 @@ publish = false
 anyhow.workspace = true
 assert_fs.workspace = true
 cucumber = "0.21"
+indexmap.workspace = true
 kid-cli = { path = "../cli" }
+kid-types = { path = "../types" }
 strum.workspace = true
 tarpc.workspace = true
 thirtyfour = "0.37.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+uuid = { workspace = true, features = ["v7"] }
 
 [[test]]
 name = "browser"

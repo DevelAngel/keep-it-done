@@ -2026,11 +2026,14 @@ dependencies = [
  "anyhow",
  "assert_fs",
  "cucumber",
+ "indexmap 2.13.0",
  "kid-cli",
+ "kid-types",
  "strum",
  "tarpc",
  "thirtyfour",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
