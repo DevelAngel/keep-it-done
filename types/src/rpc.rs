@@ -23,6 +23,7 @@ pub trait TaskService {
     async fn switch_dir(dir: PathBuf) -> Result<usize, SwitchDirError>;
     async fn list() -> Vec<(Uuid, Task)>;
     async fn add(task: Task, actor: String);
+    async fn add_with_id(id: Uuid, task: Task, actor: String);
     async fn rename(id: Uuid, summary: TaskSummary, actor: String);
     async fn replace(id: Uuid, details: TaskDetails, actor: String);
     async fn update(id: Uuid, details: TaskDetailsPatch, actor: String);

@@ -189,6 +189,13 @@ impl TaskCache {
         id
     }
 
+    pub fn add_with_id(&mut self, id: Uuid, mut task: Task, actor: impl Into<String>) {
+        assert!(Self::has_valid_id(&id), "id must be UUID v7");
+        task.add_author(&actor.into());
+        self.dirty.insert(id);
+        self.tasks.insert(id, task);
+    }
+
     /*
      * Note: get() is accessable via Deref trait
      */

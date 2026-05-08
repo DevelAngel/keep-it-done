@@ -100,6 +100,11 @@ impl TaskService for RpcService {
         task_cache.add(task, &actor);
     }
 
+    async fn add_with_id(self, _: Context, id: Uuid, task: Task, actor: String) {
+        let mut task_cache = self.task_cache.write().await;
+        task_cache.add_with_id(id, task, &actor);
+    }
+
     async fn rename(self, _: Context, id: Uuid, summary: TaskSummary, actor: String) {
         let mut task_cache = self.task_cache.write().await;
         if let Some(mut task) = task_cache.get_mut(&id, &actor) {
