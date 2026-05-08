@@ -2,13 +2,23 @@ use anyhow::Result;
 use cucumber::{then, when};
 use thirtyfour::prelude::*;
 
-use crate::helpers::ViewSwitch;
+use crate::helpers::{ViewName, ViewSwitch};
 use crate::screenshots;
 use crate::world::AppWorld;
 
 #[when("I open the app")]
 async fn open_webapp(world: &mut AppWorld) -> Result<()> {
     world.http.goto("http://localhost:3000/").await?;
+    Ok(())
+}
+
+#[when(expr = "I open the app in {} view")]
+async fn open_webapp_in_view(world: &mut AppWorld, view: ViewName) -> Result<()> {
+    let view = view.url_param();
+    world
+        .http
+        .goto(format!("http://localhost:3000/?view={view}"))
+        .await?;
     Ok(())
 }
 
@@ -44,8 +54,8 @@ async fn validate_view_title(
     Ok(())
 }
 
-#[then(expr = "I save a screenshot as {string}")]
-async fn save_screenshot(world: &mut AppWorld, name: String) -> Result<()> {
-    screenshots::save_screenshot(&world.http, &name).await;
+#[then(expr = "I save a screenshot for the {} view")]
+async fn save_view_screenshot(world: &mut AppWorld, view: ViewName) -> Result<()> {
+    screenshots::save_screenshot(&world.http, &view.screenshot_file()).await;
     Ok(())
 }

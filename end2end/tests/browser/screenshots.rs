@@ -11,8 +11,8 @@ static SCREENSHOTS_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 });
 
 /// Save a screenshot to the repo-root `screenshots/` directory.
-pub async fn save_screenshot(driver: &WebDriver, name: &str) {
-    let path = SCREENSHOTS_DIR.join(format!("{name}.png"));
+pub async fn save_screenshot(driver: &WebDriver, file_name: &Path) {
+    let path = SCREENSHOTS_DIR.join(file_name);
     if let Err(e) = driver.screenshot(&path).await {
         eprintln!("screenshot failed: {e}");
     }
