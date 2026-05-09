@@ -1212,4 +1212,160 @@ mod tests {
         let json = serde_json::to_string(&task).unwrap();
         assert!(!json.contains("availability"));
     }
+
+    // AVAILABILITY - IS_ELIGIBLE
+
+    #[test]
+    fn is_eligible_anytime_all_days() {
+        use chrono::NaiveDate;
+        // Mon 2026-05-18 through Sun 2026-05-24
+        for d in 18..=24u32 {
+            let date = NaiveDate::from_ymd_opt(2026, 5, d).unwrap();
+            assert!(Availability::Anytime.is_eligible(date), "day {d}");
+        }
+    }
+
+    #[test]
+    fn is_eligible_weekday_only() {
+        use chrono::NaiveDate;
+        let mon = NaiveDate::from_ymd_opt(2026, 5, 18).unwrap();
+        let fri = NaiveDate::from_ymd_opt(2026, 5, 22).unwrap();
+        let sat = NaiveDate::from_ymd_opt(2026, 5, 23).unwrap();
+        let sun = NaiveDate::from_ymd_opt(2026, 5, 24).unwrap();
+        assert!(Availability::WeekdayOnly.is_eligible(mon));
+        assert!(Availability::WeekdayOnly.is_eligible(fri));
+        assert!(!Availability::WeekdayOnly.is_eligible(sat));
+        assert!(!Availability::WeekdayOnly.is_eligible(sun));
+    }
+
+    #[test]
+    fn is_eligible_weekend_only() {
+        use chrono::NaiveDate;
+        let fri = NaiveDate::from_ymd_opt(2026, 5, 22).unwrap();
+        let sat = NaiveDate::from_ymd_opt(2026, 5, 23).unwrap();
+        let sun = NaiveDate::from_ymd_opt(2026, 5, 24).unwrap();
+        assert!(!Availability::WeekendOnly.is_eligible(fri));
+        assert!(Availability::WeekendOnly.is_eligible(sat));
+        assert!(Availability::WeekendOnly.is_eligible(sun));
+    }
+
+    // ATTENTION DATE
+
+    /// Helper: build a Details with the given fields.
+    fn details_with(
+        due: Option<&str>,
+        start: Option<&str>,
+        estimate: Option<TimeEstimate>,
+        avail: Availability,
+    ) -> Details {
+        use chrono::NaiveDate;
+        let to_date = |s: &str| {
+            let nd = NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+            Date {
+                date: nd.and_hms_opt(0, 0, 0).unwrap().and_utc().fixed_offset(),
+                soft: false,
+            }
+        };
+        Details {
+            due_date: due.map(to_date),
+            start_date: start.map(to_date),
+            time_estimate: estimate,
+            availability: avail,
+            notes: None,
+        }
+    }
+
+    #[test]
+    fn attention_date_no_due_date_returns_none() {
+        use crate::TaskDetails;
+        let d = details_with(None, None, None, Availability::Anytime);
+        assert_eq!(d.attention_date(), None);
+    }
+
+    #[test]
+    fn attention_date_due_only_returns_due() {
+        use crate::TaskDetails;
+        use chrono::NaiveDate;
+        let d = details_with(
+            Some("2026-05-21"), None, None, Availability::Anytime,
+        );
+        assert_eq!(
+            d.attention_date(),
+            Some(NaiveDate::from_ymd_opt(2026, 5, 21).unwrap()),
+        );
+    }
+
+    #[test]
+    fn attention_date_halfday_anytime_equals_due() {
+        use crate::TaskDetails;
+        use chrono::NaiveDate;
+        // HalfDay lead_days=0 → attention = due
+        let d = details_with(
+            Some("2026-05-20"), None,
+            Some(TimeEstimate::HalfDay), Availability::Anytime,
+        );
+        assert_eq!(
+            d.attention_date(),
+            Some(NaiveDate::from_ymd_opt(2026, 5, 20).unwrap()),
+        );
+    }
+
+    #[test]
+    fn attention_date_1d_anytime_day_before() {
+        use crate::TaskDetails;
+        use chrono::NaiveDate;
+        // Wed May 20 → attention Tue May 19
+        let d = details_with(
+            Some("2026-05-20"), None,
+            Some(TimeEstimate::Day1), Availability::Anytime,
+        );
+        assert_eq!(
+            d.attention_date(),
+            Some(NaiveDate::from_ymd_opt(2026, 5, 19).unwrap()),
+        );
+    }
+
+    #[test]
+    fn attention_date_2d_weekday_only_due_monday() {
+        use crate::TaskDetails;
+        use chrono::NaiveDate;
+        // Mon May 18, WeekdayOnly, 2d → skip Sun+Sat → Thu May 14
+        let d = details_with(
+            Some("2026-05-18"), None,
+            Some(TimeEstimate::Day2), Availability::WeekdayOnly,
+        );
+        assert_eq!(
+            d.attention_date(),
+            Some(NaiveDate::from_ymd_opt(2026, 5, 14).unwrap()),
+        );
+    }
+
+    #[test]
+    fn attention_date_2d_weekend_only_due_friday() {
+        use crate::TaskDetails;
+        use chrono::NaiveDate;
+        // Fri May 22, WeekendOnly, 2d → Sat May 16
+        let d = details_with(
+            Some("2026-05-22"), None,
+            Some(TimeEstimate::Day2), Availability::WeekendOnly,
+        );
+        assert_eq!(
+            d.attention_date(),
+            Some(NaiveDate::from_ymd_opt(2026, 5, 16).unwrap()),
+        );
+    }
+
+    #[test]
+    fn attention_date_manual_start_date_overrides() {
+        use crate::TaskDetails;
+        use chrono::NaiveDate;
+        let d = details_with(
+            Some("2026-05-25"), Some("2026-05-10"),
+            Some(TimeEstimate::Day2), Availability::WeekendOnly,
+        );
+        assert_eq!(
+            d.attention_date(),
+            Some(NaiveDate::from_ymd_opt(2026, 5, 10).unwrap()),
+        );
+    }
 }
