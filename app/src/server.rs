@@ -14,6 +14,7 @@ use super::DeadlineGroup;
 use serde::{Serialize, Deserialize};
 
 use kid_types::TaskAuthors;
+use kid_types::TaskAvailability;
 use kid_types::TaskCategory;
 use kid_types::TaskContext;
 use kid_types::TaskDate;
@@ -83,6 +84,52 @@ pub async fn fetch_quick_wins() -> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task
     Ok(groups)
 }
 
+/// Assign a deadline group based on the task's attention date.
+///
+/// Overdue is always based on the actual `due_date`. For non-overdue
+/// tasks, the attention date (`due_date` minus `lead_days` eligible
+/// days for the given `availability`) determines the bucket.
+#[cfg(feature = "ssr")]
+fn deadline_group(
+    due_date: NaiveDate,
+    estimate: Option<TaskTimeEstimate>,
+    availability: TaskAvailability,
+    today: NaiveDate,
+    this_sunday: NaiveDate,
+    next_sunday: NaiveDate,
+) -> DeadlineGroup {
+    if due_date < today {
+        return DeadlineGroup::Overdue;
+    }
+
+    // Attention date: due - lead eligible days.
+    let group_date = match estimate {
+        Some(est) if est.lead_days() > 0 => {
+            let lead = est.lead_days();
+            let mut remaining = lead;
+            let mut date = due_date;
+            while remaining > 0 {
+                date = date.pred_opt().expect("date underflow");
+                if availability.is_eligible(date) {
+                    remaining -= 1;
+                }
+            }
+            date
+        }
+        _ => due_date,
+    };
+
+    if group_date <= today {
+        DeadlineGroup::Today
+    } else if group_date <= this_sunday {
+        DeadlineGroup::ThisWeek
+    } else if group_date <= next_sunday {
+        DeadlineGroup::NextWeek
+    } else {
+        DeadlineGroup::Later
+    }
+}
+
 /// Fetch open tasks that carry a date, grouped by temporal urgency.
 ///
 /// Returns `(groups, backlog_tasks)` where backlog_tasks are open tasks
@@ -116,19 +163,14 @@ pub async fn fetch_upcoming(
             continue;
         }
 
-        // Group by effective date: due_date if present, else start_date.
+        // Group by attention date; sort within groups by actual
+        // due_date (UXDR).
         let (group, sort_date) = if let Some(due_date) = due {
-            let group = if due_date < today {
-                DeadlineGroup::Overdue
-            } else if due_date == today {
-                DeadlineGroup::Today
-            } else if due_date <= this_sunday {
-                DeadlineGroup::ThisWeek
-            } else if due_date <= next_sunday {
-                DeadlineGroup::NextWeek
-            } else {
-                DeadlineGroup::Later
-            };
+            let est = task.time_estimate().copied();
+            let avail = *task.availability();
+            let group = deadline_group(
+                due_date, est, avail, today, this_sunday, next_sunday,
+            );
             (group, due_date)
         } else {
             // start_date <= today, no due_date → Ready to Start

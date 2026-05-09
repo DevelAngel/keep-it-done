@@ -279,7 +279,7 @@ enum TaskListData {
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeadlineGroup {
     Overdue,
     Today,
