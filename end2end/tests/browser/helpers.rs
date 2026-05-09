@@ -1,3 +1,4 @@
+use kid_types::ViewSlug;
 use strum::{Display, EnumString};
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -22,15 +23,21 @@ pub enum ViewName {
     RecentChanges,
 }
 
+impl From<&ViewName> for ViewSlug {
+    fn from(name: &ViewName) -> Self {
+        match name {
+            ViewName::Upcoming       => Self::Upcoming,
+            ViewName::QuickWins      => Self::QuickWins,
+            ViewName::AllOpen        => Self::AllOpen,
+            ViewName::WhatIFinished  => Self::WhatIFinished,
+            ViewName::RecentChanges  => Self::RecentlyChanged,
+        }
+    }
+}
+
 impl ViewName {
     pub fn url_param(&self) -> &'static str {
-        match self {
-            Self::Upcoming => "upcoming",
-            Self::QuickWins => "quickwins",
-            Self::AllOpen => "allopen",
-            Self::WhatIFinished => "finished",
-            Self::RecentChanges => "recent",
-        }
+        ViewSlug::from(self).into()
     }
 
     pub fn screenshot_file(&self) -> PathBuf {

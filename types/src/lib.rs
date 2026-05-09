@@ -3,6 +3,7 @@ pub mod rpc;
 #[cfg(feature = "ssr")]
 pub mod server;
 pub mod task;
+pub mod view;
 
 pub use crate::task::{
     Authors as TaskAuthors,
@@ -15,6 +16,7 @@ pub use crate::task::{
 };
 pub use chrono::{DateTime, FixedOffset, Utc};
 pub use uuid::Uuid;
+pub use view::ViewSlug;
 
 use indexmap::IndexSet;
 

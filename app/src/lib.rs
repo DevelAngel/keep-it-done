@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid};
+use kid_types::{TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid, ViewSlug};
 use kid_types::task;
 use strum::IntoEnumIterator;
 use indexmap::IndexMap;
@@ -141,6 +141,18 @@ enum View {
     RecentlyChanged,
 }
 
+impl From<ViewSlug> for View {
+    fn from(slug: ViewSlug) -> Self {
+        match slug {
+            ViewSlug::Upcoming        => Self::Upcoming,
+            ViewSlug::QuickWins       => Self::QuickWins,
+            ViewSlug::AllOpen         => Self::AllOpen,
+            ViewSlug::WhatIFinished   => Self::WhatIFinished,
+            ViewSlug::RecentlyChanged => Self::RecentlyChanged,
+        }
+    }
+}
+
 impl View {
     fn title(self) -> &'static str {
         match self {
@@ -237,14 +249,7 @@ impl View {
     /// Used by SSR to render a specific view on initial page load,
     /// enabling screenshot automation without WASM hydration.
     fn from_query_param(s: &str) -> Option<Self> {
-        match s {
-            "upcoming"  => Some(View::Upcoming),
-            "quickwins" => Some(View::QuickWins),
-            "allopen"   => Some(View::AllOpen),
-            "finished"  => Some(View::WhatIFinished),
-            "recent"    => Some(View::RecentlyChanged),
-            _           => None,
-        }
+        s.parse::<ViewSlug>().ok().map(Self::from)
     }
 
     fn priority_a_border(self) -> &'static str {
