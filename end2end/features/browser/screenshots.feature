@@ -1,7 +1,7 @@
 @screenshot
 Feature: Screenshots of all views
 
-  Scenario Outline: Make screenshot from <view> view
+  Background:
     Given the following tasks
       | status | days ago | summary                                      | category  | context  | estimate | priority | start | due | note                                   |
       | open   | 21       | Hang picture frames (in the box since March) | Household | @home    |          |          |       |     |                                        |
@@ -24,6 +24,8 @@ Feature: Screenshots of all views
       | open   | 1        | Take out the recycling                       | Household | @home    | 15m      |          | -1    | 0   |                                        |
       | open   | 1        | Plan something for the long weekend          | Family    | @home    |          |          | -1    | +3  |                                        |
       | done   | 1        | Brought bottles to recycling center          | Household |          |          |          |       |     |                                        |
+
+  Scenario Outline: Make screenshot from <view> view
     When I open the app in <view> view
     Then I see the page title is <view>
     And I see tasks in the list
@@ -36,3 +38,9 @@ Feature: Screenshots of all views
     | All Open        |
     | What I Finished |
     | Recent Changes  |
+
+  Scenario: Make screenshot of expanded task detail
+    When I open the app in All Open view with expanded details
+    Then I see the page title is All Open
+    And I see tasks in the list
+    And I save a screenshot as "task-detail-expansion"
