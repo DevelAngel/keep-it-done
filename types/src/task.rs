@@ -746,6 +746,19 @@ impl TimeEstimate {
             Self::Day2    => "2d",
         }
     }
+
+    /// Calendar days needed before the due date to complete this task.
+    ///
+    /// Sub-day estimates return 0 (completable on the due date itself).
+    /// Used by the attention-date computation to determine lead time.
+    pub fn lead_days(self) -> u32 {
+        match self {
+            Self::Min15 | Self::Min30 | Self::Min45
+            | Self::Hours1 | Self::Hours2 | Self::HalfDay => 0,
+            Self::Day1 => 1,
+            Self::Day2 => 2,
+        }
+    }
 }
 
 impl Display for TimeEstimate {
