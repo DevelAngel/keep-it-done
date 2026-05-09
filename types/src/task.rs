@@ -251,6 +251,8 @@ pub struct Details {
     #[serde(default, deserialize_with = "deserialize_due_date")]
     start_date: Option<Date>,
     time_estimate: Option<TimeEstimate>,
+    #[serde(default, skip_serializing_if = "Availability::is_default")]
+    availability: Availability,
     notes: Option<String>,
 }
 
@@ -610,6 +612,12 @@ impl<'a> TaskDetails<'a> for (Uuid, Details) {
     fn clear_time_estimate(&mut self) {
         self.1.clear_time_estimate();
     }
+    fn availability(&'a self) -> &'a Availability {
+        self.1.availability()
+    }
+    fn set_availability(&'a mut self, availability: Availability) {
+        self.1.set_availability(availability);
+    }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.1.notes()
     }
@@ -649,6 +657,12 @@ impl<'a> TaskDetails<'a> for Task {
     fn clear_time_estimate(&mut self) {
         self.details.clear_time_estimate();
     }
+    fn availability(&'a self) -> &'a Availability {
+        &self.details.availability
+    }
+    fn set_availability(&'a mut self, availability: Availability) {
+        self.details.set_availability(availability);
+    }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.details.notes()
     }
@@ -687,6 +701,12 @@ impl<'a> TaskDetails<'a> for Details {
     }
     fn clear_time_estimate(&mut self) {
         self.time_estimate = None;
+    }
+    fn availability(&'a self) -> &'a Availability {
+        &self.availability
+    }
+    fn set_availability(&'a mut self, availability: Availability) {
+        self.availability = availability;
     }
     fn notes(&'a self) -> Option<Cow<'a, str>> {
         self.notes.as_deref().map(Cow::Borrowed)
@@ -740,6 +760,21 @@ impl Display for TimeEstimate {
             Self::Day1    => write!(f, "1 day"),
             Self::Day2    => write!(f, "2 days"),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+pub enum Availability {
+    #[default]
+    Anytime,
+    WeekdayOnly,
+    WeekendOnly,
+}
+
+impl Availability {
+    fn is_default(&self) -> bool {
+        matches!(self, Self::Anytime)
     }
 }
 

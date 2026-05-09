@@ -7,6 +7,7 @@ pub mod view;
 
 pub use crate::task::{
     Authors as TaskAuthors,
+    Availability as TaskAvailability,
     Category as TaskCategory,
     Context as TaskContext,
     Date as TaskDate,
@@ -82,6 +83,8 @@ pub trait TaskDetails<'a> {
     fn time_estimate(&'a self) -> Option<&'a TaskTimeEstimate>;
     fn set_time_estimate(&mut self, time: TaskTimeEstimate);
     fn clear_time_estimate(&mut self);
+    fn availability(&'a self) -> &'a TaskAvailability;
+    fn set_availability(&'a mut self, availability: TaskAvailability);
     fn notes(&'a self) -> Option<Cow<'a, str>>;
     fn set_notes<T: ToString>(&'a mut self, text: T);
     fn clear_notes(&'a mut self);
