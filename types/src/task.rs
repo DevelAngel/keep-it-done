@@ -1101,4 +1101,69 @@ mod tests {
         assert_eq!(date.date, DateTime::parse_from_rfc3339("2026-07-01T00:00:00+00:00").unwrap());
         assert!(date.soft);
     }
+
+    // AVAILABILITY - SERIALIZE / DESERIALIZE
+
+    #[test]
+    fn serialize_availability_weekday_only() {
+        let v = serde_json::to_string(&Availability::WeekdayOnly).unwrap();
+        assert_eq!(v, r#""WeekdayOnly""#);
+    }
+
+    #[test]
+    fn serialize_availability_weekend_only() {
+        let v = serde_json::to_string(&Availability::WeekendOnly).unwrap();
+        assert_eq!(v, r#""WeekendOnly""#);
+    }
+
+    #[test]
+    fn deserialize_availability_all_variants() {
+        assert_eq!(
+            serde_json::from_str::<Availability>(r#""Anytime""#).unwrap(),
+            Availability::Anytime,
+        );
+        assert_eq!(
+            serde_json::from_str::<Availability>(r#""WeekdayOnly""#).unwrap(),
+            Availability::WeekdayOnly,
+        );
+        assert_eq!(
+            serde_json::from_str::<Availability>(r#""WeekendOnly""#).unwrap(),
+            Availability::WeekendOnly,
+        );
+    }
+
+    #[test]
+    fn availability_default_is_anytime() {
+        assert_eq!(Availability::default(), Availability::Anytime);
+    }
+
+    // AVAILABILITY - TASK ROUND-TRIP
+
+    #[test]
+    fn task_without_availability_deserializes_to_anytime() {
+        let task: Task = serde_json::from_str(
+            r#"{"summary":"X","status":"ToDo"}"#
+        ).unwrap();
+        assert_eq!(task.details.availability, Availability::Anytime);
+    }
+
+    #[test]
+    fn task_with_availability_round_trips() {
+        let task: Task = serde_json::from_str(
+            r#"{"summary":"X","status":"ToDo","availability":"WeekendOnly"}"#
+        ).unwrap();
+        assert_eq!(task.details.availability, Availability::WeekendOnly);
+
+        let json = serde_json::to_string(&task).unwrap();
+        assert!(json.contains(r#""availability":"WeekendOnly""#));
+    }
+
+    #[test]
+    fn task_with_anytime_skips_serialization() {
+        let task = Task::new(SUMMARY.parse().unwrap());
+        assert_eq!(task.details.availability, Availability::Anytime);
+
+        let json = serde_json::to_string(&task).unwrap();
+        assert!(!json.contains("availability"));
+    }
 }
