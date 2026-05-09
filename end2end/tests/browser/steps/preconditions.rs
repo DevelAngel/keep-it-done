@@ -20,10 +20,9 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
 
     for row in &table.rows[1..] {
         let col = |name: &str| -> Option<&str> {
-            let idx = headers.iter().position(|h| h == name)
-                .unwrap_or_else(|| panic!("missing column: {name}"));
-            let val = row[idx].trim();
-            if val.is_empty() { None } else { Some(val) }
+            headers.iter().position(|h| h == name)
+                .map(|idx| row[idx].trim())
+                .filter(|val| !val.is_empty())
         };
 
         let summary = col("summary").expect("summary required");
@@ -40,6 +39,8 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
                 col("context").unwrap_or(""),
                 col("estimate"),
                 col("priority"),
+                col("start"),
+                col("due"),
                 col("note"),
                 days_ago,
             ).await,

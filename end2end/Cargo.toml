@@ -8,6 +8,7 @@ publish = false
 [dev-dependencies]
 anyhow.workspace = true
 assert_fs.workspace = true
+chrono.workspace = true
 cucumber = "0.21"
 indexmap.workspace = true
 kid-cli = { path = "../cli" }
