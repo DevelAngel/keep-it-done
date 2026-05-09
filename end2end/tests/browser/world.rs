@@ -31,7 +31,7 @@ impl AppWorld {
     async fn new() -> Result<Self> {
         let mut capa = DesiredCapabilities::chrome();
         capa.set_headless()?;
-        capa.add_arg("--window-size=360,780")?; // Galaxy S24
+        capa.add_arg("--window-size=360,1400")?;
         capa.add_arg("--hide-scrollbars")?;
         let http = WebDriver::managed(capa).await?;
         let rpc = kid_cli::connect(&RPC_ADDR)

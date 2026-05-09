@@ -101,7 +101,7 @@ root. These paths are referenced in `README.md`.
 2. The **Given** step seeds tasks via `add_with_id` RPC — each task
    gets a backdated UUID v7 so `days ago` values are realistic.
    Dates (`start`, `due`) use relative day offsets (`+5`, `-3`, `0`).
-3. Headless Chrome is launched at 360 x 780 px (Galaxy S24) with
+3. Headless Chrome is launched at 360 x 1400 px (mobile width, tall) with
    scrollbars hidden. `WebDriver::managed` handles chromedriver
    lifecycle automatically.
 4. The test navigates to each view (via URL param or arrow clicks)
