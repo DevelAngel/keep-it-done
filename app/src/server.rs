@@ -570,3 +570,444 @@ pub mod ssr {
         ServerFnError::ServerError(msg)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+    use kid_types::TaskAvailability as Avail;
+    use kid_types::TaskTimeEstimate as Est;
+
+    /// Week anchors for a given `today`.
+    fn week_bounds(today: NaiveDate) -> (NaiveDate, NaiveDate) {
+        use chrono::Datelike;
+        let days_until_sunday = 6 - today.weekday().num_days_from_monday();
+        let this_sunday = today + chrono::Days::new(days_until_sunday as u64);
+        let next_sunday = this_sunday + chrono::Days::new(7);
+        (this_sunday, next_sunday)
+    }
+
+    fn group(
+        due: &str,
+        estimate: Option<Est>,
+        availability: Avail,
+        today: &str,
+    ) -> DeadlineGroup {
+        let today = NaiveDate::parse_from_str(today, "%Y-%m-%d").unwrap();
+        let due = NaiveDate::parse_from_str(due, "%Y-%m-%d").unwrap();
+        let (this_sun, next_sun) = week_bounds(today);
+        deadline_group(due, estimate, availability, today, this_sun, next_sun)
+    }
+
+    // ── Baseline: no estimate, pure due_date grouping ──
+
+    #[test]
+    fn overdue_task() {
+        // Due yesterday → Overdue
+        assert_eq!(
+            group("2026-05-08", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Overdue,
+        );
+    }
+
+    #[test]
+    fn due_today_no_estimate() {
+        assert_eq!(
+            group("2026-05-09", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Today,
+        );
+    }
+
+    #[test]
+    fn due_this_week_no_estimate() {
+        // Today is Sat May 9, due Sun May 10 (this week)
+        assert_eq!(
+            group("2026-05-10", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn due_next_week_no_estimate() {
+        // Today is Sat May 9, next week Mon-Sun = May 11-17
+        assert_eq!(
+            group("2026-05-14", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    #[test]
+    fn due_later_no_estimate() {
+        // Today is Sat May 9, next_sunday = May 17
+        // Due May 20 → Later
+        assert_eq!(
+            group("2026-05-20", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Later,
+        );
+    }
+
+    // ── Attention date: Anytime ──
+
+    #[test]
+    fn day2_anytime_surfaces_earlier() {
+        // Today Sat May 9 (this_sun=10, next_sun=17)
+        // Due Tue May 19 → without estimate: Later (19 > 17)
+        assert_eq!(
+            group("2026-05-19", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Later,
+        );
+        // With Day2: attention = May 17 (Sun) → Next Week (17 <= 17)
+        assert_eq!(
+            group("2026-05-19", Some(Est::Day2), Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    #[test]
+    fn day1_anytime_surfaces_one_day_earlier() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Mon May 18 → without estimate: Next Week (18 <= 24)
+        assert_eq!(
+            group("2026-05-18", None, Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::NextWeek,
+        );
+        // With Day1: attention = May 17 (Sun) → This Week (17 <= 17)
+        assert_eq!(
+            group("2026-05-18", Some(Est::Day1), Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn halfday_anytime_no_lead() {
+        // HalfDay → lead_days=0 → group_date = due_date → Later
+        assert_eq!(
+            group("2026-05-20", Some(Est::HalfDay), Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Later,
+        );
+    }
+
+    // ── Attention date: WeekdayOnly ──
+
+    #[test]
+    fn day2_weekday_only_skips_weekend() {
+        // Today Wed May 13 (this_sun=17, next_sun=24)
+        // Due Mon May 18, Day2 WeekdayOnly:
+        //   Sun 17 → skip, Sat 16 → skip,
+        //   Fri 15 → 1, Thu 14 → 0
+        //   attention = May 14 (Thu) → This Week (14 <= 17)
+        assert_eq!(
+            group("2026-05-18", Some(Est::Day2), Avail::WeekdayOnly, "2026-05-13"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn day2_weekday_only_due_monday_from_prior_week() {
+        // Today Sat May 9, due Mon May 18
+        // Day2 WeekdayOnly: attention = Thu May 14 → Next Week
+        assert_eq!(
+            group("2026-05-18", Some(Est::Day2), Avail::WeekdayOnly, "2026-05-09"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    // ── Attention date: WeekendOnly ──
+
+    #[test]
+    fn day2_weekend_only_due_friday_jumps_to_prev_weekend() {
+        // Today Sat May 9, due Fri May 22
+        // Day2 WeekendOnly: count 2 weekend days back from Fri
+        //   Thu→skip … Sun May 17 → 1, Sat May 16 → 0
+        //   attention = May 16 → Next Week
+        assert_eq!(
+            group("2026-05-22", Some(Est::Day2), Avail::WeekendOnly, "2026-05-09"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    #[test]
+    fn day1_weekend_only_due_friday() {
+        // Today Sat May 9, due Fri May 22
+        // Day1 WeekendOnly: count 1 weekend day back from Fri
+        //   Thu→skip … Sun May 17 → 0
+        //   attention = May 17 → Next Week
+        assert_eq!(
+            group("2026-05-22", Some(Est::Day1), Avail::WeekendOnly, "2026-05-09"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    // ── Attention date reaches today → Today group ──
+
+    #[test]
+    fn attention_in_the_past_becomes_today() {
+        // Today Wed May 20, due Fri May 22
+        // Day2 Anytime: attention = May 20 (today) → Today
+        assert_eq!(
+            group("2026-05-22", Some(Est::Day2), Avail::Anytime, "2026-05-20"),
+            DeadlineGroup::Today,
+        );
+    }
+
+    #[test]
+    fn attention_passed_still_today_not_overdue() {
+        // Today Thu May 21, due Fri May 22
+        // Day2 Anytime: attention = May 20 (yesterday) → Today
+        // (not Overdue — due_date is still in the future)
+        assert_eq!(
+            group("2026-05-22", Some(Est::Day2), Avail::Anytime, "2026-05-21"),
+            DeadlineGroup::Today,
+        );
+    }
+
+    // ── Overdue ignores attention date ──
+
+    #[test]
+    fn overdue_regardless_of_estimate() {
+        // Due yesterday, even with Day2 estimate → still Overdue
+        assert_eq!(
+            group("2026-05-08", Some(Est::Day2), Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Overdue,
+        );
+    }
+
+    #[test]
+    fn overdue_with_constrained_availability() {
+        assert_eq!(
+            group("2026-05-08", Some(Est::Day1), Avail::WeekendOnly, "2026-05-09"),
+            DeadlineGroup::Overdue,
+        );
+    }
+
+    // ── Boundary: group edges ──
+
+    #[test]
+    fn due_on_this_sunday_is_this_week() {
+        // Today Mon May 11 (this_sun=17)
+        // Due Sun May 17 = this_sunday → ThisWeek
+        assert_eq!(
+            group("2026-05-17", None, Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn due_on_next_sunday_is_next_week() {
+        // Today Mon May 11 (next_sun=24)
+        // Due Sun May 24 = next_sunday → NextWeek
+        assert_eq!(
+            group("2026-05-24", None, Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    #[test]
+    fn due_day_after_next_sunday_is_later() {
+        // Today Mon May 11 (next_sun=24)
+        // Due Mon May 25 → Later
+        assert_eq!(
+            group("2026-05-25", None, Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::Later,
+        );
+    }
+
+    #[test]
+    fn due_tomorrow_is_this_week_not_today() {
+        // Today Sat May 9 (this_sun=10)
+        // Due Sun May 10 → ThisWeek (not Today)
+        assert_eq!(
+            group("2026-05-10", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn attention_on_this_sunday_is_this_week() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Tue May 19, Day2: attention = May 17 (Sun) = this_sunday
+        // 17 <= 17 → ThisWeek
+        assert_eq!(
+            group("2026-05-19", Some(Est::Day2), Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn attention_on_next_sunday_is_next_week() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Tue May 26, Day2: attention = May 24 (Sun) = next_sunday
+        // 24 <= 24 → NextWeek
+        assert_eq!(
+            group("2026-05-26", Some(Est::Day2), Avail::Anytime, "2026-05-11"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    // ── Today is Sunday: ThisWeek is empty ──
+
+    #[test]
+    fn today_is_sunday_due_tomorrow_is_next_week() {
+        // Today Sun May 10 (this_sun=10, next_sun=17)
+        // ThisWeek range is (today..this_sun] = empty.
+        // Due Mon May 11: group_date > today and > this_sun → NextWeek
+        assert_eq!(
+            group("2026-05-11", None, Avail::Anytime, "2026-05-10"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    #[test]
+    fn today_is_sunday_due_today_is_today() {
+        // Today Sun May 10 (this_sun=10)
+        assert_eq!(
+            group("2026-05-10", None, Avail::Anytime, "2026-05-10"),
+            DeadlineGroup::Today,
+        );
+    }
+
+    // ── Availability has no effect without lead time ──
+
+    #[test]
+    fn no_estimate_ignores_availability() {
+        // Without estimate, availability changes nothing.
+        let base = group("2026-05-20", None, Avail::Anytime, "2026-05-09");
+        assert_eq!(
+            group("2026-05-20", None, Avail::WeekdayOnly, "2026-05-09"),
+            base,
+        );
+        assert_eq!(
+            group("2026-05-20", None, Avail::WeekendOnly, "2026-05-09"),
+            base,
+        );
+    }
+
+    #[test]
+    fn sub_day_estimate_ignores_availability() {
+        // lead_days=0 → group_date = due_date regardless of availability.
+        let base = group("2026-05-20", Some(Est::Hours2), Avail::Anytime, "2026-05-09");
+        assert_eq!(
+            group("2026-05-20", Some(Est::Hours2), Avail::WeekdayOnly, "2026-05-09"),
+            base,
+        );
+        assert_eq!(
+            group("2026-05-20", Some(Est::Hours2), Avail::WeekendOnly, "2026-05-09"),
+            base,
+        );
+    }
+
+    #[test]
+    fn all_sub_day_estimates_behave_identically() {
+        // Min15..HalfDay all have lead_days=0 → same group as no estimate.
+        let today = "2026-05-09";
+        let due = "2026-05-20";
+        let expected = group(due, None, Avail::Anytime, today);
+        for est in [Est::Min15, Est::Min30, Est::Min45,
+                    Est::Hours1, Est::Hours2, Est::HalfDay] {
+            assert_eq!(
+                group(due, Some(est), Avail::Anytime, today),
+                expected,
+                "estimate {:?} should match no-estimate grouping", est,
+            );
+        }
+    }
+
+    // ── Day1 + WeekdayOnly ──
+
+    #[test]
+    fn day1_weekday_only_due_monday_skips_weekend() {
+        // Today Wed May 13 (this_sun=17, next_sun=24)
+        // Due Mon May 18, Day1 WeekdayOnly:
+        //   Sun 17 → skip, Sat 16 → skip, Fri 15 → 0
+        //   attention = Fri May 15 → ThisWeek (15 <= 17)
+        assert_eq!(
+            group("2026-05-18", Some(Est::Day1), Avail::WeekdayOnly, "2026-05-13"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn day1_weekday_only_due_tuesday() {
+        // Today Wed May 13 (this_sun=17)
+        // Due Tue May 19, Day1 WeekdayOnly:
+        //   Mon 18 → eligible → 0
+        //   attention = Mon May 18 → NextWeek (18 > 17, 18 <= 24)
+        assert_eq!(
+            group("2026-05-19", Some(Est::Day1), Avail::WeekdayOnly, "2026-05-13"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    // ── WeekendOnly edge cases ──
+
+    #[test]
+    fn day1_weekend_only_due_saturday_jumps_to_prev_sunday() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Sat May 23, Day1 WeekendOnly:
+        //   Fri 22→skip, Thu 21→skip, Wed 20→skip,
+        //   Tue 19→skip, Mon 18→skip, Sun 17→0
+        //   attention = Sun May 17 → ThisWeek (17 <= 17)
+        assert_eq!(
+            group("2026-05-23", Some(Est::Day1), Avail::WeekendOnly, "2026-05-11"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn day2_weekend_only_due_saturday_jumps_to_prev_saturday() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Sat May 23, Day2 WeekendOnly:
+        //   Fri→skip … Sun 17→1, Sat 16→0
+        //   attention = Sat May 16 → ThisWeek (16 <= 17)
+        assert_eq!(
+            group("2026-05-23", Some(Est::Day2), Avail::WeekendOnly, "2026-05-11"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn day2_weekend_only_due_sunday() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Sun May 24, Day2 WeekendOnly:
+        //   Sat 23→1, Fri→skip … Sun 17→0
+        //   attention = Sun May 17 → ThisWeek (17 <= 17)
+        assert_eq!(
+            group("2026-05-24", Some(Est::Day2), Avail::WeekendOnly, "2026-05-11"),
+            DeadlineGroup::ThisWeek,
+        );
+    }
+
+    #[test]
+    fn day2_weekend_only_due_monday_jumps_far_back() {
+        // Today Mon May 11 (this_sun=17, next_sun=24)
+        // Due Mon May 25, Day2 WeekendOnly:
+        //   Sun 24→1, Sat 23→0
+        //   attention = Sat May 23 → NextWeek (23 <= 24)
+        assert_eq!(
+            group("2026-05-25", Some(Est::Day2), Avail::WeekendOnly, "2026-05-11"),
+            DeadlineGroup::NextWeek,
+        );
+    }
+
+    // ── Due today with estimate ──
+
+    #[test]
+    fn due_today_with_day2_estimate() {
+        // Due today → not overdue. Attention has passed → Today.
+        assert_eq!(
+            group("2026-05-09", Some(Est::Day2), Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Today,
+        );
+    }
+
+    #[test]
+    fn due_today_with_day1_weekend_only() {
+        // Due Sat May 9 (today). Not overdue.
+        // Day1 WeekendOnly: attention = previous Sun May 3.
+        // group_date <= today → Today.
+        assert_eq!(
+            group("2026-05-09", Some(Est::Day1), Avail::WeekendOnly, "2026-05-09"),
+            DeadlineGroup::Today,
+        );
+    }
+}
