@@ -4,7 +4,7 @@ pub mod server;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid, ViewSlug};
+use kid_types::{TaskAvailability, TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid, ViewSlug};
 use kid_types::task;
 use strum::IntoEnumIterator;
 use indexmap::IndexMap;
@@ -1333,6 +1333,14 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
             }
         }
     });
+    let update_availability = Action::new(move |availability: &TaskAvailability| {
+        let availability = *availability;
+        async move {
+            if let Err(e) = server::update_task_availability(id, availability).await {
+                tracing::error!("update availability failed: {e}");
+            }
+        }
+    });
     let update_priority = Action::new(move |new_priority: &Option<TaskPriority>| {
         let new_priority = *new_priority;
         async move {
@@ -1642,6 +1650,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                 let start_date_initially_set = start_date_value.get_untracked().is_some();
                                 let time_estimate_value = RwSignal::new(task.time_estimate().cloned());
                                 let time_estimate_initially_set = time_estimate_value.get_untracked().is_some();
+                                let availability_value = RwSignal::new(*task.availability());
+                                let availability_initially_set = availability_value.get_untracked() != TaskAvailability::default();
                                 let notes_value = RwSignal::new(task.notes().into_owned().unwrap_or_default());
                                 let notes_initially_set = !notes_value.get_untracked().is_empty();
                                 view! {
@@ -1794,6 +1804,43 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                                 Either::Right(view! {
                                                     <div class="text-sm text-slate-200">
                                                         {move || time_estimate_value.get().map(|t| t.to_string()).unwrap_or_default()}
+                                                    </div>
+                                                })
+                                            }}
+                                        </div>
+                                    })}
+                                    {move || (availability_initially_set || edit_mode.get()).then(|| view! {
+                                        <div class="relative">
+                                            <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-md bg-sky-600 border-4 border-slate-900 shadow flex items-center justify-center">
+                                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                                </svg>
+                                            </div>
+                                            <div class="text-xs font-semibold text-sky-400 uppercase tracking-wide mb-0.5">"Availability"</div>
+                                            {move || if edit_mode.get() {
+                                                Either::Left(view! {
+                                                    <div class="flex flex-wrap gap-2">
+                                                        {TaskAvailability::iter().map(|variant| {
+                                                            let label = variant.short_label();
+                                                            view! {
+                                                            <button type="button"
+                                                                class=move || if availability_value.get() == variant {
+                                                                    "px-2.5 py-1 rounded bg-sky-500 text-slate-900 text-xs font-bold shadow"
+                                                                } else {
+                                                                    "px-2.5 py-1 rounded bg-slate-700 text-slate-400 text-xs font-bold"
+                                                                }
+                                                                on:click=move |_| {
+                                                                    availability_value.set(variant);
+                                                                    update_availability.dispatch(variant);
+                                                                }
+                                                            >{label}</button>
+                                                        }}).collect_view()}
+                                                    </div>
+                                                })
+                                            } else {
+                                                Either::Right(view! {
+                                                    <div class="text-sm text-slate-200">
+                                                        {move || availability_value.get().to_string()}
                                                     </div>
                                                 })
                                             }}

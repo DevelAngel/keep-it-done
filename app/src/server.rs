@@ -385,6 +385,19 @@ pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstima
     Ok(())
 }
 
+#[server(endpoint = "update_task_availability")]
+pub async fn update_task_availability(id: Uuid, availability: TaskAvailability) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor().await?;
+    tracing::info!("update availability for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id, actor)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    task.set_availability(availability);
+    Ok(())
+}
+
 #[server(endpoint = "update_task_due_date")]
 pub async fn update_task_due_date(id: Uuid, date: Option<TaskDate>) -> Result<(), ServerFnError> {
     let actor = self::ssr::use_actor().await?;

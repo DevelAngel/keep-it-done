@@ -776,7 +776,7 @@ impl Display for TimeEstimate {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq, EnumIter)]
 #[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
 pub enum Availability {
     #[default]
@@ -785,9 +785,28 @@ pub enum Availability {
     WeekendOnly,
 }
 
+impl Display for Availability {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::Anytime     => write!(f, "Anytime"),
+            Self::WeekdayOnly => write!(f, "Weekdays only"),
+            Self::WeekendOnly => write!(f, "Weekend only"),
+        }
+    }
+}
+
 impl Availability {
     fn is_default(&self) -> bool {
         matches!(self, Self::Anytime)
+    }
+
+    /// Short UI chip label.
+    pub fn short_label(self) -> &'static str {
+        match self {
+            Self::Anytime     => "Anytime",
+            Self::WeekdayOnly => "Weekdays",
+            Self::WeekendOnly => "Weekend",
+        }
     }
 
     /// Whether a calendar date is eligible for work under this constraint.
