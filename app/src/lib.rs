@@ -275,7 +275,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     EstimateGrouped(Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>),
-    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, usize),
+    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, Vec<(Uuid, task::Infos)>),
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
@@ -343,6 +343,16 @@ fn group_recent_by_day(tasks: Vec<server::RecentChange>) -> Vec<(NaiveDate, Vec<
     groups.into_iter().collect()
 }
 
+/// Format the backlog toggle label: "3 tasks" or "2 of 5 tasks".
+fn backlog_label(visible: usize, total: usize) -> String {
+    debug_assert!(visible <= total, "visible {visible} <= total {total} not fulfilled");
+    if visible == total {
+        format!("{}{}", visible, if visible == 1 { " task" } else { " tasks" })
+    } else {
+        format!("{} of {} tasks", visible, total)
+    }
+}
+
 fn day_label(day: NaiveDate) -> String {
     let today = Utc::now().date_naive();
     if day == today {
@@ -386,13 +396,12 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
                 if filtered.is_empty() { None } else { Some((est, filtered)) }
             }).collect()
         ),
-        // Backlog count is unaffected by context filters (UXDR).
         TaskListData::DeadlineGrouped(groups, backlog) => TaskListData::DeadlineGrouped(
             groups.into_iter().filter_map(|(dg, tasks)| {
                 let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
                 if filtered.is_empty() { None } else { Some((dg, filtered)) }
             }).collect(),
-            backlog,
+            backlog.into_iter().filter(|(_, info)| matches(info)).collect(),
         ),
         TaskListData::DayGrouped(groups) => TaskListData::DayGrouped(
             groups.into_iter().filter_map(|(day, tasks)| {
@@ -699,10 +708,18 @@ fn TaskList() -> impl IntoView {
                                 let filters = active_filters.with(|m| m.get(&view).cloned().unwrap_or_default());
                                 Suspend::new(async move {
                                     task_list.await.map(|data| {
-                                        let data = apply_filter(data, &filters);
-                                        let backlog_count = match &data {
-                                            TaskListData::DeadlineGrouped(_, count) => *count,
+                                        // Total backlog count before filtering (for "n of m" label).
+                                        let total_backlog = match &data {
+                                            TaskListData::DeadlineGrouped(_, bl) => bl.len(),
                                             _ => 0,
+                                        };
+                                        let data = apply_filter(data, &filters);
+                                        // Extract filtered backlog for empty-state disclosure.
+                                        let empty_backlog = match &data {
+                                            TaskListData::DeadlineGrouped(groups, bl) if groups.is_empty() && !bl.is_empty() => {
+                                                Some(bl.clone())
+                                            }
+                                            _ => None,
                                         };
                                         let is_empty = match &data {
                                             TaskListData::Grouped(m) => m.is_empty(),
@@ -714,14 +731,44 @@ fn TaskList() -> impl IntoView {
                                             Either::Left(view! {
                                                 <div>
                                                     <p class="px-6 py-6 text-center text-slate-400">
-                                                        {if view == View::Upcoming && backlog_count > 0 {
-                                                            format!("{} {} tasks in backlog.", view.empty_message(), backlog_count)
-                                                        } else {
-                                                            view.empty_message().to_string()
-                                                        }}
+                                                        {view.empty_message().to_string()}
                                                     </p>
-                                                    {if view == View::RecentlyChanged {
+                                                    {if let Some(backlog) = empty_backlog {
+                                                        let backlog_expanded = RwSignal::new(false);
+                                                        let label = backlog_label(backlog.len(), total_backlog);
+                                                        let backlog = StoredValue::new(backlog);
                                                         Either::Left(view! {
+                                                            <div class="border-t border-slate-700 mt-1">
+                                                                <button
+                                                                    type="button"
+                                                                    class="w-full flex items-center gap-2 px-6 pt-3 pb-1 text-left select-none"
+                                                                    on:click=move |_| backlog_expanded.update(|v| *v = !*v)
+                                                                >
+                                                                    <span class="text-sm font-semibold text-slate-400">
+                                                                        {move || if backlog_expanded.get() { "▾" } else { "▸" }}
+                                                                        " Backlog · "
+                                                                        {label}
+                                                                    </span>
+                                                                </button>
+                                                                <Show when=move || backlog_expanded.get()>
+                                                                    {backlog.with_value(|bl| bl.clone().into_iter().map(|task| {
+                                                                        view! {
+                                                                            <TaskItem task=task
+                                                                                expanded_task_id=expanded_task_id
+                                                                                set_expanded_task_id=set_expanded_task_id
+                                                                                set_completion_version=set_completion_version
+                                                                                strikethrough_when_done=false
+                                                                                checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                spinner_gradient={view.spinner_gradient()}
+                                                                                priority_a_border={view.priority_a_border()}
+                                                                            />
+                                                                        }
+                                                                    }).collect_view())}
+                                                                </Show>
+                                                            </div>
+                                                        })
+                                                    } else if view == View::RecentlyChanged {
+                                                        Either::Right(Either::Left(view! {
                                                             <button
                                                                 type="button"
                                                                 class="w-full py-3 text-sm text-slate-500 hover:text-slate-300 transition-colors"
@@ -729,9 +776,9 @@ fn TaskList() -> impl IntoView {
                                                             >
                                                                 "▾ 2 more days"
                                                             </button>
-                                                        })
+                                                        }))
                                                     } else {
-                                                        Either::Right(())
+                                                        Either::Right(Either::Right(()))
                                                     }}
                                                 </div>
                                             })
@@ -821,6 +868,8 @@ fn TaskList() -> impl IntoView {
                                                     }))
                                                 }
                                                 TaskListData::DeadlineGrouped(groups, backlog) => {
+                                                    let backlog_expanded = RwSignal::new(false);
+                                                    let label = backlog_label(backlog.len(), total_backlog);
                                                     Either::Right(Either::Right(Either::Left(view! {
                                                         <div>
                                                             {groups.into_iter().enumerate().map(|(i, (dg, tasks))| {
@@ -853,10 +902,38 @@ fn TaskList() -> impl IntoView {
                                                                     </div>
                                                                 }
                                                             }).collect_view()}
-                                                            {(backlog > 0).then(|| view! {
-                                                                <p class="text-xs text-slate-500 text-center py-3 border-t border-slate-700">
-                                                                    {format!("── {} tasks without deadline in backlog ──", backlog)}
-                                                                </p>
+                                                            {(total_backlog > 0).then(|| {
+                                                                let backlog = StoredValue::new(backlog);
+                                                                view! {
+                                                                    <div class="border-t border-slate-700 mt-1">
+                                                                        <button
+                                                                            type="button"
+                                                                            class="w-full flex items-center gap-2 px-6 pt-3 pb-1 text-left select-none"
+                                                                            on:click=move |_| backlog_expanded.update(|v| *v = !*v)
+                                                                        >
+                                                                            <span class="text-sm font-semibold text-slate-400">
+                                                                                {move || if backlog_expanded.get() { "▾" } else { "▸" }}
+                                                                                " Backlog · "
+                                                                                {label.clone()}
+                                                                            </span>
+                                                                        </button>
+                                                                        <Show when=move || backlog_expanded.get()>
+                                                                            {backlog.with_value(|bl| bl.clone().into_iter().map(|task| {
+                                                                                view! {
+                                                                                    <TaskItem task=task
+                                                                                        expanded_task_id=expanded_task_id
+                                                                                        set_expanded_task_id=set_expanded_task_id
+                                                                                        set_completion_version=set_completion_version
+                                                                                        strikethrough_when_done=false
+                                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                        spinner_gradient={view.spinner_gradient()}
+                                                                                        priority_a_border={view.priority_a_border()}
+                                                                                    />
+                                                                                }
+                                                                            }).collect_view())}
+                                                                        </Show>
+                                                                    </div>
+                                                                }
                                                             })}
                                                         </div>
                                                     })))

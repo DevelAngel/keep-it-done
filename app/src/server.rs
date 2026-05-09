@@ -85,12 +85,12 @@ pub async fn fetch_quick_wins() -> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task
 
 /// Fetch open tasks that carry a date, grouped by temporal urgency.
 ///
-/// Returns `(groups, backlog_count)` where backlog_count is the number
-/// of open tasks without any date — unaffected by context filters.
+/// Returns `(groups, backlog_tasks)` where backlog_tasks are open tasks
+/// without any date — unaffected by context filters (UXDR).
 #[server(endpoint = "fetch_upcoming")]
 pub async fn fetch_upcoming(
     today: NaiveDate,
-) -> Result<(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, usize), ServerFnError> {
+) -> Result<(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, Vec<(Uuid, task::Infos)>), ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
 
@@ -99,7 +99,7 @@ pub async fn fetch_upcoming(
     let this_sunday = today + Days::new(days_until_sunday as u64);
     let next_sunday = this_sunday + Days::new(7);
 
-    let mut backlog_count: usize = 0;
+    let mut backlog: Vec<(Uuid, task::Infos)> = Vec::new();
     let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate)> = Vec::new();
 
     for (id, task) in cache.iter() {
@@ -112,7 +112,7 @@ pub async fn fetch_upcoming(
         // Inclusion: open AND (has due_date OR start_date <= today).
         // Everything else is backlog.
         if due.is_none() && start.map_or(true, |s| s > today) {
-            backlog_count += 1;
+            backlog.push((id.to_owned(), task.info().to_owned()));
             continue;
         }
 
@@ -168,7 +168,15 @@ pub async fn fetch_upcoming(
         groups.last_mut().unwrap().1.push((id, info));
     }
 
-    Ok((groups, backlog_count))
+    // Sort backlog: priority descending (A first), then UUID (creation order).
+    backlog.sort_by(|a, b| {
+        let pri = |info: &task::Infos| -> u8 {
+            info.priority().map(|p| *p as u8).unwrap_or(u8::MAX)
+        };
+        pri(&a.1).cmp(&pri(&b.1)).then_with(|| a.0.cmp(&b.0))
+    });
+
+    Ok((groups, backlog))
 }
 
 /// Per-task metadata for the Recent Changes view.
