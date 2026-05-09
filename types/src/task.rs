@@ -1115,6 +1115,29 @@ mod tests {
         assert!(date.soft);
     }
 
+    // TIME ESTIMATE - LEAD DAYS
+
+    #[test]
+    fn lead_days_sub_day_estimates_are_zero() {
+        use strum::IntoEnumIterator;
+        for v in TimeEstimate::iter() {
+            match v {
+                TimeEstimate::Day1 | TimeEstimate::Day2 => continue,
+                other => assert_eq!(other.lead_days(), 0, "{other}"),
+            }
+        }
+    }
+
+    #[test]
+    fn lead_days_day1() {
+        assert_eq!(TimeEstimate::Day1.lead_days(), 1);
+    }
+
+    #[test]
+    fn lead_days_day2() {
+        assert_eq!(TimeEstimate::Day2.lead_days(), 2);
+    }
+
     // AVAILABILITY - SERIALIZE / DESERIALIZE
 
     #[test]
