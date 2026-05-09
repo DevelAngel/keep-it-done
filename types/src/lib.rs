@@ -88,4 +88,42 @@ pub trait TaskDetails<'a> {
     fn notes(&'a self) -> Option<Cow<'a, str>>;
     fn set_notes<T: ToString>(&'a mut self, text: T);
     fn clear_notes(&'a mut self);
+
+    // provided
+
+    /// Earliest date the user should begin working on this task.
+    ///
+    /// Returns `start_date` when set (manual override). Otherwise
+    /// computes `due_date` minus `lead_days` eligible days (based on
+    /// `availability`). Falls back to `due_date` when `time_estimate`
+    /// is absent, and to `None` when `due_date` is also absent.
+    fn attention_date(&'a self) -> Option<chrono::NaiveDate> {
+        // Manual start_date always wins.
+        if let Some(start) = self.start_date() {
+            return Some(start.date.date_naive());
+        }
+
+        let due = self.due_date()?.date.date_naive();
+
+        let lead = match self.time_estimate() {
+            Some(est) => est.lead_days(),
+            None => return Some(due),
+        };
+
+        if lead == 0 {
+            return Some(due);
+        }
+
+        // Count backward `lead` eligible days from due (exclusive).
+        let avail = *self.availability();
+        let mut remaining = lead;
+        let mut date = due;
+        while remaining > 0 {
+            date = date.pred_opt().expect("date underflow");
+            if avail.is_eligible(date) {
+                remaining -= 1;
+            }
+        }
+        Some(date)
+    }
 }

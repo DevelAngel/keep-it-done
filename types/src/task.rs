@@ -789,6 +789,16 @@ impl Availability {
     fn is_default(&self) -> bool {
         matches!(self, Self::Anytime)
     }
+
+    /// Whether a calendar date is eligible for work under this constraint.
+    pub fn is_eligible(self, date: chrono::NaiveDate) -> bool {
+        use chrono::{Datelike, Weekday};
+        match self {
+            Self::Anytime => true,
+            Self::WeekdayOnly => !matches!(date.weekday(), Weekday::Sat | Weekday::Sun),
+            Self::WeekendOnly => matches!(date.weekday(), Weekday::Sat | Weekday::Sun),
+        }
+    }
 }
 
 impl Task {
