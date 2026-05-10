@@ -130,30 +130,39 @@ fn deadline_group(
     }
 }
 
-/// Fetch open tasks that carry a date, grouped by temporal urgency.
-///
-/// Returns `(groups, backlog_tasks)` where backlog_tasks are open tasks
-/// without any date — unaffected by context filters (UXDR).
-#[server(endpoint = "fetch_upcoming")]
-pub async fn fetch_upcoming(
-    today: NaiveDate,
-) -> Result<(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)>, Vec<(Uuid, task::Infos)>), ServerFnError> {
-    let cache = self::ssr::use_task_cache();
-    let cache = cache.read().await;
+type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)>;
+type UpcomingBacklog = Vec<(Uuid, task::Infos)>;
 
+/// Group open tasks by temporal urgency for the Upcoming view.
+///
+/// Returns `(groups, backlog)` where `backlog` contains open tasks
+/// without any date — unaffected by context filters (UXDR).
+///
+/// Each grouped task carries an optional attention date (shown as
+/// "start by {date}" when the task landed in an earlier group than
+/// its raw `due_date` would place it).
+#[cfg(feature = "ssr")]
+fn group_upcoming<'a>(
+    tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
+    today: NaiveDate,
+) -> (UpcomingGroups, UpcomingBacklog) {
     // ISO 8601 week boundaries (Monday = start of week).
     let days_until_sunday = 6 - today.weekday().num_days_from_monday();
     let this_sunday = today + Days::new(days_until_sunday as u64);
     let next_sunday = this_sunday + Days::new(7);
 
-    let mut backlog: Vec<(Uuid, task::Infos)> = Vec::new();
-    // (id, info, group, sort_date, attention_date_label)
-    // attention_date_label is Some when the task was shifted to an
-    // earlier group by lead-time computation, so the UI can show
-    // "start by {date}".
-    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate, Option<NaiveDate>)> = Vec::new();
+    let mut backlog: UpcomingBacklog = Vec::new();
+    // (id, info, group, sort_date, attention_label, soft)
+    //
+    // attention_label: Some when the task was shifted to an earlier
+    //   group by lead-time or start_date, so the UI can show
+    //   "start by {date}".
+    // soft: true when the task landed in an earlier group because of
+    //   start_date rather than attention_date — these sort after the
+    //   "hard" attention-driven tasks within the same group.
+    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate, Option<NaiveDate>, bool)> = Vec::new();
 
-    for (id, task) in cache.iter() {
+    for (id, task) in tasks {
         if task.info().is_done() {
             continue;
         }
@@ -169,15 +178,15 @@ pub async fn fetch_upcoming(
 
         // Group by attention date; sort within groups by actual
         // due_date (UXDR).
-        let (group, sort_date, attention_label) = if let Some(due_date) = due {
+        let (group, sort_date, attention_label, soft) = if let Some(due_date) = due {
             let est = task.time_estimate().copied();
             let avail = *task.availability();
-            let group = deadline_group(
+            let attention_group = deadline_group(
                 due_date, est, avail, today, this_sunday, next_sunday,
             );
             // Compute the raw attention date (without start_date
             // override) to decide whether to show the indicator.
-            let attention = match est {
+            let attention_date = match est {
                 Some(e) if e.lead_days() > 0 => {
                     let lead = e.lead_days();
                     let mut remaining = lead;
@@ -190,20 +199,52 @@ pub async fn fetch_upcoming(
                 }
                 _ => None,
             };
+            let effective_attention = attention_date.unwrap_or(due_date);
+
+            // If start_date < attention_date, the user wants to begin
+            // earlier than the computed lead time demands. Use
+            // start_date for group assignment but mark as "soft" so
+            // these sort after attention-driven tasks in the same group.
+            let (group, soft) = match start {
+                Some(sd) if sd < effective_attention && !matches!(attention_group, DeadlineGroup::Overdue) => {
+                    let start_group = if sd <= today {
+                        DeadlineGroup::Today
+                    } else if sd <= this_sunday {
+                        DeadlineGroup::ThisWeek
+                    } else if sd <= next_sunday {
+                        DeadlineGroup::NextWeek
+                    } else {
+                        DeadlineGroup::Later
+                    };
+                    // Only shift if start_date actually pulls into an
+                    // earlier group; otherwise keep attention_group.
+                    if (start_group as u8) < (attention_group as u8) {
+                        (start_group, true)
+                    } else {
+                        (attention_group, false)
+                    }
+                }
+                _ => (attention_group, false),
+            };
+
             // Only show indicator when attention shifted the group.
-            let label = attention.filter(|a| *a != due_date);
-            (group, due_date, label)
+            let label = attention_date.filter(|a| *a != due_date);
+            (group, due_date, label, soft)
         } else {
             // start_date <= today, no due_date → Ready to Start
-            (DeadlineGroup::ReadyToStart, start.unwrap(), None)
+            (DeadlineGroup::ReadyToStart, start.unwrap(), None, false)
         };
 
-        items.push((id.to_owned(), task.info().to_owned(), group, sort_date, attention_label));
+        items.push((id.to_owned(), task.info().to_owned(), group, sort_date, attention_label, soft));
     }
 
     // Sort: group order, then within-group rules per UXDR.
+    // Within each group, "hard" tasks (attention-driven) come before
+    // "soft" tasks (start_date-driven).
     items.sort_by(|a, b| {
-        (a.2 as u8).cmp(&(b.2 as u8)).then_with(|| {
+        (a.2 as u8).cmp(&(b.2 as u8))
+            .then_with(|| a.5.cmp(&b.5))  // false < true → hard before soft
+            .then_with(|| {
             let pri = |info: &task::Infos| -> u8 {
                 info.priority().map(|p| *p as u8).unwrap_or(u8::MAX)
             };
@@ -223,8 +264,8 @@ pub async fn fetch_upcoming(
     });
 
     // Chunk into contiguous groups (items are already in group order).
-    let mut groups: Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)> = Vec::new();
-    for (id, info, group, _, attention_label) in items {
+    let mut groups: UpcomingGroups = Vec::new();
+    for (id, info, group, _, attention_label, _) in items {
         if groups.last().map_or(true, |(key, _)| *key != group) {
             groups.push((group, Vec::new()));
         }
@@ -239,7 +280,20 @@ pub async fn fetch_upcoming(
         pri(&a.1).cmp(&pri(&b.1)).then_with(|| a.0.cmp(&b.0))
     });
 
-    Ok((groups, backlog))
+    (groups, backlog)
+}
+
+/// Fetch open tasks that carry a date, grouped by temporal urgency.
+///
+/// Returns `(groups, backlog_tasks)` where backlog_tasks are open tasks
+/// without any date — unaffected by context filters (UXDR).
+#[server(endpoint = "fetch_upcoming")]
+pub async fn fetch_upcoming(
+    today: NaiveDate,
+) -> Result<(UpcomingGroups, UpcomingBacklog), ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    Ok(group_upcoming(cache.iter(), today))
 }
 
 /// Per-task metadata for the Recent Changes view.
