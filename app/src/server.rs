@@ -137,7 +137,7 @@ fn deadline_group(
 #[server(endpoint = "fetch_upcoming")]
 pub async fn fetch_upcoming(
     today: NaiveDate,
-) -> Result<(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, Vec<(Uuid, task::Infos)>), ServerFnError> {
+) -> Result<(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)>, Vec<(Uuid, task::Infos)>), ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
 
@@ -147,7 +147,11 @@ pub async fn fetch_upcoming(
     let next_sunday = this_sunday + Days::new(7);
 
     let mut backlog: Vec<(Uuid, task::Infos)> = Vec::new();
-    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate)> = Vec::new();
+    // (id, info, group, sort_date, attention_date_label)
+    // attention_date_label is Some when the task was shifted to an
+    // earlier group by lead-time computation, so the UI can show
+    // "start by {date}".
+    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate, Option<NaiveDate>)> = Vec::new();
 
     for (id, task) in cache.iter() {
         if task.info().is_done() {
@@ -165,19 +169,36 @@ pub async fn fetch_upcoming(
 
         // Group by attention date; sort within groups by actual
         // due_date (UXDR).
-        let (group, sort_date) = if let Some(due_date) = due {
+        let (group, sort_date, attention_label) = if let Some(due_date) = due {
             let est = task.time_estimate().copied();
             let avail = *task.availability();
             let group = deadline_group(
                 due_date, est, avail, today, this_sunday, next_sunday,
             );
-            (group, due_date)
+            // Compute the raw attention date (without start_date
+            // override) to decide whether to show the indicator.
+            let attention = match est {
+                Some(e) if e.lead_days() > 0 => {
+                    let lead = e.lead_days();
+                    let mut remaining = lead;
+                    let mut d = due_date;
+                    while remaining > 0 {
+                        d = d.pred_opt().expect("date underflow");
+                        if avail.is_eligible(d) { remaining -= 1; }
+                    }
+                    Some(d)
+                }
+                _ => None,
+            };
+            // Only show indicator when attention shifted the group.
+            let label = attention.filter(|a| *a != due_date);
+            (group, due_date, label)
         } else {
             // start_date <= today, no due_date → Ready to Start
-            (DeadlineGroup::ReadyToStart, start.unwrap())
+            (DeadlineGroup::ReadyToStart, start.unwrap(), None)
         };
 
-        items.push((id.to_owned(), task.info().to_owned(), group, sort_date));
+        items.push((id.to_owned(), task.info().to_owned(), group, sort_date, attention_label));
     }
 
     // Sort: group order, then within-group rules per UXDR.
@@ -202,12 +223,12 @@ pub async fn fetch_upcoming(
     });
 
     // Chunk into contiguous groups (items are already in group order).
-    let mut groups: Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)> = Vec::new();
-    for (id, info, group, _) in items {
+    let mut groups: Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)> = Vec::new();
+    for (id, info, group, _, attention_label) in items {
         if groups.last().map_or(true, |(key, _)| *key != group) {
             groups.push((group, Vec::new()));
         }
-        groups.last_mut().unwrap().1.push((id, info));
+        groups.last_mut().unwrap().1.push((id, info, attention_label));
     }
 
     // Sort backlog: priority descending (A first), then UUID (creation order).

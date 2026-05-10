@@ -275,7 +275,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     EstimateGrouped(Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>),
-    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos)>)>, Vec<(Uuid, task::Infos)>),
+    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)>, Vec<(Uuid, task::Infos)>),
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
@@ -375,7 +375,7 @@ impl TaskListData {
                 v.iter().flat_map(|(_, t)| t).next().map(|(id, _)| *id)
             }
             TaskListData::DeadlineGrouped(v, _) => {
-                v.iter().flat_map(|(_, t)| t).next().map(|(id, _)| *id)
+                v.iter().flat_map(|(_, t)| t).next().map(|(id, _, _)| *id)
             }
             TaskListData::DayGrouped(v) => {
                 v.iter().flat_map(|(_, t)| t).next().map(|rc| rc.id)
@@ -398,7 +398,7 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
         ),
         TaskListData::DeadlineGrouped(groups, backlog) => TaskListData::DeadlineGrouped(
             groups.into_iter().filter_map(|(dg, tasks)| {
-                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info, _)| matches(info)).collect();
                 if filtered.is_empty() { None } else { Some((dg, filtered)) }
             }).collect(),
             backlog.into_iter().filter(|(_, info)| matches(info)).collect(),
@@ -886,9 +886,12 @@ fn TaskList() -> impl IntoView {
                                                                                 {label}
                                                                             </span>
                                                                         </div>
-                                                                        {tasks.into_iter().map(|task| {
+                                                                        {tasks.into_iter().map(|(id, info, attention_date)| {
+                                                                            let attention_label = attention_date.map(|d| {
+                                                                                format!("start by {}", d.format("%a %d.%m."))
+                                                                            }).unwrap_or_default();
                                                                             view! {
-                                                                                <TaskItem task=task
+                                                                                <TaskItem task=(id, info)
                                                                                     expanded_task_id=expanded_task_id
                                                                                     set_expanded_task_id=set_expanded_task_id
                                                                                     set_completion_version=set_completion_version
@@ -896,6 +899,7 @@ fn TaskList() -> impl IntoView {
                                                                                     checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                     spinner_gradient={view.spinner_gradient()}
                                                                                     priority_a_border={view.priority_a_border()}
+                                                                                    attention_label=attention_label
                                                                                 />
                                                                             }
                                                                         }).collect_view()}
@@ -1076,6 +1080,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     checkbox_checked_classes: &'static str,
     spinner_gradient: &'static str,
     priority_a_border: &'static str,
+    #[prop(optional)] attention_label: String,
 ) -> impl IntoView {
     let id = *task.id();
     let task_ref = NodeRef::<leptos::html::Div>::new();
@@ -1179,6 +1184,10 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                         {move || summary.get()}
                     </span>
                 </div>
+                // Attention indicator (Upcoming view: task shifted to earlier group)
+                {(!attention_label.is_empty()).then(|| view! {
+                    <span class="ml-2 flex-shrink-0 text-xs text-slate-500">{attention_label.clone()}</span>
+                })}
                 // Spinner
                 <Show when=move || complete_task.pending().get()>
                     <div class="ml-4 flex-shrink-0">
