@@ -1454,4 +1454,62 @@ mod upcoming_tests {
         // Attention label should still be set (attention != due)
         assert_eq!(flat[0].2, Some(date("2026-05-17")));
     }
+
+    // ── Scenario 17: WeekdayOnly shifts group + label ──
+
+    #[test]
+    fn weekday_only_skips_weekend() {
+        // Today: Wed May 13 (this_sun=17, next_sun=24)
+        // Due Mon May 18, Day2 WeekdayOnly:
+        //   Sun 17→skip, Sat 16→skip, Fri 15→1, Thu 14→0
+        //   attention = Thu May 14 → This Week (14 <= 17)
+        // Without estimate it would be Next Week (18 > 17).
+        let mut cache = TaskCache::default();
+        add(&mut cache, "weekday-task",
+            Some("2026-05-18"), None, Some(Est::Day2), Avail::WeekdayOnly);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-13"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        assert_eq!(flat[0].2, Some(date("2026-05-14")));
+    }
+
+    // ── Scenario 18: WeekdayOnly Day1 ──
+
+    #[test]
+    fn weekday_only_day1_skips_weekend() {
+        // Today: Wed May 13 (this_sun=17, next_sun=24)
+        // Due Mon May 18, Day1 WeekdayOnly:
+        //   Sun 17→skip, Sat 16→skip, Fri 15→0
+        //   attention = Fri May 15 → This Week
+        let mut cache = TaskCache::default();
+        add(&mut cache, "weekday-1d",
+            Some("2026-05-18"), None, Some(Est::Day1), Avail::WeekdayOnly);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-13"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        assert_eq!(flat[0].2, Some(date("2026-05-15")));
+    }
+
+    // ── Scenario 19: availability + start_date interaction ──
+
+    #[test]
+    fn weekend_only_with_earlier_start_date() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Due Fri May 22, Day2 WeekendOnly:
+        //   attention = Sat May 16 → This Week
+        // start_date = May 12 (Mon) < attention (May 16)
+        //   start group = This Week (12 <= 17)
+        //   Same group → no soft shift, stays hard This Week.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "weekend-with-start",
+            Some("2026-05-22"), Some("2026-05-12"), Some(Est::Day2), Avail::WeekendOnly);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        // Attention label from estimate (not from start_date)
+        assert_eq!(flat[0].2, Some(date("2026-05-16")));
+    }
 }
