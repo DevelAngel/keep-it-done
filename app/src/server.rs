@@ -659,7 +659,7 @@ pub mod ssr {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ssr"))]
 mod tests {
     use super::*;
     use chrono::NaiveDate;
@@ -1097,5 +1097,361 @@ mod tests {
             group("2026-05-09", Some(Est::Day1), Avail::WeekendOnly, "2026-05-09"),
             DeadlineGroup::Today,
         );
+    }
+}
+
+// ── End-to-end tests for group_upcoming ─────────────────────────
+//
+// Each scenario creates a minimal TaskCache and asserts the full
+// output of group_upcoming: group order, task order within groups,
+// attention labels, and backlog separation.
+
+#[cfg(all(test, feature = "ssr"))]
+mod upcoming_tests {
+    use super::*;
+    use chrono::NaiveDate;
+    use kid_types::{
+        TaskAvailability as Avail,
+        TaskTimeEstimate as Est,
+        task::{Date, Summary, Task},
+    };
+    use kid_types::server::TaskCache;
+
+    fn date(today: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(today, "%Y-%m-%d").unwrap()
+    }
+
+    fn task_date(s: &str) -> Date {
+        let nd = date(s);
+        Date {
+            date: nd.and_hms_opt(0, 0, 0).unwrap().and_utc().fixed_offset(),
+            soft: false,
+        }
+    }
+
+    fn add(
+        cache: &mut TaskCache,
+        name: &str,
+        due: Option<&str>,
+        start: Option<&str>,
+        estimate: Option<Est>,
+        avail: Avail,
+    ) -> Uuid {
+        use kid_types::{TaskDetails, TaskInfos};
+        let mut t = Task::new(name.parse::<Summary>().unwrap());
+        if let Some(d) = due { t.set_due_date(task_date(d)); }
+        if let Some(s) = start { t.set_start_date(task_date(s)); }
+        if let Some(e) = estimate { t.set_time_estimate(e); }
+        t.set_availability(avail);
+        cache.add(t, "test")
+    }
+
+    /// Flatten groups into `(group, summary, attention_label)` for easy asserts.
+    fn flatten(
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>)>)],
+    ) -> Vec<(DeadlineGroup, &str, Option<NaiveDate>)> {
+        groups.iter().flat_map(|(dg, tasks)| {
+            tasks.iter().map(move |(_, info, attn)| (*dg, info.summary(), *attn))
+        }).collect()
+    }
+
+    /// Just the group labels in order.
+    fn group_names(
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>)>)],
+    ) -> Vec<DeadlineGroup> {
+        groups.iter().map(|(dg, _)| *dg).collect()
+    }
+
+    /// Just the summaries in order.
+    fn summaries(
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>)>)],
+    ) -> Vec<&str> {
+        groups.iter()
+            .flat_map(|(_, tasks)| tasks.iter().map(|(_, info, _)| info.summary()))
+            .collect()
+    }
+
+    // ── Scenario 1: baseline grouping by due_date ──
+
+    #[test]
+    fn baseline_groups_by_due_date() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // 3 tasks: due today, due this week, due later.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "today-task",
+            Some("2026-05-11"), None, None, Avail::Anytime);
+        add(&mut cache, "this-week-task",
+            Some("2026-05-15"), None, None, Avail::Anytime);
+        add(&mut cache, "later-task",
+            Some("2026-05-30"), None, None, Avail::Anytime);
+
+        let (groups, backlog) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert!(backlog.is_empty());
+        assert_eq!(
+            group_names(&groups),
+            vec![DeadlineGroup::Today, DeadlineGroup::ThisWeek, DeadlineGroup::Later],
+        );
+        assert_eq!(summaries(&groups).len(), 3);
+    }
+
+    // ── Scenario 2: estimate shifts task to earlier group ──
+
+    #[test]
+    fn estimate_pulls_task_forward() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Task due Tue May 19, Day2 Anytime:
+        //   attention = May 17 (Sun) → This Week
+        // Without estimate it would be Next Week.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "shifted",
+            Some("2026-05-19"), None, Some(Est::Day2), Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat.len(), 1);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        // Attention label should be set (attention != due)
+        assert_eq!(flat[0].2, Some(date("2026-05-17")));
+    }
+
+    // ── Scenario 3: sub-day estimate → no shift, no label ──
+
+    #[test]
+    fn sub_day_estimate_no_shift() {
+        // Today: Mon May 11. Due Tue May 19, HalfDay.
+        // lead_days=0 → group_date = due_date → Next Week, no label.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "quick",
+            Some("2026-05-19"), None, Some(Est::HalfDay), Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::NextWeek);
+        assert_eq!(flat[0].2, None); // no attention label
+    }
+
+    // ── Scenario 4: weekend availability skips weekdays ──
+
+    #[test]
+    fn weekend_only_skips_weekdays() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Due Fri May 22, Day2 WeekendOnly:
+        //   count 2 weekend days back: Sun 17→1, Sat 16→0
+        //   attention = Sat May 16 → This Week
+        let mut cache = TaskCache::default();
+        add(&mut cache, "weekend-task",
+            Some("2026-05-22"), None, Some(Est::Day2), Avail::WeekendOnly);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        assert_eq!(flat[0].2, Some(date("2026-05-16")));
+    }
+
+    // ── Scenario 5: backlog — no dates at all ──
+
+    #[test]
+    fn task_without_dates_goes_to_backlog() {
+        let mut cache = TaskCache::default();
+        add(&mut cache, "backlog-task",
+            None, None, None, Avail::Anytime);
+
+        let (groups, backlog) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert!(groups.is_empty());
+        assert_eq!(backlog.len(), 1);
+        assert_eq!(backlog[0].1.summary(), "backlog-task");
+    }
+
+    // ── Scenario 6: start_date without due_date → Ready to Start ──
+
+    #[test]
+    fn start_date_only_ready_to_start() {
+        // start_date = today, no due_date → ReadyToStart
+        let mut cache = TaskCache::default();
+        add(&mut cache, "started",
+            None, Some("2026-05-11"), None, Avail::Anytime);
+
+        let (groups, backlog) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert!(backlog.is_empty());
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ReadyToStart);
+    }
+
+    // ── Scenario 7: start_date in future, no due_date → backlog ──
+
+    #[test]
+    fn future_start_date_no_due_is_backlog() {
+        let mut cache = TaskCache::default();
+        add(&mut cache, "not-yet",
+            None, Some("2026-05-20"), None, Avail::Anytime);
+
+        let (groups, backlog) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert!(groups.is_empty());
+        assert_eq!(backlog.len(), 1);
+    }
+
+    // ── Scenario 8: start_date pulls task into earlier group (soft) ──
+
+    #[test]
+    fn start_date_earlier_than_attention_pulls_forward_soft() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Task: due May 30 (Later), no estimate → attention = May 30.
+        // start_date = May 14 (This Week).
+        // start_date < attention → group by start_date → This Week, soft.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "early-start",
+            Some("2026-05-30"), Some("2026-05-14"), None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat.len(), 1);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+    }
+
+    // ── Scenario 9: soft tasks sort after hard tasks in same group ──
+
+    #[test]
+    fn soft_tasks_sort_after_hard_in_same_group() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        //
+        // Hard task: due Tue May 19, Day2 Anytime →
+        //   attention = May 17 → This Week (hard, attention-driven)
+        // Soft task: due May 30, start_date May 14 →
+        //   attention = May 30, but start_date pulls to This Week (soft)
+        let mut cache = TaskCache::default();
+        add(&mut cache, "hard-attention",
+            Some("2026-05-19"), None, Some(Est::Day2), Avail::Anytime);
+        add(&mut cache, "soft-start",
+            Some("2026-05-30"), Some("2026-05-14"), None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let names = summaries(&groups);
+        // Hard before soft within the same group.
+        assert_eq!(names, vec!["hard-attention", "soft-start"]);
+        // Both in This Week.
+        assert_eq!(group_names(&groups), vec![DeadlineGroup::ThisWeek]);
+    }
+
+    // ── Scenario 10: start_date doesn't shift when same group ──
+
+    #[test]
+    fn start_date_same_group_no_shift() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Due May 15 (This Week), start May 13 (also This Week).
+        // start < due but same group → no soft shift.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "same-group",
+            Some("2026-05-15"), Some("2026-05-13"), None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+    }
+
+    // ── Scenario 11: overdue ignores start_date ──
+
+    #[test]
+    fn overdue_ignores_start_date() {
+        // Due yesterday. start_date doesn't rescue from Overdue.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "overdue",
+            Some("2026-05-10"), Some("2026-05-01"), None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::Overdue);
+    }
+
+    // ── Scenario 12: done tasks excluded ──
+
+    #[test]
+    fn done_tasks_excluded() {
+        let mut cache = TaskCache::default();
+        let id = add(&mut cache, "done-task",
+            Some("2026-05-15"), None, None, Avail::Anytime);
+        {
+            let mut guard = cache.get_mut(&id, "test").unwrap();
+            guard.mark_done();
+        }
+
+        let (groups, backlog) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert!(groups.is_empty());
+        assert!(backlog.is_empty());
+    }
+
+    // ── Scenario 13: mixed — overdue, today, shifted, backlog ──
+
+    #[test]
+    fn mixed_scenario() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        let mut cache = TaskCache::default();
+        add(&mut cache, "overdue",
+            Some("2026-05-10"), None, None, Avail::Anytime);
+        add(&mut cache, "today",
+            Some("2026-05-11"), None, None, Avail::Anytime);
+        add(&mut cache, "shifted-to-this-week",
+            Some("2026-05-19"), None, Some(Est::Day2), Avail::Anytime);
+        add(&mut cache, "backlog",
+            None, None, None, Avail::Anytime);
+
+        let (groups, backlog) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(
+            group_names(&groups),
+            vec![DeadlineGroup::Overdue, DeadlineGroup::Today, DeadlineGroup::ThisWeek],
+        );
+        assert_eq!(backlog.len(), 1);
+        assert_eq!(backlog[0].1.summary(), "backlog");
+    }
+
+    // ── Scenario 14: start_date in past pulls to Today (soft) ──
+
+    #[test]
+    fn past_start_date_pulls_to_today_soft() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Due May 30 (Later), start May 5 (past).
+        // start < attention (May 30) → start group = Today (soft).
+        let mut cache = TaskCache::default();
+        add(&mut cache, "started-last-week",
+            Some("2026-05-30"), Some("2026-05-05"), None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::Today);
+    }
+
+    // ── Scenario 15: soft Today sorts after hard Today ──
+
+    #[test]
+    fn soft_today_after_hard_today() {
+        // Today: Mon May 11
+        // Hard: due May 11 (Today, naturally)
+        // Soft: due May 30, start May 05 (Today via start_date)
+        let mut cache = TaskCache::default();
+        add(&mut cache, "hard-today",
+            Some("2026-05-11"), None, None, Avail::Anytime);
+        add(&mut cache, "soft-today",
+            Some("2026-05-30"), Some("2026-05-05"), None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let names = summaries(&groups);
+        assert_eq!(names, vec!["hard-today", "soft-today"]);
+    }
+
+    // ── Scenario 16: start_date >= attention → no soft shift ──
+
+    #[test]
+    fn start_date_after_attention_no_shift() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // Due Tue May 19, Day2 → attention May 17 (This Week).
+        // start May 18 (after attention) → no soft shift, stays This Week.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "late-start",
+            Some("2026-05-19"), Some("2026-05-18"), Some(Est::Day2), Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        // Attention label should still be set (attention != due)
+        assert_eq!(flat[0].2, Some(date("2026-05-17")));
     }
 }
