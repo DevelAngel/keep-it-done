@@ -738,7 +738,7 @@ fn TaskList() -> impl IntoView {
                                                         let label = backlog_label(backlog.len(), total_backlog);
                                                         let backlog = StoredValue::new(backlog);
                                                         Either::Left(view! {
-                                                            <div class="border-t border-slate-700 mt-1">
+                                                            <div class="border-t border-slate-700 mt-1" data-testid="backlog">
                                                                 <button
                                                                     type="button"
                                                                     class="w-full flex items-center gap-2 px-6 pt-3 pb-1 text-left select-none"
@@ -874,13 +874,14 @@ fn TaskList() -> impl IntoView {
                                                         <div>
                                                             {groups.into_iter().enumerate().map(|(i, (dg, tasks))| {
                                                                 let label = dg.label();
+                                                                let testid = format!("upcoming-group-{label}");
                                                                 let header_class = if dg.is_overdue() {
                                                                     "text-sm font-semibold text-cyan-300"
                                                                 } else {
                                                                     "text-sm font-semibold text-slate-400"
                                                                 };
                                                                 view! {
-                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" }>
+                                                                    <div class=if i == 0 { "" } else { "border-t border-slate-600 mt-1" } data-testid=testid>
                                                                         <div class="px-6 pt-3 pb-1">
                                                                             <span class=header_class>
                                                                                 {label}
@@ -909,7 +910,7 @@ fn TaskList() -> impl IntoView {
                                                             {(total_backlog > 0).then(|| {
                                                                 let backlog = StoredValue::new(backlog);
                                                                 view! {
-                                                                    <div class="border-t border-slate-700 mt-1">
+                                                                    <div class="border-t border-slate-700 mt-1" data-testid="backlog">
                                                                         <button
                                                                             type="button"
                                                                             class="w-full flex items-center gap-2 px-6 pt-3 pb-1 text-left select-none"
@@ -1083,6 +1084,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     #[prop(optional)] attention_label: String,
 ) -> impl IntoView {
     let id = *task.id();
+    let testid = format!("task-{id}");
     let task_ref = NodeRef::<leptos::html::Div>::new();
 
     // Scroll to this task when it was just created
@@ -1147,6 +1149,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     view! {
         <div
             node_ref=task_ref
+            data-testid=testid
             class=move || {
                 let accent = match priority.get() {
                     Some(TaskPriority::A) => priority_a_border,
@@ -1186,7 +1189,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 </div>
                 // Attention indicator (Upcoming view: task shifted to earlier group)
                 {(!attention_label.is_empty()).then(|| view! {
-                    <span class="ml-2 flex-shrink-0 text-xs text-slate-500">{attention_label.clone()}</span>
+                    <span class="ml-2 flex-shrink-0 text-xs text-slate-500" data-testid="attention-label">{attention_label.clone()}</span>
                 })}
                 // Spinner
                 <Show when=move || complete_task.pending().get()>
