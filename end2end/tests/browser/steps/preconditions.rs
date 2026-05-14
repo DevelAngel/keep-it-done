@@ -8,6 +8,13 @@ use crate::world::AppWorld;
 
 #[given("no tasks at all")]
 async fn empty_task_list(world: &mut AppWorld) -> Result<()> {
+    let dir = world.tasks_dir.as_ref().expect("tasks_dir must be set");
+    world
+        .rpc
+        .switch_dir(context::current(), dir.path().to_path_buf())
+        .await
+        .expect("RPC call failed")
+        .expect("switch_dir failed");
     let count = world.rpc.count(context::current()).await?;
     assert_eq!(count, 0);
     Ok(())
@@ -15,12 +22,15 @@ async fn empty_task_list(world: &mut AppWorld) -> Result<()> {
 
 #[given("the following tasks")]
 async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
+    let dir = world.tasks_dir.as_ref().expect("tasks_dir must be set");
     let table = step.table.as_ref().expect("data table required");
     let headers = &table.rows[0];
 
     for row in &table.rows[1..] {
         let col = |name: &str| -> Option<&str> {
-            headers.iter().position(|h| h == name)
+            headers
+                .iter()
+                .position(|h| h == name)
                 .map(|idx| row[idx].trim())
                 .filter(|val| !val.is_empty())
         };
@@ -28,12 +38,14 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
         let summary = col("summary").expect("summary required");
         let category = col("category").expect("category required");
         let status = col("status").expect("status required");
-        let days_ago: u64 = col("days ago").expect("days ago required")
-            .parse().expect("days ago must be a number");
+        let days_ago: u64 = col("days ago")
+            .expect("days ago required")
+            .parse()
+            .expect("days ago must be a number");
 
         match status {
-            "open" => seeds::add_open(
-                &world.rpc,
+            "open" => seeds::write_open(
+                dir.path(),
                 summary,
                 category,
                 col("context").unwrap_or(""),
@@ -43,16 +55,19 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
                 col("due"),
                 col("note"),
                 days_ago,
-            ).await,
-            "done" => seeds::add_done(
-                &world.rpc,
-                summary,
-                category,
-                days_ago,
-            ).await,
+            ),
+            "done" => seeds::write_done(dir.path(), summary, category, days_ago),
             other => panic!("unknown status: {other}"),
         }
     }
+
+    // Now switch the server to this directory so it loads the files.
+    world
+        .rpc
+        .switch_dir(context::current(), dir.path().to_path_buf())
+        .await
+        .expect("RPC call failed")
+        .expect("switch_dir failed");
 
     Ok(())
 }

@@ -22,12 +22,9 @@ async fn main() -> Result<()> {
             Box::pin(async move {
                 let dir = TempDir::with_prefix("kid-e2e-")
                     .expect("failed to create temp dir");
-                world
-                    .rpc
-                    .switch_dir(context::current(), dir.path().to_path_buf())
-                    .await
-                    .expect("RPC call failed")
-                    .expect("switch_dir failed");
+                // Don't switch_dir yet — the Given step writes task
+                // files first, then switches so the server loads them
+                // with fully controlled timestamps.
                 world.tasks_dir = Some(dir);
             })
         })

@@ -2030,6 +2030,7 @@ dependencies = [
  "indexmap 2.13.0",
  "kid-cli",
  "kid-types",
+ "serde_json",
  "strum",
  "tarpc",
  "thirtyfour",

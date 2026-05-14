@@ -13,6 +13,7 @@ cucumber = "0.21"
 indexmap.workspace = true
 kid-cli = { path = "../cli" }
 kid-types = { path = "../types" }
+serde_json.workspace = true
 strum.workspace = true
 tarpc.workspace = true
 thirtyfour = "0.37.0"
