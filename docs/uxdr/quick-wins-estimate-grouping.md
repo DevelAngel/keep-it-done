@@ -55,9 +55,12 @@ shown — empty duration buckets are omitted.
 between groups. No collapse toggle, no task count badge.
 
 **Server-side grouping:** `fetch_quick_wins` returns
-`Vec<(TimeEstimate, Vec<(Uuid, Infos)>)>` — tasks are sorted by
-estimate ascending and then chunked into contiguous groups. The
-`TaskListData::Flat` variant is replaced by
+`Vec<(TimeEstimate, Vec<(Uuid, Infos)>)>` — tasks are grouped by
+estimate via `BTreeMap` (ascending key order), then sorted within
+each group by priority descending (A before B before C), then UUID
+ascending (creation order). This matches the Upcoming backlog
+sort — priority-A tasks surface first within each time bucket.
+The `TaskListData::Flat` variant is replaced by
 `TaskListData::EstimateGrouped` since no other view used the flat
 variant.
 
