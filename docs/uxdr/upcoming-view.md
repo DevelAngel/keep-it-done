@@ -63,11 +63,11 @@ Tasks are assigned to exactly one group based on their **effective date** — `d
 | **This Week** | `due_date` within remaining calendar week (tomorrow through Sunday) | due_date ascending |
 | **Next Week** | `due_date` within the following Mon–Sun | due_date ascending |
 | **Later** | `due_date > next week` | due_date ascending |
-| **Ready to Start** | `start_date <= today` and `due_date` is None | start_date ascending (longest-waiting first) |
+| **Ready to Start** | `start_date <= today` and `due_date` is None | start_date ascending (longest-waiting first), then priority descending, then UUID ascending |
 
 **Week boundary:** ISO 8601 (Monday = start of week). "This Week" excludes today (today has its own group) and includes up to the coming Sunday.
 
-**Tie-breaking within identical dates:** priority descending, then UUID ascending (creation order).
+**Tie-breaking within identical due dates:** priority descending, then UUID ascending (creation order). Ready to Start uses start_date instead of due_date but follows the same tie-breaking chain.
 
 Only groups containing at least one task are rendered — empty groups are omitted.
 
