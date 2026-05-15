@@ -58,13 +58,16 @@ pub async fn fetch_all_open() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::
 pub async fn fetch_what_i_finished() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let mut list: Vec<_> = cache
+    let list: Vec<_> = cache
         .iter()
         .filter(|(_, task)| task.info().is_done())
         .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
         .collect();
-    list.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
-    Ok(internal::group_by_category(list))
+    let mut groups = internal::group_by_category(list);
+    for tasks in groups.values_mut() {
+        tasks.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
+    }
+    Ok(groups)
 }
 
 #[server(endpoint = "fetch_quick_wins")]
