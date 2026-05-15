@@ -58,41 +58,14 @@ pub async fn fetch_all_open() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::
 pub async fn fetch_what_i_finished() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let list: Vec<_> = cache
-        .iter()
-        .filter(|(_, task)| task.info().is_done())
-        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
-        .collect();
-    let mut groups = internal::group_by_category(list);
-    for tasks in groups.values_mut() {
-        tasks.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
-    }
-    Ok(groups)
+    Ok(internal::group_finished(cache.iter()))
 }
 
 #[server(endpoint = "fetch_quick_wins")]
 pub async fn fetch_quick_wins() -> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let list: Vec<_> = cache
-        .iter()
-        .filter(|(_, task)| !task.info().is_done() && task.time_estimate().is_some())
-        .map(|(id, task)| (id.to_owned(), task.info().to_owned(), task.time_estimate().cloned().unwrap()))
-        .collect();
-    let mut btree: BTreeMap<TaskTimeEstimate, Vec<(Uuid, task::Infos)>> = BTreeMap::new();
-    for (id, info, te) in list {
-        btree.entry(te).or_default().push((id, info));
-    }
-    let mut groups: Vec<_> = btree.into_iter().collect();
-    for (_, tasks) in &mut groups {
-        tasks.sort_by(|(id_a, a), (id_b, b)| {
-            let pri = |info: &task::Infos| -> u8 {
-                info.priority().map(|p| *p as u8).unwrap_or(u8::MAX)
-            };
-            pri(a).cmp(&pri(b)).then_with(|| id_a.cmp(id_b))
-        });
-    }
-    Ok(groups)
+    Ok(internal::group_quick_wins(cache.iter()))
 }
 
 /// Fetch open tasks that carry a date, grouped by temporal urgency.

@@ -225,6 +225,56 @@ pub(super) fn group_by_category(list: Vec<(Uuid, task::Infos)>) -> IndexMap<Task
     btree.into_iter().collect()
 }
 
+/// Group open tasks by time estimate, sorted by priority within each group.
+///
+/// Returns groups in ascending estimate order (Min15 → Day2).
+/// Within each group: priority descending (A before B before C),
+/// then UUID ascending (creation order).
+#[cfg(feature = "ssr")]
+pub(super) fn group_quick_wins<'a>(
+    tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
+) -> Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)> {
+    let list: Vec<_> = tasks
+        .filter(|(_, task)| !task.info().is_done() && task.time_estimate().is_some())
+        .map(|(id, task)| {
+            (id.to_owned(), task.info().to_owned(), task.time_estimate().cloned().unwrap())
+        })
+        .collect();
+    let mut btree: BTreeMap<TaskTimeEstimate, Vec<(Uuid, task::Infos)>> = BTreeMap::new();
+    for (id, info, te) in list {
+        btree.entry(te).or_default().push((id, info));
+    }
+    let mut groups: Vec<_> = btree.into_iter().collect();
+    for (_, tasks) in &mut groups {
+        tasks.sort_by(|(id_a, a), (id_b, b)| {
+            let pri = |info: &task::Infos| -> u8 {
+                info.priority().map(|p| *p as u8).unwrap_or(u8::MAX)
+            };
+            pri(a).cmp(&pri(b)).then_with(|| id_a.cmp(id_b))
+        });
+    }
+    groups
+}
+
+/// Group completed tasks by category, sorted by completion date within each.
+///
+/// Categories in alphabetical order (via BTreeMap). Within each
+/// category: most recently completed first (completion date descending).
+#[cfg(feature = "ssr")]
+pub(super) fn group_finished<'a>(
+    tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
+) -> IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>> {
+    let list: Vec<_> = tasks
+        .filter(|(_, task)| task.info().is_done())
+        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
+        .collect();
+    let mut groups = group_by_category(list);
+    for tasks in groups.values_mut() {
+        tasks.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
+    }
+    groups
+}
+
 #[cfg(all(test, feature = "ssr"))]
 mod tests {
     use super::*;
@@ -703,7 +753,7 @@ mod upcoming_tests {
         estimate: Option<Est>,
         avail: Avail,
     ) -> Uuid {
-        use kid_types::{TaskDetails, TaskInfos};
+        use kid_types::TaskDetails;
         let mut t = Task::new(name.parse::<Summary>().unwrap());
         if let Some(d) = due { t.set_due_date(task_date(d)); }
         if let Some(s) = start { t.set_start_date(task_date(s)); }
@@ -1077,5 +1127,220 @@ mod upcoming_tests {
         assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
         // Attention label from estimate (not from start_date)
         assert_eq!(flat[0].2, Some(date("2026-05-16")));
+    }
+}
+
+// ── Quick Wins: intra-group sort tests ─────────────────────────
+
+#[cfg(all(test, feature = "ssr"))]
+mod quick_wins_tests {
+    use super::*;
+    use kid_types::{
+        TaskDetails, TaskInfos,
+        TaskPriority as Pri,
+        TaskTimeEstimate as Est,
+        task::{Summary, Task},
+    };
+    use kid_types::server::TaskCache;
+
+    fn add(cache: &mut TaskCache, name: &str, estimate: Est, priority: Option<Pri>) -> Uuid {
+        let mut t = Task::new(name.parse::<Summary>().unwrap());
+        t.set_time_estimate(estimate);
+        if let Some(p) = priority {
+            t.set_priority(p);
+        }
+        cache.add(t, "test")
+    }
+
+    /// Flat list of `(estimate, summary)` pairs in output order.
+    fn flatten(groups: &[(Est, Vec<(Uuid, task::Infos)>)]) -> Vec<(Est, &str)> {
+        groups.iter()
+            .flat_map(|(est, tasks)| {
+                tasks.iter().map(move |(_, info)| (*est, info.summary()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn priority_ordering_within_estimate_group() {
+        let mut cache = TaskCache::default();
+        // Insert in reverse priority order.
+        add(&mut cache, "low", Est::Min30, Some(Pri::C));
+        add(&mut cache, "high", Est::Min30, Some(Pri::A));
+        add(&mut cache, "medium", Est::Min30, Some(Pri::B));
+
+        let groups = group_quick_wins(cache.iter());
+        assert_eq!(groups.len(), 1);
+        let names: Vec<_> = groups[0].1.iter().map(|(_, i)| i.summary()).collect();
+        assert_eq!(names, vec!["high", "medium", "low"]);
+    }
+
+    #[test]
+    fn unprioritized_sorts_after_prioritized() {
+        let mut cache = TaskCache::default();
+        add(&mut cache, "no-pri", Est::Min15, None);
+        add(&mut cache, "pri-a", Est::Min15, Some(Pri::A));
+
+        let groups = group_quick_wins(cache.iter());
+        let names: Vec<_> = groups[0].1.iter().map(|(_, i)| i.summary()).collect();
+        assert_eq!(names, vec!["pri-a", "no-pri"]);
+    }
+
+    #[test]
+    fn uuid_tiebreak_for_same_priority() {
+        let mut cache = TaskCache::default();
+        // Same estimate, same priority → older (lower UUID) first.
+        add(&mut cache, "first", Est::Hours1, Some(Pri::B));
+        add(&mut cache, "second", Est::Hours1, Some(Pri::B));
+
+        let groups = group_quick_wins(cache.iter());
+        let names: Vec<_> = groups[0].1.iter().map(|(_, i)| i.summary()).collect();
+        assert_eq!(names, vec!["first", "second"]);
+    }
+
+    #[test]
+    fn groups_ordered_by_estimate_ascending() {
+        let mut cache = TaskCache::default();
+        // Insert out of order.
+        add(&mut cache, "big", Est::Day2, None);
+        add(&mut cache, "tiny", Est::Min15, None);
+        add(&mut cache, "medium", Est::Hours1, None);
+
+        let groups = group_quick_wins(cache.iter());
+        let estimates: Vec<_> = groups.iter().map(|(e, _)| *e).collect();
+        assert_eq!(estimates, vec![Est::Min15, Est::Hours1, Est::Day2]);
+    }
+
+    #[test]
+    fn done_tasks_excluded() {
+        let mut cache = TaskCache::default();
+        let id = add(&mut cache, "done", Est::Min30, None);
+        {
+            let mut guard = cache.get_mut(&id, "test").unwrap();
+            guard.mark_done();
+        }
+
+        let groups = group_quick_wins(cache.iter());
+        assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn tasks_without_estimate_excluded() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("no-estimate".parse::<Summary>().unwrap());
+        cache.add(t, "test");
+
+        let groups = group_quick_wins(cache.iter());
+        assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn mixed_estimates_and_priorities() {
+        let mut cache = TaskCache::default();
+        add(&mut cache, "m30-b", Est::Min30, Some(Pri::B));
+        add(&mut cache, "m30-a", Est::Min30, Some(Pri::A));
+        add(&mut cache, "m15", Est::Min15, None);
+        add(&mut cache, "h1-c", Est::Hours1, Some(Pri::C));
+        add(&mut cache, "h1-a", Est::Hours1, Some(Pri::A));
+
+        let groups = group_quick_wins(cache.iter());
+        assert_eq!(
+            flatten(&groups),
+            vec![
+                (Est::Min15, "m15"),
+                (Est::Min30, "m30-a"),
+                (Est::Min30, "m30-b"),
+                (Est::Hours1, "h1-a"),
+                (Est::Hours1, "h1-c"),
+            ],
+        );
+    }
+}
+
+// ── What I Finished: intra-group sort tests ────────────────────
+
+#[cfg(all(test, feature = "ssr"))]
+mod finished_tests {
+    use super::*;
+    use kid_types::{
+        TaskInfos,
+        TaskCategory,
+        task::{Summary, Task},
+    };
+    use kid_types::server::TaskCache;
+    use std::time::Duration;
+
+    fn add_done(cache: &mut TaskCache, name: &str, category: &str) -> Uuid {
+        let mut t = Task::new(name.parse::<Summary>().unwrap());
+        t.set_category(category.parse().unwrap());
+        let id = cache.add(t, "test");
+        {
+            let mut guard = cache.get_mut(&id, "test").unwrap();
+            guard.mark_done();
+        }
+        id
+    }
+
+    fn cat(s: &str) -> TaskCategory {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn completion_order_within_category() {
+        let mut cache = TaskCache::default();
+        // Mark done in order: first → second → third.
+        // Most recently completed should appear first.
+        add_done(&mut cache, "first", "Work");
+        std::thread::sleep(Duration::from_millis(10));
+        add_done(&mut cache, "second", "Work");
+        std::thread::sleep(Duration::from_millis(10));
+        add_done(&mut cache, "third", "Work");
+
+        let groups = group_finished(cache.iter());
+        let work = groups.get(&cat("Work")).unwrap();
+        let names: Vec<_> = work.iter().map(|(_, info)| info.summary()).collect();
+        assert_eq!(names, vec!["third", "second", "first"]);
+    }
+
+    #[test]
+    fn categories_in_alphabetical_order() {
+        let mut cache = TaskCache::default();
+        add_done(&mut cache, "z-task", "Zzz");
+        add_done(&mut cache, "a-task", "Aaa");
+        add_done(&mut cache, "m-task", "Mmm");
+
+        let groups = group_finished(cache.iter());
+        let cats: Vec<_> = groups.keys().map(|c| c.to_string()).collect();
+        assert_eq!(cats, vec!["Aaa", "Mmm", "Zzz"]);
+    }
+
+    #[test]
+    fn independent_sort_per_category() {
+        let mut cache = TaskCache::default();
+        add_done(&mut cache, "home-a", "Home");
+        std::thread::sleep(Duration::from_millis(10));
+        add_done(&mut cache, "home-b", "Home");
+        std::thread::sleep(Duration::from_millis(10));
+        add_done(&mut cache, "work-x", "Work");
+        std::thread::sleep(Duration::from_millis(10));
+        add_done(&mut cache, "work-y", "Work");
+
+        let groups = group_finished(cache.iter());
+        let home: Vec<_> = groups.get(&cat("Home")).unwrap()
+            .iter().map(|(_, i)| i.summary()).collect();
+        let work: Vec<_> = groups.get(&cat("Work")).unwrap()
+            .iter().map(|(_, i)| i.summary()).collect();
+        assert_eq!(home, vec!["home-b", "home-a"]);
+        assert_eq!(work, vec!["work-y", "work-x"]);
+    }
+
+    #[test]
+    fn open_tasks_excluded() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("open".parse::<Summary>().unwrap());
+        cache.add(t, "test");
+
+        let groups = group_finished(cache.iter());
+        assert!(groups.is_empty());
     }
 }
