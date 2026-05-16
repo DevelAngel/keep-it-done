@@ -45,13 +45,7 @@ use internal::{UpcomingGroups, UpcomingBacklog};
 pub async fn fetch_all_open() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let mut list: Vec<_> = cache
-        .iter()
-        .filter(|(_, task)| !task.info().is_done())
-        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
-        .collect();
-    list.sort_by_key(|(id, _)| *id);
-    Ok(internal::group_by_category(list))
+    Ok(internal::group_all_open(cache.iter()))
 }
 
 #[server(endpoint = "fetch_what_i_finished")]
@@ -101,45 +95,8 @@ pub struct RecentChange {
 pub async fn fetch_recently_changed(extra_days: u32) -> Result<Vec<RecentChange>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let calendar_cutoff = Utc::now().date_naive()
-        .checked_sub_days(chrono::Days::new(2)).unwrap();
-    let mut all: Vec<_> = cache
-        .iter()
-        .filter_map(|(id, task)| {
-            let last_change = task.authors().values().flatten().max()
-                .map(|t| t.with_timezone(&Utc))
-                .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
-            let day = last_change.date_naive();
-            let authors = TaskAuthors::from(task.authors());
-            let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
-            let ai_last = authors.iter()
-                .max_by_key(|(_, ts)| ts)
-                .is_some_and(|(a, _)| a.starts_with("ai:"));
-            Some((last_change, day, RecentChange {
-                id: id.to_owned(),
-                info: task.info().to_owned(),
-                authors,
-                last_changed: last_change.fixed_offset(),
-                ai_last,
-                ai_involved,
-            }))
-        })
-        .collect();
-    all.sort_by(|(a, _, _), (b, _, _)| b.cmp(a));
-    // Always include the 3 calendar days. Beyond that, collect
-    // up to `extra_days` distinct older days that have data.
-    let mut older_days: IndexSet<chrono::NaiveDate> = IndexSet::new();
-    let result = all.into_iter().filter(|(_, day, _)| {
-        if *day >= calendar_cutoff {
-            true
-        } else if older_days.len() < extra_days as usize {
-            older_days.insert(*day);
-            true
-        } else {
-            older_days.contains(day)
-        }
-    }).map(|(_, _, rc)| rc).collect();
-    Ok(result)
+    let today = Utc::now().date_naive();
+    Ok(internal::group_recently_changed(cache.iter(), today, extra_days))
 }
 
 #[server(endpoint = "fetch_categories")]

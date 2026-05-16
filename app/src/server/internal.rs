@@ -1,8 +1,9 @@
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use chrono::{Datelike, Days};
-        use indexmap::IndexMap;
+        use chrono::{Datelike, Days, Utc};
+        use indexmap::{IndexMap, IndexSet};
         use kid_types::{TaskDetails, TaskInfos};
+        use kid_types::TaskAuthors;
         use kid_types::TaskAvailability;
         use kid_types::TaskCategory;
         use kid_types::TaskTimeEstimate;
@@ -273,6 +274,72 @@ pub(super) fn group_finished<'a>(
         tasks.sort_by(|(_, a), (_, b)| b.since().cmp(a.since()));
     }
     groups
+}
+
+/// Group open tasks by category, sorted by UUID (creation order) within each.
+///
+/// Categories in alphabetical order (via BTreeMap). Within each
+/// category: UUID ascending (oldest first — UUID v7 encodes creation time).
+#[cfg(feature = "ssr")]
+pub(super) fn group_all_open<'a>(
+    tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
+) -> IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>> {
+    let mut list: Vec<_> = tasks
+        .filter(|(_, task)| !task.info().is_done())
+        .map(|(id, task)| (id.to_owned(), task.info().to_owned()))
+        .collect();
+    list.sort_by_key(|(id, _)| *id);
+    group_by_category(list)
+}
+
+/// Collect recently changed tasks sorted by last-change descending.
+///
+/// Includes all tasks within the 3-day calendar window
+/// (`today - 2` through `today`). Beyond that, collects up to
+/// `extra_days` distinct older days that actually contain data
+/// (empty days are skipped).
+#[cfg(feature = "ssr")]
+pub(super) fn group_recently_changed<'a>(
+    tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
+    today: NaiveDate,
+    extra_days: u32,
+) -> Vec<super::RecentChange> {
+    let calendar_cutoff = today
+        .checked_sub_days(Days::new(2))
+        .unwrap();
+    let mut all: Vec<_> = tasks
+        .filter_map(|(id, task)| {
+            let last_change = task.authors().values().flatten().max()
+                .map(|t| t.with_timezone(&Utc))
+                .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
+            let day = last_change.date_naive();
+            let authors = TaskAuthors::from(task.authors());
+            let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
+            let ai_last = authors.iter()
+                .max_by_key(|(_, ts)| ts)
+                .is_some_and(|(a, _)| a.starts_with("ai:"));
+            Some((last_change, day, super::RecentChange {
+                id: id.to_owned(),
+                info: task.info().to_owned(),
+                authors,
+                last_changed: last_change.fixed_offset(),
+                ai_last,
+                ai_involved,
+            }))
+        })
+        .collect();
+    all.sort_by(|(a, _, _), (b, _, _)| b.cmp(a));
+    let mut older_days: IndexSet<NaiveDate> = IndexSet::new();
+    all.into_iter().filter(|(_, day, _)| {
+        if *day >= calendar_cutoff {
+            true
+        } else if older_days.len() < extra_days as usize {
+            older_days.insert(*day);
+            true
+        } else {
+            older_days.contains(day)
+        }
+    }).map(|(_, _, rc)| rc).collect()
 }
 
 #[cfg(all(test, feature = "ssr"))]
@@ -1342,5 +1409,211 @@ mod finished_tests {
 
         let groups = group_finished(cache.iter());
         assert!(groups.is_empty());
+    }
+}
+
+// ── All Open: grouping and sort tests ──────────────────────────
+
+#[cfg(all(test, feature = "ssr"))]
+mod all_open_tests {
+    use super::*;
+    use kid_types::{
+        TaskInfos, TaskCategory,
+        task::{Summary, Task},
+    };
+    use kid_types::server::TaskCache;
+
+    fn add(cache: &mut TaskCache, name: &str, category: &str) -> Uuid {
+        let mut t = Task::new(name.parse::<Summary>().unwrap());
+        t.set_category(category.parse().unwrap());
+        cache.add(t, "test")
+    }
+
+    fn cat(s: &str) -> TaskCategory {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn categories_in_alphabetical_order() {
+        let mut cache = TaskCache::default();
+        add(&mut cache, "z-task", "Zzz");
+        add(&mut cache, "a-task", "Aaa");
+        add(&mut cache, "m-task", "Mmm");
+
+        let groups = group_all_open(cache.iter());
+        let cats: Vec<_> = groups.keys().map(|c| c.to_string()).collect();
+        assert_eq!(cats, vec!["Aaa", "Mmm", "Zzz"]);
+    }
+
+    #[test]
+    fn uuid_sort_within_category() {
+        let mut cache = TaskCache::default();
+        // Add three tasks to same category — oldest UUID first.
+        let id_a = add(&mut cache, "older", "Work");
+        let id_b = add(&mut cache, "newer", "Work");
+
+        let groups = group_all_open(cache.iter());
+        let work = groups.get(&cat("Work")).unwrap();
+        assert_eq!(work[0].0, id_a);
+        assert_eq!(work[1].0, id_b);
+    }
+
+    #[test]
+    fn done_tasks_excluded() {
+        let mut cache = TaskCache::default();
+        let id = add(&mut cache, "done", "Work");
+        {
+            let mut guard = cache.get_mut(&id, "test").unwrap();
+            guard.mark_done();
+        }
+
+        let groups = group_all_open(cache.iter());
+        assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn mixed_categories_with_uuid_order() {
+        let mut cache = TaskCache::default();
+        let id_w1 = add(&mut cache, "work-1", "Work");
+        let id_h1 = add(&mut cache, "home-1", "Home");
+        let id_w2 = add(&mut cache, "work-2", "Work");
+        let id_h2 = add(&mut cache, "home-2", "Home");
+
+        let groups = group_all_open(cache.iter());
+        // Alphabetical: Home before Work.
+        let cats: Vec<_> = groups.keys().map(|c| c.to_string()).collect();
+        assert_eq!(cats, vec!["Home", "Work"]);
+        // Within each: older UUID first.
+        let home = groups.get(&cat("Home")).unwrap();
+        assert_eq!(home[0].0, id_h1);
+        assert_eq!(home[1].0, id_h2);
+        let work = groups.get(&cat("Work")).unwrap();
+        assert_eq!(work[0].0, id_w1);
+        assert_eq!(work[1].0, id_w2);
+    }
+}
+
+// ── Recently Changed: sort, AI flags, and pagination tests ─────
+
+#[cfg(all(test, feature = "ssr"))]
+mod recently_changed_tests {
+    use super::*;
+    use kid_types::{
+        TaskInfos,
+        TaskPriority as Pri,
+        task::{Summary, Task},
+    };
+    use kid_types::server::TaskCache;
+    use std::time::Duration;
+
+    fn today() -> NaiveDate {
+        chrono::Utc::now().date_naive()
+    }
+
+    // NOTE: add_author() truncates timestamps to whole seconds
+    // (with_nanosecond(0)), so sleeps must cross a second boundary
+    // to produce distinct author timestamps.
+
+    #[test]
+    fn sorted_by_last_changed_descending() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("first".parse::<Summary>().unwrap());
+        cache.add(t, "a");
+        std::thread::sleep(Duration::from_secs(1));
+        let t = Task::new("second".parse::<Summary>().unwrap());
+        cache.add(t, "b");
+        std::thread::sleep(Duration::from_secs(1));
+        let t = Task::new("third".parse::<Summary>().unwrap());
+        cache.add(t, "c");
+
+        let result = group_recently_changed(cache.iter(), today(), 0);
+        let names: Vec<_> = result.iter().map(|rc| rc.info.summary()).collect();
+        assert_eq!(names, vec!["third", "second", "first"]);
+    }
+
+    #[test]
+    fn ai_involved_and_last_when_ai_edited() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("task".parse::<Summary>().unwrap());
+        let id = cache.add(t, "human");
+        std::thread::sleep(Duration::from_secs(1));
+        {
+            let mut guard = cache.get_mut(&id, "ai:bot").unwrap();
+            guard.set_priority(Pri::A);
+        }
+
+        let result = group_recently_changed(cache.iter(), today(), 0);
+        assert_eq!(result.len(), 1);
+        assert!(result[0].ai_involved, "ai:bot should set ai_involved");
+        assert!(result[0].ai_last, "ai:bot was last actor");
+    }
+
+    #[test]
+    fn ai_not_last_when_human_acts_after() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("task".parse::<Summary>().unwrap());
+        let id = cache.add(t, "human");
+        std::thread::sleep(Duration::from_secs(1));
+        {
+            let mut guard = cache.get_mut(&id, "ai:bot").unwrap();
+            guard.set_priority(Pri::A);
+        }
+        std::thread::sleep(Duration::from_secs(1));
+        {
+            let mut guard = cache.get_mut(&id, "human").unwrap();
+            guard.set_priority(Pri::B);
+        }
+
+        let result = group_recently_changed(cache.iter(), today(), 0);
+        assert!(result[0].ai_involved, "ai:bot touched the task");
+        assert!(!result[0].ai_last, "human acted after ai:bot");
+    }
+
+    #[test]
+    fn no_ai_flags_for_human_only() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("task".parse::<Summary>().unwrap());
+        cache.add(t, "human");
+
+        let result = group_recently_changed(cache.iter(), today(), 0);
+        assert!(!result[0].ai_involved);
+        assert!(!result[0].ai_last);
+    }
+
+    #[test]
+    fn calendar_window_includes_today() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("recent".parse::<Summary>().unwrap());
+        cache.add(t, "test");
+
+        // today = actual today → task falls within 3-day window.
+        let result = group_recently_changed(cache.iter(), today(), 0);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn extra_days_zero_excludes_old_tasks() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("old".parse::<Summary>().unwrap());
+        cache.add(t, "test");
+
+        // Shift "today" 10 days forward → task falls outside
+        // the 3-day window.
+        let future = today() + chrono::Days::new(10);
+        let result = group_recently_changed(cache.iter(), future, 0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn extra_days_includes_older_data() {
+        let mut cache = TaskCache::default();
+        let t = Task::new("old".parse::<Summary>().unwrap());
+        cache.add(t, "test");
+
+        let future = today() + chrono::Days::new(10);
+        // extra_days=1 → picks up one older day with data.
+        let result = group_recently_changed(cache.iter(), future, 1);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].info.summary(), "old");
     }
 }
