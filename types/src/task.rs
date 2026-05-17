@@ -1400,4 +1400,124 @@ mod tests {
             Some(NaiveDate::from_ymd_opt(2026, 5, 10).unwrap()),
         );
     }
+
+    // ADD AUTHOR
+
+    /// Build a task with pre-seeded author timestamps so tests
+    /// don't depend on sub-second `Utc::now()` tie-breaking.
+    fn task_with_authors(authors: &[(&str, &[&str])]) -> Task {
+        let mut map = IndexMap::new();
+        for &(name, timestamps) in authors {
+            let ts: Vec<DateTime<FixedOffset>> = timestamps
+                .iter()
+                .map(|s| DateTime::parse_from_rfc3339(s).unwrap())
+                .collect();
+            map.insert(name.to_string(), ts);
+        }
+        Task {
+            info: Infos::new(SUMMARY.parse().unwrap()),
+            details: Details::default(),
+            authors: map,
+        }
+    }
+
+    #[test]
+    fn add_author_first_call_creates_entry() {
+        let mut task = Task::new(SUMMARY.parse().unwrap());
+        assert!(task.authors().is_empty());
+
+        task.add_author("alice");
+
+        assert_eq!(task.authors().len(), 1);
+        assert_eq!(task.authors()["alice"].len(), 1);
+    }
+
+    #[test]
+    fn add_author_same_author_twice_updates_in_place() {
+        let mut task = Task::new(SUMMARY.parse().unwrap());
+        task.add_author("alice");
+        let first_ts = task.authors()["alice"][0];
+
+        task.add_author("alice");
+
+        // Still one author with one timestamp (updated in place).
+        assert_eq!(task.authors().len(), 1);
+        assert_eq!(task.authors()["alice"].len(), 1);
+        assert!(task.authors()["alice"][0] >= first_ts);
+    }
+
+    #[test]
+    fn add_author_different_author_appends() {
+        // alice edited at :01, then bob edits.
+        let mut task = task_with_authors(&[
+            ("alice", &["2026-01-01T10:00:01Z"]),
+        ]);
+
+        task.add_author("bob");
+
+        assert_eq!(task.authors().len(), 2);
+        assert_eq!(task.authors()["alice"].len(), 1);
+        assert_eq!(task.authors()["bob"].len(), 1);
+    }
+
+    #[test]
+    fn add_author_returning_author_gets_new_timestamp() {
+        // alice at :01, bob at :02 (bob is most recent).
+        let mut task = task_with_authors(&[
+            ("alice", &["2026-01-01T10:00:01Z"]),
+            ("bob",   &["2026-01-01T10:00:02Z"]),
+        ]);
+
+        // Alice returns after Bob — new timestamp appended.
+        task.add_author("alice");
+
+        assert_eq!(task.authors()["alice"].len(), 2);
+        assert_eq!(task.authors()["bob"].len(), 1);
+    }
+
+    #[test]
+    fn add_author_consecutive_same_after_switch_updates_in_place() {
+        // alice at :01, bob at :02, alice at :03 (alice is most recent).
+        let mut task = task_with_authors(&[
+            ("alice", &["2026-01-01T10:00:01Z", "2026-01-01T10:00:03Z"]),
+            ("bob",   &["2026-01-01T10:00:02Z"]),
+        ]);
+
+        // Alice is most recent → update in place.
+        task.add_author("alice");
+
+        assert_eq!(task.authors()["alice"].len(), 2);
+        assert_eq!(task.authors()["bob"].len(), 1);
+    }
+
+    #[test]
+    fn add_author_three_way_handoff() {
+        // alice at :01, bob at :02.
+        let mut task = task_with_authors(&[
+            ("alice", &["2026-01-01T10:00:01Z"]),
+            ("bob",   &["2026-01-01T10:00:02Z"]),
+        ]);
+
+        task.add_author("carol");
+
+        assert_eq!(task.authors().len(), 3);
+        assert_eq!(task.authors()["alice"].len(), 1);
+        assert_eq!(task.authors()["bob"].len(), 1);
+        assert_eq!(task.authors()["carol"].len(), 1);
+    }
+
+    #[test]
+    fn add_author_repeated_handoffs_build_history() {
+        // alice at :01, bob at :02, alice at :03 (alice most recent).
+        let mut task = task_with_authors(&[
+            ("alice", &["2026-01-01T10:00:01Z", "2026-01-01T10:00:03Z"]),
+            ("bob",   &["2026-01-01T10:00:02Z"]),
+        ]);
+
+        // bob returns → new timestamp.
+        task.add_author("bob");
+
+        assert_eq!(task.authors()["alice"].len(), 2);
+        assert_eq!(task.authors()["bob"].len(), 2);
+    }
 }
