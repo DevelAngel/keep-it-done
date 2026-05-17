@@ -844,13 +844,26 @@ impl Task {
 
     pub fn add_author(&mut self, actor: impl Into<String>) {
         let now = Utc::now().with_nanosecond(0).unwrap().fixed_offset();
-        let timestamps = self.authors.entry(actor.into()).or_default();
+        let actor = actor.into();
 
-        // Debounce: if the author's last edit was < 5 min ago,
-        // update it in place instead of appending a duplicate.
-        match timestamps.last_mut() {
-            Some(last) if (now - *last).num_minutes() < 5 => *last = now,
-            _ => timestamps.push(now),
+        // Who made the most recent edit globally?
+        let last_is_same = self
+            .authors
+            .iter()
+            .flat_map(|(name, ts)| ts.last().map(|t| (name.as_str(), t)))
+            .max_by_key(|(_, t)| *t)
+            .is_some_and(|(name, _)| name == actor);
+
+        let timestamps = self.authors.entry(actor).or_default();
+        if last_is_same {
+            // Same author as last change — update timestamp in place.
+            if let Some(last) = timestamps.last_mut() {
+                *last = now;
+            } else {
+                timestamps.push(now);
+            }
+        } else {
+            timestamps.push(now);
         }
     }
 
