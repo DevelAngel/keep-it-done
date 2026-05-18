@@ -995,7 +995,7 @@ fn TaskList() -> impl IntoView {
                     </Transition>
                 </div>
                 <Show when=move || edit_mode.get()>
-                    <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); }/>
+                    <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); } current_view=current_view/>
                 </Show>
                 <footer class="py-4 text-center text-xs text-slate-600 select-none" title="keep it done">
                     {concat!("kid ", env!("CARGO_PKG_VERSION"))}
@@ -1010,7 +1010,7 @@ fn TaskList() -> impl IntoView {
 }
 
 #[component]
-fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>) -> impl IntoView {
+fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>, current_view: RwSignal<View>) -> impl IntoView {
     let expanded = RwSignal::new(false);
     let value = RwSignal::new(String::new());
     let input_ref = NodeRef::<leptos::html::Input>::new();
@@ -1061,7 +1061,10 @@ fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>) -> impl IntoView {
                     <button
                         type="button"
                         class="w-full flex items-center justify-center text-slate-400 hover:text-amber-400 transition-colors py-3"
-                        on:click=move |_| expanded.set(true)
+                        on:click=move |_| {
+                            current_view.set(View::AllOpen);
+                            expanded.set(true);
+                        }
                     >
                         <span class="text-base">"Add Task"</span>
                     </button>
