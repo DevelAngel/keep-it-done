@@ -425,18 +425,26 @@ fn TaskList() -> impl IntoView {
     provide_context(scroll_to_task_id);
     let group_collapse = GroupCollapseState::new();
 
+    let add_task_error: RwSignal<Option<String>> = RwSignal::new(None);
     let add_task = Action::new(move |summary: &String| {
         let summary = summary.clone();
         async move {
             match summary.parse::<TaskSummary>() {
                 Ok(s) => match server::add_task(s).await {
                     Ok(id) => {
+                        add_task_error.set(None);
                         set_expanded_task_id.set(Some(id));
                         scroll_to_task_id.set(Some(id));
                     }
-                    Err(e) => tracing::error!("add task failed: {e}"),
+                    Err(e) => {
+                        tracing::error!("add task failed: {e}");
+                        add_task_error.set(Some(format!("Task could not be created: {e}")));
+                    }
                 },
-                Err(e) => tracing::error!("invalid summary: {e}"),
+                Err(e) => {
+                    tracing::error!("invalid summary: {e}");
+                    add_task_error.set(Some(format!("Invalid summary: {e}")));
+                }
             }
         }
     });
@@ -655,6 +663,7 @@ fn TaskList() -> impl IntoView {
                             }
                             on:click=move |_| edit_mode.update(|m| *m = !*m)
                             aria-label="Toggle edit mode"
+                            data-testid="edit-mode-toggle"
                         >
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
@@ -995,7 +1004,7 @@ fn TaskList() -> impl IntoView {
                     </Transition>
                 </div>
                 <Show when=move || edit_mode.get()>
-                    <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); } current_view=current_view/>
+                    <AddTaskForm on_add=move |summary: String| { add_task.dispatch(summary); } current_view=current_view error=add_task_error/>
                 </Show>
                 <footer class="py-4 text-center text-xs text-slate-600 select-none" title="keep it done">
                     {concat!("kid ", env!("CARGO_PKG_VERSION"))}
@@ -1010,7 +1019,7 @@ fn TaskList() -> impl IntoView {
 }
 
 #[component]
-fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>, current_view: RwSignal<View>) -> impl IntoView {
+fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>, current_view: RwSignal<View>, error: RwSignal<Option<String>>) -> impl IntoView {
     let expanded = RwSignal::new(false);
     let value = RwSignal::new(String::new());
     let input_ref = NodeRef::<leptos::html::Input>::new();
@@ -1058,16 +1067,23 @@ fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>, current_view: RwSig
                 })
             } else {
                 Either::Right(view! {
-                    <button
-                        type="button"
-                        class="w-full flex items-center justify-center text-slate-400 hover:text-amber-400 transition-colors py-3"
-                        on:click=move |_| {
-                            current_view.set(View::AllOpen);
-                            expanded.set(true);
-                        }
-                    >
-                        <span class="text-base">"Add Task"</span>
-                    </button>
+                    <div>
+                        {move || error.get().map(|msg| view! {
+                            <div class="px-6 py-2 text-xs text-red-400" data-testid="add-task-error">{msg}</div>
+                        })}
+                        <button
+                            type="button"
+                            class="w-full flex items-center justify-center text-slate-400 hover:text-amber-400 transition-colors py-3"
+                            data-testid="add-task-button"
+                            on:click=move |_| {
+                                error.set(None);
+                                current_view.set(View::AllOpen);
+                                expanded.set(true);
+                            }
+                        >
+                            <span class="text-base">"Add Task"</span>
+                        </button>
+                    </div>
                 })
             }}
         </div>
@@ -1449,7 +1465,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     });
 
     view! {
-        <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+        <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900" data-testid="task-details">
             // Summary (editable in edit mode)
             {move || edit_mode.get().then(|| view! {
                 <EditableField
