@@ -1035,9 +1035,15 @@ fn AddTaskForm(#[prop(into)] on_add: UnsyncCallback<String>, current_view: RwSig
 
     Effect::new(move || {
         if expanded.get() {
-            if let Some(el) = input_ref.get() {
-                let _ = el.focus();
-            }
+            // The view switch triggers an async Resource reload
+            // (server round-trip + Transition re-render). Delay the
+            // scroll so the new task list is in the DOM first.
+            set_timeout(move || {
+                if let Some(el) = input_ref.get() {
+                    el.scroll_into_view();
+                    let _ = el.focus();
+                }
+            }, std::time::Duration::from_millis(100));
         }
     });
 
