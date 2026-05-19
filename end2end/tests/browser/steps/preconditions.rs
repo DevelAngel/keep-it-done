@@ -3,8 +3,25 @@ use cucumber::gherkin::Step;
 use cucumber::given;
 use tarpc::context;
 
+use std::collections::HashMap;
+
 use crate::seeds;
 use crate::world::AppWorld;
+
+#[given(expr = "I am logged in as {string}")]
+async fn logged_in_as(world: &mut AppWorld, user: String) -> Result<()> {
+    let mut headers = HashMap::new();
+    headers.insert("Remote-User".into(), user.into());
+    world.http.cdp().network().set_extra_http_headers(headers).await?;
+    Ok(())
+}
+
+#[given("no user is logged in")]
+async fn no_user_logged_in(world: &mut AppWorld) -> Result<()> {
+    let headers = HashMap::new();
+    world.http.cdp().network().set_extra_http_headers(headers).await?;
+    Ok(())
+}
 
 #[given("no tasks at all")]
 async fn empty_task_list(world: &mut AppWorld) -> Result<()> {

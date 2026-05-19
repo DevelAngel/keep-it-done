@@ -34,6 +34,11 @@ impl AppWorld {
         capa.add_arg("--window-size=360,1400")?;
         capa.add_arg("--hide-scrollbars")?;
         let http = WebDriver::managed(capa).await?;
+
+        // Enable CDP Network domain so steps can inject headers
+        // (e.g. Remote-User) per scenario.
+        http.cdp().network().enable().await?;
+
         let rpc = kid_cli::connect(&RPC_ADDR)
             .await
             .expect("RPC connect failed");
