@@ -26,6 +26,7 @@ test-one name:
 # End-to-end browser tests (requires running server)
 [group('test')]
 test-e2e:
+    @killall --quiet --interactive --wait kid-server || true
     cargo leptos end-to-end
 
 # --- build test ---
