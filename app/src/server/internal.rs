@@ -1195,6 +1195,81 @@ mod upcoming_tests {
         // Attention label from estimate (not from start_date)
         assert_eq!(flat[0].2, Some(date("2026-05-16")));
     }
+
+    // ── Scenario 20: WeekendOnly + past start_date on weekday ──
+    //    must NOT be pulled into Today
+
+    #[test]
+    fn weekend_only_past_start_date_on_weekday_not_today() {
+        // Today: Wed May 20 (this_sun=24, next_sun=31)
+        // Due Sun May 31, Day2 WeekendOnly:
+        //   count 2 weekend days back from May 31 (Sun):
+        //     Sat 30 → 1, Fri→skip … Sun 24 → 0
+        //   attention = Sun May 24 → ThisWeek (24 <= this_sun 24)
+        //
+        // start_date = Mon May 18 (past, weekday).
+        // BUG: raw sd (May 18) <= today → start_group = Today,
+        //   Today(1) < ThisWeek(2) → task incorrectly pulled to Today.
+        //
+        // EXPECTED: The start_date override should respect availability.
+        //   Next eligible day >= today for WeekendOnly = Sat May 23.
+        //   May 23 → ThisWeek (23 <= 24). Same group as attention →
+        //   no shift. Task stays in ThisWeek.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "weekend-task-not-today",
+            Some("2026-05-31"), Some("2026-05-18"), Some(Est::Day2), Avail::WeekendOnly);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-20"));
+        let flat = flatten(&groups);
+        assert_eq!(flat.len(), 1);
+        assert_eq!(
+            flat[0].0,
+            DeadlineGroup::ThisWeek,
+            "WeekendOnly task must not land in Today on a Wednesday; \
+             next eligible day is Sat May 23 → ThisWeek",
+        );
+        // Attention label: start by Sun 24.05.
+        assert_eq!(flat[0].2, Some(date("2026-05-24")));
+    }
+
+    // ── Scenario 21: WeekdayOnly + past start_date on weekend ──
+    //    symmetric counterpart to Scenario 20
+
+    #[test]
+    fn weekday_only_past_start_date_on_weekend_not_today() {
+        // Today: Sat May 9 (this_sun=10, next_sun=17)
+        // Due Thu May 14, Day2 WeekdayOnly:
+        //   count 2 weekdays back from May 14 (Thu):
+        //     Wed 13 → 1, Tue 12 → 0
+        //   attention = Tue May 12 → NextWeek (12 > 10, 12 <= 17)
+        //
+        // start_date = Mon May 5 (past, weekday — eligible, but
+        //   today is Saturday which is NOT eligible).
+        //
+        // Without fix: sd (May 5) <= today → Today,
+        //   Today(1) < NextWeek(3) → incorrectly pulled to Today
+        //   on a Saturday.
+        //
+        // With fix: eff = max(5, 9) = Sat 9 → not eligible →
+        //   Sun 10 → not eligible → Mon 11 ✓
+        //   Mon 11 → NextWeek (11 > 10, 11 <= 17).
+        //   NextWeek == NextWeek → no shift. Stays NextWeek.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "weekday-task-not-today",
+            Some("2026-05-14"), Some("2026-05-05"), Some(Est::Day2), Avail::WeekdayOnly);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-09"));
+        let flat = flatten(&groups);
+        assert_eq!(flat.len(), 1);
+        assert_eq!(
+            flat[0].0,
+            DeadlineGroup::NextWeek,
+            "WeekdayOnly task must not land in Today on a Saturday; \
+             next eligible day is Mon May 11 → NextWeek",
+        );
+        // Attention label: start by Tue 12.05.
+        assert_eq!(flat[0].2, Some(date("2026-05-12")));
+    }
 }
 
 // ── Quick Wins: intra-group sort tests ─────────────────────────
