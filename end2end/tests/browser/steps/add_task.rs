@@ -42,6 +42,31 @@ async fn task_is_expanded(world: &mut AppWorld) -> Result<()> {
     Ok(())
 }
 
+#[then("the Add Task input is visible in the viewport")]
+async fn add_task_input_in_viewport(world: &mut AppWorld) -> Result<()> {
+    let input = world
+        .http
+        .query(By::Css("input[placeholder='New task…']"))
+        .first()
+        .await?;
+    let in_viewport: bool = world
+        .http
+        .execute(
+            r#"
+            const rect = arguments[0].getBoundingClientRect();
+            return rect.top >= 0
+                && rect.left >= 0
+                && rect.bottom <= window.innerHeight
+                && rect.right <= window.innerWidth;
+            "#,
+            vec![input.to_json()?],
+        )
+        .await?
+        .convert()?;
+    assert!(in_viewport, "Add Task input is not visible in the viewport");
+    Ok(())
+}
+
 #[then("no Add Task error is shown")]
 async fn no_add_task_error(world: &mut AppWorld) -> Result<()> {
     let result = world

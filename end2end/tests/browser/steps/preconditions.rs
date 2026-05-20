@@ -23,6 +23,15 @@ async fn no_user_logged_in(world: &mut AppWorld) -> Result<()> {
     Ok(())
 }
 
+#[given(expr = "a viewport of {int} by {int}")]
+async fn set_viewport(world: &mut AppWorld, width: u32, height: u32) -> Result<()> {
+    world
+        .http
+        .set_window_rect(0, 0, width, height)
+        .await?;
+    Ok(())
+}
+
 #[given("no tasks at all")]
 async fn empty_task_list(world: &mut AppWorld) -> Result<()> {
     let dir = world.tasks_dir.as_ref().expect("tasks_dir must be set");

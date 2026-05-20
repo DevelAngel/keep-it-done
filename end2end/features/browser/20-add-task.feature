@@ -54,6 +54,20 @@ Feature: Add Task switches to All Open
     And I see tasks in the list
     And the new task is expanded
 
+  Scenario: Add Task input is scrolled into view with many tasks
+    Given a viewport of 360 by 480
+    And the following tasks
+      | summary  | category | status | days ago |
+      | Task 01  | Inbox    | open   | 1        |
+      | Task 02  | Inbox    | open   | 1        |
+      | Task 03  | Inbox    | open   | 1        |
+      | Task 04  | Inbox    | open   | 1        |
+      | Task 05  | Inbox    | open   | 1        |
+    When I open the app in Upcoming view
+    And I enable edit mode
+    And I tap Add Task
+    Then the Add Task input is visible in the viewport
+
   # ── Error handling ────────────────────────────────────────
 
   Scenario: Add Task without login shows error
