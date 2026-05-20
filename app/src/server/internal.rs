@@ -139,13 +139,22 @@ pub(super) fn group_upcoming<'a>(
             // earlier than the computed lead time demands. Use
             // start_date for group assignment but mark as "soft" so
             // these sort after attention-driven tasks in the same group.
+            //
+            // The effective start day is the first availability-eligible
+            // day from today (or start_date, whichever is later). This
+            // prevents e.g. a WeekendOnly task from landing in "Today"
+            // on a Wednesday just because its start_date has passed.
             let (group, soft) = match start {
                 Some(sd) if sd < effective_attention && !matches!(attention_group, DeadlineGroup::Overdue) => {
-                    let start_group = if sd <= today {
+                    let mut eff = sd.max(today);
+                    while !avail.is_eligible(eff) {
+                        eff = eff.succ_opt().expect("date overflow");
+                    }
+                    let start_group = if eff <= today {
                         DeadlineGroup::Today
-                    } else if sd <= this_sunday {
+                    } else if eff <= this_sunday {
                         DeadlineGroup::ThisWeek
-                    } else if sd <= next_sunday {
+                    } else if eff <= next_sunday {
                         DeadlineGroup::NextWeek
                     } else {
                         DeadlineGroup::Later
