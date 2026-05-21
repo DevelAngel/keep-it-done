@@ -32,6 +32,7 @@ pub(super) fn deadline_group(
     estimate: Option<TaskTimeEstimate>,
     availability: TaskAvailability,
     today: NaiveDate,
+    tomorrow: NaiveDate,
     this_sunday: NaiveDate,
     next_sunday: NaiveDate,
 ) -> DeadlineGroup {
@@ -58,6 +59,8 @@ pub(super) fn deadline_group(
 
     if group_date <= today {
         DeadlineGroup::Today
+    } else if group_date <= tomorrow {
+        DeadlineGroup::Tomorrow
     } else if group_date <= this_sunday {
         DeadlineGroup::ThisWeek
     } else if group_date <= next_sunday {
@@ -80,6 +83,7 @@ pub(super) fn group_upcoming<'a>(
     tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
     today: NaiveDate,
 ) -> (UpcomingGroups, UpcomingBacklog) {
+    let tomorrow = today + Days::new(1);
     // ISO 8601 week boundaries (Monday = start of week).
     let days_until_sunday = 6 - today.weekday().num_days_from_monday();
     let this_sunday = today + Days::new(days_until_sunday as u64);
@@ -116,7 +120,7 @@ pub(super) fn group_upcoming<'a>(
             let est = task.time_estimate().copied();
             let avail = *task.availability();
             let attention_group = deadline_group(
-                due_date, est, avail, today, this_sunday, next_sunday,
+                due_date, est, avail, today, tomorrow, this_sunday, next_sunday,
             );
             // Compute the raw attention date (without start_date
             // override) to decide whether to show the indicator.
@@ -152,6 +156,8 @@ pub(super) fn group_upcoming<'a>(
                     }
                     let start_group = if eff <= today {
                         DeadlineGroup::Today
+                    } else if eff <= tomorrow {
+                        DeadlineGroup::Tomorrow
                     } else if eff <= this_sunday {
                         DeadlineGroup::ThisWeek
                     } else if eff <= next_sunday {
@@ -192,8 +198,8 @@ pub(super) fn group_upcoming<'a>(
                 info.priority().map(|p| *p as u8).unwrap_or(u8::MAX)
             };
             match a.2 {
-                // Today: priority descending (A before B before C), then UUID.
-                DeadlineGroup::Today => {
+                // Today/Tomorrow: single-day groups → priority descending, then UUID.
+                DeadlineGroup::Today | DeadlineGroup::Tomorrow => {
                     pri(&a.1).cmp(&pri(&b.1)).then_with(|| a.0.cmp(&b.0))
                 }
                 // All others: date ascending, then priority, then UUID.
@@ -375,8 +381,9 @@ mod tests {
     ) -> DeadlineGroup {
         let today = NaiveDate::parse_from_str(today, "%Y-%m-%d").unwrap();
         let due = NaiveDate::parse_from_str(due, "%Y-%m-%d").unwrap();
+        let tomorrow = today + chrono::Days::new(1);
         let (this_sun, next_sun) = week_bounds(today);
-        deadline_group(due, estimate, availability, today, this_sun, next_sun)
+        deadline_group(due, estimate, availability, today, tomorrow, this_sun, next_sun)
     }
 
     // ── Baseline: no estimate, pure due_date grouping ──
