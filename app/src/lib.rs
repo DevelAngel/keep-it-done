@@ -845,6 +845,7 @@ fn TaskList() -> impl IntoView {
                                                                                                 checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                                 spinner_gradient={view.spinner_gradient()}
                                                                                                 priority_a_border={view.priority_a_border()}
+                                                                                                show_contexts=true
                                                                                             />
                                                                                         }
                                                                                     }
@@ -1143,6 +1144,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     priority_a_border: &'static str,
     #[prop(optional)] attention_label: String,
     #[prop(default = false)] show_category: bool,
+    #[prop(default = false)] show_contexts: bool,
 ) -> impl IntoView {
     let id = *task.id();
     let testid = format!("task-{id}");
@@ -1262,6 +1264,25 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                                     "⚠ no category".to_string()
                                 } else {
                                     cat
+                                }
+                            }}
+                        </div>
+                    })}
+                    {show_contexts.then(|| view! {
+                        <div class=move || {
+                            if contexts.get().is_empty() {
+                                "text-xs mt-0.5 text-slate-600"
+                            } else {
+                                "text-xs mt-0.5 text-slate-500"
+                            }
+                        }>
+                            {move || {
+                                let mut ctxs = contexts.get();
+                                if ctxs.is_empty() {
+                                    "@…".to_string()
+                                } else {
+                                    ctxs.sort();
+                                    ctxs.join("\u{2009}·\u{2009}")
                                 }
                             }}
                         </div>
