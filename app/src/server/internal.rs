@@ -832,6 +832,53 @@ mod tests {
             DeadlineGroup::Today,
         );
     }
+
+    // ── display_label: weekend-aware labels ──
+
+    #[test]
+    fn display_label_this_weekend() {
+        assert_eq!(
+            DeadlineGroup::ThisWeek.display_label(true),
+            "This Weekend",
+        );
+    }
+
+    #[test]
+    fn display_label_next_weekend() {
+        assert_eq!(
+            DeadlineGroup::NextWeek.display_label(true),
+            "Next Weekend",
+        );
+    }
+
+    #[test]
+    fn display_label_this_week_when_not_all_weekend() {
+        assert_eq!(
+            DeadlineGroup::ThisWeek.display_label(false),
+            "This Week",
+        );
+    }
+
+    #[test]
+    fn display_label_next_week_when_not_all_weekend() {
+        assert_eq!(
+            DeadlineGroup::NextWeek.display_label(false),
+            "Next Week",
+        );
+    }
+
+    #[test]
+    fn display_label_other_groups_ignore_weekend_flag() {
+        // all_weekend=true must not affect non-week groups.
+        assert_eq!(DeadlineGroup::Overdue.display_label(true), "Overdue");
+        assert_eq!(DeadlineGroup::Today.display_label(true), "Today");
+        assert_eq!(DeadlineGroup::Tomorrow.display_label(true), "Tomorrow");
+        assert_eq!(DeadlineGroup::Later.display_label(true), "Later");
+        assert_eq!(
+            DeadlineGroup::ReadyToStart.display_label(true),
+            "Ready to Start",
+        );
+    }
 }
 
 // ── End-to-end tests for group_upcoming ─────────────────────────
@@ -903,6 +950,20 @@ mod upcoming_tests {
         groups.iter()
             .flat_map(|(_, tasks)| tasks.iter().map(|(_, info, _, _)| info.summary()))
             .collect()
+    }
+
+    /// Display labels mirroring the UI weekend-detection logic.
+    fn display_labels(
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>, NaiveDate)>)],
+    ) -> Vec<&'static str> {
+        use chrono::{Datelike, Weekday};
+        groups.iter().map(|(dg, tasks)| {
+            let all_weekend = matches!(dg, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek)
+                && tasks.iter().all(|(_, _, _, sd)| {
+                    matches!(sd.weekday(), Weekday::Sat | Weekday::Sun)
+                });
+            dg.display_label(all_weekend)
+        }).collect()
     }
 
     // ── Scenario 1: baseline grouping by due_date ──
@@ -1385,6 +1446,103 @@ mod upcoming_tests {
         );
         // Attention label: start by Tue 12.05.
         assert_eq!(flat[0].2, Some(date("2026-05-12")));
+    }
+
+    // ── display_label integration: weekend-aware labels ──
+
+    #[test]
+    fn this_week_all_weekend_shows_weekend_label() {
+        // Today: Mon May 11 (this_sun=17). Tasks due Sat 16 + Sun 17.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "sat-task",
+            Some("2026-05-16"), None, None, Avail::Anytime);
+        add(&mut cache, "sun-task",
+            Some("2026-05-17"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(display_labels(&groups), vec!["This Weekend"]);
+    }
+
+    #[test]
+    fn this_week_single_weekend_task_shows_weekend_label() {
+        // Today: Mon May 11. Solo task due Sat 16.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "solo-sat",
+            Some("2026-05-16"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(display_labels(&groups), vec!["This Weekend"]);
+    }
+
+    #[test]
+    fn this_week_mixed_keeps_week_label() {
+        // Today: Mon May 11. Tasks due Wed 13 + Sat 16.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "wed-task",
+            Some("2026-05-13"), None, None, Avail::Anytime);
+        add(&mut cache, "sat-task",
+            Some("2026-05-16"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(display_labels(&groups), vec!["This Week"]);
+    }
+
+    #[test]
+    fn this_week_all_weekday_keeps_week_label() {
+        // Today: Mon May 11. Tasks due Wed 13 + Thu 14.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "wed-task",
+            Some("2026-05-13"), None, None, Avail::Anytime);
+        add(&mut cache, "thu-task",
+            Some("2026-05-14"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(display_labels(&groups), vec!["This Week"]);
+    }
+
+    #[test]
+    fn next_week_all_weekend_shows_weekend_label() {
+        // Today: Mon May 11 (next_sun=24). Tasks due Sat 23 + Sun 24.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "next-sat",
+            Some("2026-05-23"), None, None, Avail::Anytime);
+        add(&mut cache, "next-sun",
+            Some("2026-05-24"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(display_labels(&groups), vec!["Next Weekend"]);
+    }
+
+    #[test]
+    fn next_week_mixed_keeps_week_label() {
+        // Today: Mon May 11. Tasks due Tue 19 + Sat 23.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "next-tue",
+            Some("2026-05-19"), None, None, Avail::Anytime);
+        add(&mut cache, "next-sat",
+            Some("2026-05-23"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(display_labels(&groups), vec!["Next Week"]);
+    }
+
+    #[test]
+    fn multiple_groups_weekend_labels_independent() {
+        // Today: Mon May 11. ThisWeek: only Sat 16 → Weekend.
+        // NextWeek: Tue 19 + Sat 23 → mixed → Week.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "this-sat",
+            Some("2026-05-16"), None, None, Avail::Anytime);
+        add(&mut cache, "next-tue",
+            Some("2026-05-19"), None, None, Avail::Anytime);
+        add(&mut cache, "next-sat",
+            Some("2026-05-23"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(
+            display_labels(&groups),
+            vec!["This Weekend", "Next Week"],
+        );
     }
 }
 
