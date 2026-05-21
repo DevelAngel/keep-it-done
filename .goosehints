@@ -5,6 +5,17 @@
 The user commits manually. Never create commits. Instead, provide the
 commit text (message + body) once changes are complete and reviewed.
 
+## Commands (just)
+
+```bash
+just check               # full workspace build check
+just test                # all unit tests (types + app)
+just test-types          # kid-types tests (task model, storage)
+just test-app            # kid-app tests (scheduling, upcoming)
+just test-one <name>     # single test by name
+just test-e2e            # browser e2e (needs running server)
+```
+
 ## Code Style
 
 Always implement the `Deref` trait for single-field newtype wrappers to
