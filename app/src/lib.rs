@@ -303,6 +303,16 @@ impl DeadlineGroup {
         }
     }
 
+    /// Context-aware label: returns "This/Next Weekend" when every task
+    /// in the group falls on Sat/Sun, otherwise the default label.
+    pub(crate) fn display_label(self, all_weekend: bool) -> &'static str {
+        match (self, all_weekend) {
+            (Self::ThisWeek, true) => "This Weekend",
+            (Self::NextWeek, true) => "Next Weekend",
+            _ => self.label(),
+        }
+    }
+
     fn is_overdue(self) -> bool {
         matches!(self, Self::Overdue)
     }
@@ -884,7 +894,11 @@ fn TaskList() -> impl IntoView {
                                                     Either::Right(Either::Right(Either::Left(view! {
                                                         <div>
                                                             {groups.into_iter().enumerate().map(|(i, (dg, tasks))| {
-                                                                let label = dg.label();
+                                                                use chrono::{Datelike, Weekday};
+                                                                let tasks: Vec<_> = tasks.into_iter().collect();
+                                                                let all_weekend = matches!(dg, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek)
+                                                                    && tasks.iter().all(|(_, _, _, sd)| matches!(sd.weekday(), Weekday::Sat | Weekday::Sun));
+                                                                let label = dg.display_label(all_weekend);
                                                                 let testid = format!("upcoming-group-{label}");
                                                                 let header_class = if dg.is_overdue() {
                                                                     "text-sm font-semibold text-cyan-300"
@@ -901,9 +915,7 @@ fn TaskList() -> impl IntoView {
                                                                         {
                                                                             // Weekend separator: in ThisWeek/NextWeek, show a
                                                                             // divider between weekday and weekend tasks.
-                                                                            let tasks: Vec<_> = tasks.into_iter().collect();
                                                                             let separator_idx = if matches!(dg, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek) {
-                                                                                use chrono::{Datelike, Weekday};
                                                                                 tasks.iter().position(|(_, _, _, sd)| {
                                                                                     matches!(sd.weekday(), Weekday::Sat | Weekday::Sun)
                                                                                 }).filter(|&idx| idx > 0)
