@@ -879,6 +879,7 @@ fn TaskList() -> impl IntoView {
                                                                                     checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                     spinner_gradient={view.spinner_gradient()}
                                                                                     priority_a_border={view.priority_a_border()}
+                                                                                    show_category=true
                                                                                 />
                                                                             }
                                                                         }).collect_view()}
@@ -940,6 +941,7 @@ fn TaskList() -> impl IntoView {
                                                                                         spinner_gradient={view.spinner_gradient()}
                                                                                         priority_a_border={view.priority_a_border()}
                                                                                         attention_label=attention_label
+                                                                                        show_category=true
                                                                                     />
                                                                                 }
                                                                             }).collect_view()
@@ -973,6 +975,7 @@ fn TaskList() -> impl IntoView {
                                                                                         checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                         spinner_gradient={view.spinner_gradient()}
                                                                                         priority_a_border={view.priority_a_border()}
+                                                                                        show_category=true
                                                                                     />
                                                                                 }
                                                                             }).collect_view())}
@@ -1009,6 +1012,7 @@ fn TaskList() -> impl IntoView {
                                                                                         checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                         spinner_gradient={view.spinner_gradient()}
                                                                                         priority_a_border={view.priority_a_border()}
+                                                                                        show_category=true
                                                                                     />
                                                                                 </div>
                                                                             }
@@ -1138,6 +1142,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     spinner_gradient: &'static str,
     priority_a_border: &'static str,
     #[prop(optional)] attention_label: String,
+    #[prop(default = false)] show_category: bool,
 ) -> impl IntoView {
     let id = *task.id();
     let testid = format!("task-{id}");
@@ -1216,7 +1221,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
             class:bg-slate-800=is_expanded
         >
             <div
-                class="flex items-center px-6 py-4 hover:bg-slate-800 transition-colors cursor-pointer"
+                class="flex items-center px-6 py-2 hover:bg-slate-800 transition-colors cursor-pointer"
                 on:click=handle_task_click
             >
                 // Checkbox
@@ -1233,7 +1238,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                         complete_task.dispatch((id, checked));
                     }
                 />
-                // Summary
+                // Summary + optional category tag
                 <div class="flex-1">
                     <span class=move || if checked.get() && strikethrough_when_done {
                         "text-slate-100 line-through opacity-50"
@@ -1242,6 +1247,25 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                     }>
                         {move || summary.get()}
                     </span>
+                    {show_category.then(|| view! {
+                        <div class=move || {
+                            let cat = category.get();
+                            if cat.is_empty() {
+                                "text-xs mt-0.5 text-amber-400"
+                            } else {
+                                "text-xs mt-0.5 text-slate-500"
+                            }
+                        }>
+                            {move || {
+                                let cat = category.get();
+                                if cat.is_empty() {
+                                    "⚠ no category".to_string()
+                                } else {
+                                    cat
+                                }
+                            }}
+                        </div>
+                    })}
                 </div>
                 // Attention indicator (Upcoming view: task shifted to earlier group)
                 {(!attention_label.is_empty()).then(|| view! {
