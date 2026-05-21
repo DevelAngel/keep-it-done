@@ -283,6 +283,7 @@ enum TaskListData {
 pub enum DeadlineGroup {
     Overdue,
     Today,
+    Tomorrow,
     ThisWeek,
     NextWeek,
     Later,
@@ -294,6 +295,7 @@ impl DeadlineGroup {
         match self {
             Self::Overdue => "Overdue",
             Self::Today => "Today",
+            Self::Tomorrow => "Tomorrow",
             Self::ThisWeek => "This Week",
             Self::NextWeek => "Next Week",
             Self::Later => "Later",

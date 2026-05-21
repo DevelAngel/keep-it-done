@@ -400,9 +400,10 @@ mod tests {
 
     #[test]
     fn due_this_week_no_estimate() {
-        // Today is Sat May 9, due Sun May 10 (this week)
+        // Today Mon May 11 (this_sun=17)
+        // Due Wed May 13 → ThisWeek (not today, not tomorrow)
         assert_eq!(
-            group("2026-05-10", None, Avail::Anytime, "2026-05-09"),
+            group("2026-05-13", None, Avail::Anytime, "2026-05-11"),
             DeadlineGroup::ThisWeek,
         );
     }
@@ -471,14 +472,14 @@ mod tests {
 
     #[test]
     fn day2_weekday_only_skips_weekend() {
-        // Today Wed May 13 (this_sun=17, next_sun=24)
+        // Today Wed May 13 (tomorrow=14, this_sun=17, next_sun=24)
         // Due Mon May 18, Day2 WeekdayOnly:
         //   Sun 17 → skip, Sat 16 → skip,
         //   Fri 15 → 1, Thu 14 → 0
-        //   attention = May 14 (Thu) → This Week (14 <= 17)
+        //   attention = May 14 (Thu) = tomorrow → Tomorrow
         assert_eq!(
             group("2026-05-18", Some(Est::Day2), Avail::WeekdayOnly, "2026-05-13"),
-            DeadlineGroup::ThisWeek,
+            DeadlineGroup::Tomorrow,
         );
     }
 
@@ -592,12 +593,46 @@ mod tests {
         );
     }
 
+    // ── Tomorrow ──
+
     #[test]
-    fn due_tomorrow_is_this_week_not_today() {
+    fn due_tomorrow_is_tomorrow() {
         // Today Sat May 9 (this_sun=10)
-        // Due Sun May 10 → ThisWeek (not Today)
+        // Due Sun May 10 = tomorrow → Tomorrow
         assert_eq!(
             group("2026-05-10", None, Avail::Anytime, "2026-05-09"),
+            DeadlineGroup::Tomorrow,
+        );
+    }
+
+    #[test]
+    fn due_tomorrow_midweek() {
+        // Today Wed May 13, due Thu May 14 = tomorrow → Tomorrow
+        assert_eq!(
+            group("2026-05-14", None, Avail::Anytime, "2026-05-13"),
+            DeadlineGroup::Tomorrow,
+        );
+    }
+
+    #[test]
+    fn attention_tomorrow_via_estimate() {
+        // Today Mon May 12 (this_sun=17)
+        // Due Wed May 14, Day2 Anytime:
+        //   attention = May 12… no, that's today.
+        // Better: Today Tue May 13, due Fri May 16, Day2 Anytime:
+        //   attention = May 14 (Wed) = tomorrow → Tomorrow
+        assert_eq!(
+            group("2026-05-16", Some(Est::Day2), Avail::Anytime, "2026-05-13"),
+            DeadlineGroup::Tomorrow,
+        );
+    }
+
+    #[test]
+    fn due_day_after_tomorrow_is_this_week_not_tomorrow() {
+        // Today Mon May 11 (this_sun=17)
+        // Due Wed May 13 (= today + 2) → ThisWeek, NOT Tomorrow
+        assert_eq!(
+            group("2026-05-13", None, Avail::Anytime, "2026-05-11"),
             DeadlineGroup::ThisWeek,
         );
     }
@@ -624,16 +659,16 @@ mod tests {
         );
     }
 
-    // ── Today is Sunday: ThisWeek is empty ──
+    // ── Today is Sunday: Tomorrow crosses ISO week boundary ──
 
     #[test]
-    fn today_is_sunday_due_tomorrow_is_next_week() {
+    fn today_is_sunday_due_tomorrow_is_tomorrow() {
         // Today Sun May 10 (this_sun=10, next_sun=17)
-        // ThisWeek range is (today..this_sun] = empty.
-        // Due Mon May 11: group_date > today and > this_sun → NextWeek
+        // Due Mon May 11 = tomorrow → Tomorrow
+        // (NOT NextWeek — "what's due tomorrow?" beats ISO weeks)
         assert_eq!(
             group("2026-05-11", None, Avail::Anytime, "2026-05-10"),
-            DeadlineGroup::NextWeek,
+            DeadlineGroup::Tomorrow,
         );
     }
 
@@ -884,6 +919,71 @@ mod upcoming_tests {
             vec![DeadlineGroup::Today, DeadlineGroup::ThisWeek, DeadlineGroup::Later],
         );
         assert_eq!(summaries(&groups).len(), 3);
+    }
+
+    // ── Scenario 1b: baseline with Tomorrow ──
+
+    #[test]
+    fn baseline_with_tomorrow() {
+        // Today: Mon May 11 (this_sun=17, next_sun=24)
+        // 4 tasks: today, tomorrow, this week, later.
+        let mut cache = TaskCache::default();
+        add(&mut cache, "today-task",
+            Some("2026-05-11"), None, None, Avail::Anytime);
+        add(&mut cache, "tomorrow-task",
+            Some("2026-05-12"), None, None, Avail::Anytime);
+        add(&mut cache, "this-week-task",
+            Some("2026-05-15"), None, None, Avail::Anytime);
+        add(&mut cache, "later-task",
+            Some("2026-05-30"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-11"));
+        assert_eq!(
+            group_names(&groups),
+            vec![
+                DeadlineGroup::Today,
+                DeadlineGroup::Tomorrow,
+                DeadlineGroup::ThisWeek,
+                DeadlineGroup::Later,
+            ],
+        );
+        assert_eq!(summaries(&groups), vec![
+            "today-task", "tomorrow-task", "this-week-task", "later-task",
+        ]);
+    }
+
+    // ── Scenario 1c: Tomorrow on Sunday crosses ISO week ──
+
+    #[test]
+    fn tomorrow_on_sunday_crosses_iso_week() {
+        // Today: Sun May 10 (this_sun=10, next_sun=17)
+        // Due Mon May 11 = tomorrow → Tomorrow (not NextWeek)
+        let mut cache = TaskCache::default();
+        add(&mut cache, "monday-task",
+            Some("2026-05-11"), None, None, Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-10"));
+        let flat = flatten(&groups);
+        assert_eq!(flat.len(), 1);
+        assert_eq!(flat[0].0, DeadlineGroup::Tomorrow);
+    }
+
+    // ── Scenario 1d: attention date lands on Tomorrow ──
+
+    #[test]
+    fn estimate_pulls_to_tomorrow() {
+        // Today: Tue May 13 (this_sun=17, next_sun=24)
+        // Due Fri May 16, Day2 Anytime:
+        //   attention = May 14 (Wed) = tomorrow → Tomorrow
+        let mut cache = TaskCache::default();
+        add(&mut cache, "shifted-to-tomorrow",
+            Some("2026-05-16"), None, Some(Est::Day2), Avail::Anytime);
+
+        let (groups, _) = group_upcoming(cache.iter(), date("2026-05-13"));
+        let flat = flatten(&groups);
+        assert_eq!(flat[0].0, DeadlineGroup::Tomorrow);
+        // Attention label: start by Wed 14.05.
+        assert_eq!(flat[0].2, Some(date("2026-05-14")));
     }
 
     // ── Scenario 2: estimate shifts task to earlier group ──
@@ -1151,10 +1251,10 @@ mod upcoming_tests {
 
     #[test]
     fn weekday_only_skips_weekend() {
-        // Today: Wed May 13 (this_sun=17, next_sun=24)
+        // Today: Wed May 13 (tomorrow=14, this_sun=17, next_sun=24)
         // Due Mon May 18, Day2 WeekdayOnly:
         //   Sun 17→skip, Sat 16→skip, Fri 15→1, Thu 14→0
-        //   attention = Thu May 14 → This Week (14 <= 17)
+        //   attention = Thu May 14 = tomorrow → Tomorrow
         // Without estimate it would be Next Week (18 > 17).
         let mut cache = TaskCache::default();
         add(&mut cache, "weekday-task",
@@ -1162,7 +1262,7 @@ mod upcoming_tests {
 
         let (groups, _) = group_upcoming(cache.iter(), date("2026-05-13"));
         let flat = flatten(&groups);
-        assert_eq!(flat[0].0, DeadlineGroup::ThisWeek);
+        assert_eq!(flat[0].0, DeadlineGroup::Tomorrow);
         assert_eq!(flat[0].2, Some(date("2026-05-14")));
     }
 
