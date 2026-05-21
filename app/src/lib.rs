@@ -275,7 +275,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     EstimateGrouped(Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>),
-    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)>, Vec<(Uuid, task::Infos)>),
+    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>, NaiveDate)>)>, Vec<(Uuid, task::Infos)>),
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
@@ -377,7 +377,7 @@ impl TaskListData {
                 v.iter().flat_map(|(_, t)| t).next().map(|(id, _)| *id)
             }
             TaskListData::DeadlineGrouped(v, _) => {
-                v.iter().flat_map(|(_, t)| t).next().map(|(id, _, _)| *id)
+                v.iter().flat_map(|(_, t)| t).next().map(|(id, _, _, _)| *id)
             }
             TaskListData::DayGrouped(v) => {
                 v.iter().flat_map(|(_, t)| t).next().map(|rc| rc.id)
@@ -400,7 +400,7 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
         ),
         TaskListData::DeadlineGrouped(groups, backlog) => TaskListData::DeadlineGrouped(
             groups.into_iter().filter_map(|(dg, tasks)| {
-                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info, _)| matches(info)).collect();
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info, _, _)| matches(info)).collect();
                 if filtered.is_empty() { None } else { Some((dg, filtered)) }
             }).collect(),
             backlog.into_iter().filter(|(_, info)| matches(info)).collect(),
@@ -898,23 +898,40 @@ fn TaskList() -> impl IntoView {
                                                                                 {label}
                                                                             </span>
                                                                         </div>
-                                                                        {tasks.into_iter().map(|(id, info, attention_date)| {
-                                                                            let attention_label = attention_date.map(|d| {
-                                                                                format!("start by {}", d.format("%a %d.%m."))
-                                                                            }).unwrap_or_default();
-                                                                            view! {
-                                                                                <TaskItem task=(id, info)
-                                                                                    expanded_task_id=expanded_task_id
-                                                                                    set_expanded_task_id=set_expanded_task_id
-                                                                                    set_completion_version=set_completion_version
-                                                                                    strikethrough_when_done=false
-                                                                                    checkbox_checked_classes={view.checkbox_checked_classes()}
-                                                                                    spinner_gradient={view.spinner_gradient()}
-                                                                                    priority_a_border={view.priority_a_border()}
-                                                                                    attention_label=attention_label
-                                                                                />
-                                                                            }
-                                                                        }).collect_view()}
+                                                                        {
+                                                                            // Weekend separator: in ThisWeek/NextWeek, show a
+                                                                            // divider between weekday and weekend tasks.
+                                                                            let tasks: Vec<_> = tasks.into_iter().collect();
+                                                                            let separator_idx = if matches!(dg, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek) {
+                                                                                use chrono::{Datelike, Weekday};
+                                                                                tasks.iter().position(|(_, _, _, sd)| {
+                                                                                    matches!(sd.weekday(), Weekday::Sat | Weekday::Sun)
+                                                                                }).filter(|&idx| idx > 0)
+                                                                            } else {
+                                                                                None
+                                                                            };
+                                                                            tasks.into_iter().enumerate().map(|(idx, (id, info, attention_date, _))| {
+                                                                                let attention_label = attention_date.map(|d| {
+                                                                                    format!("start by {}", d.format("%a %d.%m."))
+                                                                                }).unwrap_or_default();
+                                                                                let divider = separator_idx == Some(idx);
+                                                                                view! {
+                                                                                    {divider.then(|| view! {
+                                                                                        <div class="mx-6 my-1 border-t border-dashed border-slate-600" data-testid="weekend-separator"></div>
+                                                                                    })}
+                                                                                    <TaskItem task=(id, info)
+                                                                                        expanded_task_id=expanded_task_id
+                                                                                        set_expanded_task_id=set_expanded_task_id
+                                                                                        set_completion_version=set_completion_version
+                                                                                        strikethrough_when_done=false
+                                                                                        checkbox_checked_classes={view.checkbox_checked_classes()}
+                                                                                        spinner_gradient={view.spinner_gradient()}
+                                                                                        priority_a_border={view.priority_a_border()}
+                                                                                        attention_label=attention_label
+                                                                                    />
+                                                                                }
+                                                                            }).collect_view()
+                                                                        }
                                                                     </div>
                                                                 }
                                                             }).collect_view()}

@@ -18,7 +18,7 @@ use kid_types::Uuid;
 
 use crate::DeadlineGroup;
 
-pub(super) type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>)>)>;
+pub(super) type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>, NaiveDate)>)>;
 pub(super) type UpcomingBacklog = Vec<(Uuid, task::Infos)>;
 
 /// Assign a deadline group based on the task's attention date.
@@ -214,11 +214,11 @@ pub(super) fn group_upcoming<'a>(
 
     // Chunk into contiguous groups (items are already in group order).
     let mut groups: UpcomingGroups = Vec::new();
-    for (id, info, group, _, attention_label, _) in items {
+    for (id, info, group, sort_date, attention_label, _) in items {
         if groups.last().map_or(true, |(key, _)| *key != group) {
             groups.push((group, Vec::new()));
         }
-        groups.last_mut().unwrap().1.push((id, info, attention_label));
+        groups.last_mut().unwrap().1.push((id, info, attention_label, sort_date));
     }
 
     // Sort backlog: priority descending (A first), then UUID (creation order).
@@ -882,26 +882,26 @@ mod upcoming_tests {
 
     /// Flatten groups into `(group, summary, attention_label)` for easy asserts.
     fn flatten(
-        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>)>)],
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>, NaiveDate)>)],
     ) -> Vec<(DeadlineGroup, &str, Option<NaiveDate>)> {
         groups.iter().flat_map(|(dg, tasks)| {
-            tasks.iter().map(move |(_, info, attn)| (*dg, info.summary(), *attn))
+            tasks.iter().map(move |(_, info, attn, _)| (*dg, info.summary(), *attn))
         }).collect()
     }
 
     /// Just the group labels in order.
     fn group_names(
-        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>)>)],
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>, NaiveDate)>)],
     ) -> Vec<DeadlineGroup> {
         groups.iter().map(|(dg, _)| *dg).collect()
     }
 
     /// Just the summaries in order.
     fn summaries(
-        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>)>)],
+        groups: &[(DeadlineGroup, Vec<(Uuid, kid_types::task::Infos, Option<NaiveDate>, NaiveDate)>)],
     ) -> Vec<&str> {
         groups.iter()
-            .flat_map(|(_, tasks)| tasks.iter().map(|(_, info, _)| info.summary()))
+            .flat_map(|(_, tasks)| tasks.iter().map(|(_, info, _, _)| info.summary()))
             .collect()
     }
 
