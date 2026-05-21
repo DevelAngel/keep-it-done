@@ -925,7 +925,7 @@ fn TaskList() -> impl IntoView {
                                                                             };
                                                                             tasks.into_iter().enumerate().map(|(idx, (id, info, attention_date, _))| {
                                                                                 let attention_label = attention_date.map(|d| {
-                                                                                    format!("start by {}", d.format("%a %d.%m."))
+                                                                                    format!("start by\n{}", d.format("%a %d.%m."))
                                                                                 }).unwrap_or_default();
                                                                                 let divider = separator_idx == Some(idx);
                                                                                 view! {
@@ -1269,7 +1269,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 </div>
                 // Attention indicator (Upcoming view: task shifted to earlier group)
                 {(!attention_label.is_empty()).then(|| view! {
-                    <span class="ml-2 flex-shrink-0 text-xs text-slate-500" data-testid="attention-label">{attention_label.clone()}</span>
+                    <span class="ml-2 text-xs text-slate-500 text-right whitespace-pre-line" data-testid="attention-label">{attention_label.clone()}</span>
                 })}
                 // Spinner
                 <Show when=move || complete_task.pending().get()>
