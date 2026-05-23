@@ -5,7 +5,7 @@ mod http;
 mod rpc;
 
 use crate::builder::ServerBuilder;
-use crate::cache::{SharedTaskCache, TaskCacheFlush};
+use crate::cache::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 use crate::cli::{Cli, Parser};
 
 use leptos::prelude::get_configuration;
@@ -55,8 +55,10 @@ async fn main() -> Result<()> {
         Ok(())
     })?;
 
+    let time_offset = SharedTimeOffset::default();
+
     let shutdown = CancellationToken::new();
-    let server = ServerBuilder::new(&shutdown, &task_cache)
+    let server = ServerBuilder::new(&shutdown, &task_cache, &time_offset)
         .with_rpc_addr(&rpc_addr)
         .with_http_addr(&http_addr)
         .with_leptos_options(&leptos_conf.leptos_options)

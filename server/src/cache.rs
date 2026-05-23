@@ -1,4 +1,5 @@
 pub use kid_app::server::ssr::SharedTaskCache;
+pub use kid_app::server::ssr::SharedTimeOffset;
 
 use tokio::time::{self, Duration, Instant};
 use tokio_util::sync::CancellationToken;

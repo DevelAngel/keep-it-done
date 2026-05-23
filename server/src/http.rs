@@ -1,4 +1,4 @@
-use crate::SharedTaskCache;
+use crate::{SharedTaskCache, SharedTimeOffset};
 use kid_app::server::ssr::FallbackUser;
 use kid_app::{App, shell};
 
@@ -17,6 +17,7 @@ impl HttpServer {
         leptos_options: LeptosOptions,
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
+        time_offset: SharedTimeOffset,
     ) -> Result<()> {
         let fallback_user = FallbackUser::new(
             std::env::var("KID_FALLBACK_USER").ok(),
@@ -34,6 +35,7 @@ impl HttpServer {
 
         let app = {
             let task_cache = task_cache.clone();
+            let time_offset = time_offset.clone();
             Router::new()
                 .leptos_routes_with_context(
                     &leptos_options,
@@ -41,6 +43,7 @@ impl HttpServer {
                     move || {
                         provide_context(task_cache.clone());
                         provide_context(fallback_user.clone());
+                        provide_context(time_offset.clone());
                     },
                     {
                         let leptos_options = leptos_options.clone();

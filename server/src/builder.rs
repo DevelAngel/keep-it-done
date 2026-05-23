@@ -1,6 +1,6 @@
 use crate::http::HttpServer;
 use crate::rpc::RpcServer;
-use crate::{SharedTaskCache, TaskCacheFlush};
+use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 
 use leptos::prelude::*;
 use miette::{IntoDiagnostic, Result};
@@ -24,19 +24,25 @@ pub struct ServerBuilder<RPC, HTTP, LeptosOptions> {
     leptos_options: LeptosOptions,
     shutdown: CancellationToken,
     task_cache: SharedTaskCache,
+    time_offset: SharedTimeOffset,
 }
 
 #[doc(hidden)]
 pub(super) struct Unset;
 
 impl ServerBuilder<Unset, Unset, Unset> {
-    pub fn new(shutdown: &CancellationToken, task_cache: &SharedTaskCache) -> Self {
+    pub fn new(
+        shutdown: &CancellationToken,
+        task_cache: &SharedTaskCache,
+        time_offset: &SharedTimeOffset,
+    ) -> Self {
         Self {
             rpc_addr: Unset,
             http_addr: Unset,
             leptos_options: Unset,
             shutdown: shutdown.clone(),
             task_cache: task_cache.clone(),
+            time_offset: time_offset.clone(),
         }
     }
 }
@@ -49,6 +55,7 @@ impl<W, L> ServerBuilder<Unset, W, L> {
             leptos_options: self.leptos_options,
             shutdown: self.shutdown,
             task_cache: self.task_cache,
+            time_offset: self.time_offset,
         }
     }
 }
@@ -61,6 +68,7 @@ impl<R, L> ServerBuilder<R, Unset, L> {
             leptos_options: self.leptos_options,
             shutdown: self.shutdown,
             task_cache: self.task_cache,
+            time_offset: self.time_offset,
         }
     }
 }
@@ -76,6 +84,7 @@ impl<R, W> ServerBuilder<R, W, Unset> {
             leptos_options: options.clone(),
             shutdown: self.shutdown,
             task_cache: self.task_cache,
+            time_offset: self.time_offset,
         }
     }
 }
@@ -93,11 +102,13 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             self.leptos_options,
             self.shutdown.clone(),
             self.task_cache.clone(),
+            self.time_offset.clone(),
         ));
         let rpc_service = spawn(RpcServer::serve(
             rpc_listener,
             self.shutdown.clone(),
             self.task_cache.clone(),
+            self.time_offset.clone(),
         ));
         let task_flush =
             { spawn(async move { self.task_cache.background_flush(self.shutdown).await }) };

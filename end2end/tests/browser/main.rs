@@ -31,6 +31,11 @@ async fn main() -> Result<()> {
         .after(|_feature, _rule, _scenario, _finished, world| {
             Box::pin(async move {
                 if let Some(world) = world {
+                    world
+                        .rpc
+                        .reset_time_offset(context::current())
+                        .await
+                        .expect("reset_time_offset failed");
                     let cwd = env::current_dir().expect("CWD available");
                     world
                         .rpc

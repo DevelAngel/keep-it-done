@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::Utc;
 use cucumber::gherkin::Step;
 use cucumber::given;
 use tarpc::context;
@@ -69,6 +70,7 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
             .parse()
             .expect("days ago must be a number");
 
+        let reference = Utc::now();
         match status {
             "open" => seeds::write_open(
                 dir.path(),
@@ -81,8 +83,9 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
                 col("due"),
                 col("note"),
                 days_ago,
+                reference,
             ),
-            "done" => seeds::write_done(dir.path(), summary, category, days_ago),
+            "done" => seeds::write_done(dir.path(), summary, category, days_ago, reference),
             other => panic!("unknown status: {other}"),
         }
     }

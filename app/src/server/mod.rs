@@ -1,8 +1,10 @@
 mod internal;
 
+use self::internal::{UpcomingGroups, UpcomingBacklog};
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
-        use chrono::Utc;
+        use crate::time;
         use kid_types::{TaskDetails, TaskInfos};
         use std::collections::BTreeMap;
         use indexmap::IndexSet;
@@ -26,8 +28,6 @@ use kid_types::Uuid;
 use kid_types::task;
 
 use leptos::prelude::*;
-
-use internal::{UpcomingGroups, UpcomingBacklog};
 
 /*
 * Sleep blocking:
@@ -95,7 +95,7 @@ pub struct RecentChange {
 pub async fn fetch_recently_changed(extra_days: u32) -> Result<Vec<RecentChange>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
-    let today = Utc::now().date_naive();
+    let today = time::today();
     Ok(internal::group_recently_changed(cache.iter(), today, extra_days))
 }
 
@@ -352,6 +352,32 @@ pub mod ssr {
 
     impl std::ops::Deref for FallbackUser {
         type Target = Option<String>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    /// Shared time offset for E2E test simulation.
+    ///
+    /// Stores an offset in seconds that shifts `Utc::now()` for all
+    /// view-rendering code.  `None` means no offset (production).
+    #[derive(Clone, Debug, Default)]
+    pub struct SharedTimeOffset(Arc<std::sync::RwLock<Option<i64>>>);
+
+    impl SharedTimeOffset {
+        pub fn get(&self) -> Option<i64> {
+            *self.read().expect("time offset lock poisoned")
+        }
+        pub fn set(&self, seconds: i64) {
+            *self.write().expect("time offset lock poisoned") = Some(seconds);
+        }
+        pub fn reset(&self) {
+            *self.write().expect("time offset lock poisoned") = None;
+        }
+    }
+
+    impl Deref for SharedTimeOffset {
+        type Target = Arc<std::sync::RwLock<Option<i64>>>;
         fn deref(&self) -> &Self::Target {
             &self.0
         }

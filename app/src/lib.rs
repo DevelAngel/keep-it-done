@@ -1,6 +1,7 @@
 pub mod cache;
 mod error_template;
 pub mod server;
+pub mod time;
 
 use crate::error_template::ErrorTemplate;
 
@@ -15,7 +16,7 @@ use chrono::prelude::*;
 use chrono::TimeDelta;
 use leptos::either::Either;
 use leptos::prelude::*;
-use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
+use leptos_meta::{Meta, MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::{
     StaticSegment,
     components::{Route, Router, Routes},
@@ -60,6 +61,12 @@ pub fn App() -> impl IntoView {
 
         // sets the document title
         <Title text="Tasks"/>
+
+        // SSR→WASM bridge: inject the time offset so hydration
+        // initializes today_signal with the same value as SSR.
+        {time::active_offset_seconds().map(|secs| view! {
+            <Meta name="kid-time-offset-seconds" content=secs.to_string()/>
+        })}
 
         // content for this welcome page
         <Router>
@@ -383,7 +390,7 @@ fn backlog_label(visible: usize, total: usize) -> String {
 }
 
 fn day_label(day: NaiveDate) -> String {
-    let today = Utc::now().date_naive();
+    let today = time::today();
     if day == today {
         "Today".to_string()
     } else if day == today.checked_sub_days(chrono::Days::new(1)).unwrap() {
@@ -532,10 +539,10 @@ fn TaskList() -> impl IntoView {
     // Midnight rollover: check every 60 s whether the UTC date changed.
     // Bumping this signal triggers a resource refetch + fresh day labels.
     // Guard: set_interval is wasm-bindgen and panics on native (SSR).
-    let today_signal = RwSignal::new(Utc::now().date_naive());
+    let today_signal = RwSignal::new(time::today());
     if cfg!(target_arch = "wasm32") {
         set_interval(move || {
-            let now = Utc::now().date_naive();
+            let now = time::today();
             if now != today_signal.get_untracked() {
                 today_signal.set(now);
             }
@@ -2106,7 +2113,7 @@ trait ToRelativeTime {
 impl<Tz: TimeZone> ToRelativeTime for DateTime<Tz> {
     fn to_relative_time(&self) -> String {
         let plural = |num| if num == 1 { "" } else { "s" };
-        let duration = Utc::now().signed_duration_since(self);
+        let duration = time::now().signed_duration_since(self);
         if duration > TimeDelta::zero() {
             // self is in the past
             if duration < TimeDelta::seconds(60) {

@@ -1,4 +1,4 @@
-use crate::SharedTaskCache;
+use crate::{SharedTaskCache, SharedTimeOffset};
 
 pub use kid_types::rpc::{SwitchDirError, TaskService};
 use kid_types::task::Details as TaskDetails;
@@ -28,6 +28,7 @@ impl RpcServer {
         listener: TcpListener,
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
+        time_offset: SharedTimeOffset,
     ) -> Result<()> {
         tracing::info!(
             "RPC server will listen to: {}",
@@ -42,7 +43,8 @@ impl RpcServer {
             .map(server::BaseChannel::with_defaults)
             .map(|channel| {
                 let task_cache = task_cache.clone();
-                let server = RpcService { task_cache };
+                let time_offset = time_offset.clone();
+                let server = RpcService { task_cache, time_offset };
                 channel.execute(server.serve()).for_each(Self::spawn)
             })
             .buffer_unordered(10);
@@ -63,6 +65,7 @@ impl RpcServer {
 #[derive(Clone)]
 struct RpcService {
     task_cache: SharedTaskCache,
+    time_offset: SharedTimeOffset,
 }
 
 impl TaskService for RpcService {
@@ -187,5 +190,15 @@ impl TaskService for RpcService {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
+    }
+
+    async fn set_time_offset(self, _: Context, seconds: i64) {
+        tracing::info!("setting time offset to {seconds}s");
+        self.time_offset.set(seconds);
+    }
+
+    async fn reset_time_offset(self, _: Context) {
+        tracing::info!("resetting time offset");
+        self.time_offset.reset();
     }
 }

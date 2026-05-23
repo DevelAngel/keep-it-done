@@ -9,7 +9,7 @@ workspace = true
 
 [features]
 default = []
-hydrate = ["leptos/hydrate", "chrono/wasmbind"]
+hydrate = ["leptos/hydrate", "chrono/wasmbind", "dep:web-sys"]
 ssr = [
   "leptos/ssr",
   "leptos_meta/ssr",
@@ -35,3 +35,4 @@ strum.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
+web-sys = { workspace = true, optional = true, features = ["Window", "Document", "Element"] }

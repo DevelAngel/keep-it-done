@@ -34,4 +34,6 @@ pub trait TaskService {
     async fn replace_contexts(id: Uuid, contexts: IndexSet<TaskContext>, actor: String);
     async fn add_contexts(id: Uuid, contexts: IndexSet<TaskContext>, actor: String);
     async fn set_priority(id: Uuid, priority: Option<TaskPriority>, actor: String);
+    async fn set_time_offset(seconds: i64);
+    async fn reset_time_offset();
 }
