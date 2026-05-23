@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{Datelike, TimeDelta, Utc};
 use cucumber::gherkin::Step;
 use cucumber::given;
 use tarpc::context;
@@ -8,6 +8,20 @@ use std::collections::HashMap;
 
 use crate::seeds;
 use crate::world::AppWorld;
+
+fn parse_weekday(s: &str) -> chrono::Weekday {
+    use chrono::Weekday::*;
+    match s.to_ascii_lowercase().as_str() {
+        "monday" | "mon" => Mon,
+        "tuesday" | "tue" => Tue,
+        "wednesday" | "wed" => Wed,
+        "thursday" | "thu" => Thu,
+        "friday" | "fri" => Fri,
+        "saturday" | "sat" => Sat,
+        "sunday" | "sun" => Sun,
+        _ => panic!("invalid weekday: {s}"),
+    }
+}
 
 #[given(expr = "I am logged in as {string}")]
 async fn logged_in_as(world: &mut AppWorld, user: String) -> Result<()> {
@@ -30,6 +44,27 @@ async fn set_viewport(world: &mut AppWorld, width: u32, height: u32) -> Result<(
         .http
         .set_window_rect(0, 0, width, height)
         .await?;
+    Ok(())
+}
+
+#[given(expr = "today is simulated as {word}")]
+async fn simulate_weekday(world: &mut AppWorld, weekday: String) -> Result<()> {
+    let target = parse_weekday(&weekday);
+    let current = Utc::now().date_naive().weekday();
+
+    let days = (target.num_days_from_monday() as i64
+        - current.num_days_from_monday() as i64
+        + 7)
+        % 7;
+    let offset_seconds = days * 86_400;
+
+    world
+        .rpc
+        .set_time_offset(context::current(), offset_seconds)
+        .await
+        .expect("set_time_offset failed");
+    world.time_offset_seconds = Some(offset_seconds);
+
     Ok(())
 }
 
@@ -70,7 +105,8 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
             .parse()
             .expect("days ago must be a number");
 
-        let reference = Utc::now();
+        let offset = world.time_offset_seconds.unwrap_or(0);
+        let reference = Utc::now() + TimeDelta::seconds(offset);
         match status {
             "open" => seeds::write_open(
                 dir.path(),

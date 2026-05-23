@@ -15,6 +15,9 @@ pub struct AppWorld {
     pub http: WebDriver,
     pub rpc: TaskServiceClient,
     pub tasks_dir: Option<TempDir>,
+    /// Time offset in seconds set via `set_time_offset` RPC.
+    /// Seeds use `Utc::now() + offset` as reference point.
+    pub time_offset_seconds: Option<i64>,
 }
 
 impl Debug for AppWorld {
@@ -23,6 +26,7 @@ impl Debug for AppWorld {
             .field("http", &self.http)
             .field("rpc", &"TaskServiceClient { .. }")
             .field("tasks_dir", &self.tasks_dir)
+            .field("time_offset_seconds", &self.time_offset_seconds)
             .finish()
     }
 }
@@ -46,6 +50,7 @@ impl AppWorld {
             http,
             rpc,
             tasks_dir: None,
+            time_offset_seconds: None,
         })
     }
 }
