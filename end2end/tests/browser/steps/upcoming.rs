@@ -44,35 +44,33 @@ async fn verify_upcoming_groups(world: &mut AppWorld, step: &Step) -> Result<()>
     Ok(())
 }
 
-#[then(expr = "the task {string} has an attention label")]
-async fn task_has_attention_label(world: &mut AppWorld, summary: String) -> Result<()> {
+#[then(expr = "the task {string} has an urgent checkbox")]
+async fn task_has_urgent_checkbox(world: &mut AppWorld, summary: String) -> Result<()> {
     let body = world.http.find(By::Tag("body")).await?;
     let task_el = find_task(&body, &summary).await?;
 
-    let label = task_el
-        .find_all(By::Testid("attention-label"))
-        .await?;
+    let checkbox = task_el.find(By::Css("input[type='checkbox']")).await?;
+    let class = checkbox.class_name().await?.unwrap_or_default();
 
     assert!(
-        !label.is_empty(),
-        "expected task \"{summary}\" to have an attention label"
+        class.contains("w-5"),
+        "expected task \"{summary}\" to have an urgent checkbox (w-5), got: {class}"
     );
 
     Ok(())
 }
 
-#[then(expr = "the task {string} has no attention label")]
-async fn task_has_no_attention_label(world: &mut AppWorld, summary: String) -> Result<()> {
+#[then(expr = "the task {string} has a normal checkbox")]
+async fn task_has_normal_checkbox(world: &mut AppWorld, summary: String) -> Result<()> {
     let body = world.http.find(By::Tag("body")).await?;
     let task_el = find_task(&body, &summary).await?;
 
-    let labels = task_el
-        .find_all(By::Testid("attention-label"))
-        .await?;
+    let checkbox = task_el.find(By::Css("input[type='checkbox']")).await?;
+    let class = checkbox.class_name().await?.unwrap_or_default();
 
     assert!(
-        labels.is_empty(),
-        "expected task \"{summary}\" to have no attention label, but found one"
+        class.contains("w-4"),
+        "expected task \"{summary}\" to have a normal checkbox (w-4), got: {class}"
     );
 
     Ok(())

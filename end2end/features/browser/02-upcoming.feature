@@ -23,23 +23,23 @@ Feature: Upcoming view grouping
       | Overdue | Overdue task |
       | Today   | Due today    |
 
-  # ── Attention label ───────────────────────────────────────
+  # ── Urgency checkbox ──────────────────────────────────────
 
-  Scenario: Multi-day estimate shows attention label
+  Scenario: Multi-day estimate shows urgent checkbox
     Given the following tasks
       | status | days ago | summary      | category | estimate | due |
-      | open   | 1        | Two-day task | Admin    | 2d       | +30 |
+      | open   | 1        | Two-day task | Admin    | 2d       | +7  |
 
     When I open the app in Upcoming view
-    Then the task "Two-day task" has an attention label
+    Then the task "Two-day task" has an urgent checkbox
 
-  Scenario: Sub-day estimate shows no attention label
+  Scenario: Soft-shifted task shows normal checkbox
     Given the following tasks
-      | status | days ago | summary    | category | estimate | due |
-      | open   | 1        | Quick task | Admin    | 30m      | +30 |
+      | status | days ago | summary   | category | estimate | due | start |
+      | open   | 1        | Soft task | Admin    | 30m      | +30 | -3    |
 
     When I open the app in Upcoming view
-    Then the task "Quick task" has no attention label
+    Then the task "Soft task" has a normal checkbox
 
   # ── Start date: soft ranking ──────────────────────────────
 
