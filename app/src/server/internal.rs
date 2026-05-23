@@ -16,9 +16,9 @@ use chrono::NaiveDate;
 use kid_types::task;
 use kid_types::Uuid;
 
-use crate::DeadlineGroup;
+use crate::{DeadlineGroup, Urgency};
 
-pub(super) type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>, NaiveDate)>)>;
+pub(super) type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Urgency, NaiveDate)>)>;
 pub(super) type UpcomingBacklog = Vec<(Uuid, task::Infos)>;
 
 /// Assign a deadline group based on the task's attention date.
@@ -75,9 +75,8 @@ pub(super) fn deadline_group(
 /// Returns `(groups, backlog)` where `backlog` contains open tasks
 /// without any date — unaffected by context filters (UXDR).
 ///
-/// Each grouped task carries an optional attention date (shown as
-/// "start by {date}" when the task landed in an earlier group than
-/// its raw `due_date` would place it).
+/// Each grouped task carries an [`Urgency`] level that controls the
+/// checkbox border accent (UXDR: upcoming-urgency-checkbox).
 #[cfg(feature = "ssr")]
 pub(super) fn group_upcoming<'a>(
     tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
@@ -90,15 +89,13 @@ pub(super) fn group_upcoming<'a>(
     let next_sunday = this_sunday + Days::new(7);
 
     let mut backlog: UpcomingBacklog = Vec::new();
-    // (id, info, group, sort_date, attention_label, soft)
+    // (id, info, group, sort_date, urgency, soft)
     //
-    // attention_label: Some when the task was shifted to an earlier
-    //   group by lead-time or start_date, so the UI can show
-    //   "start by {date}".
+    // urgency: checkbox accent per UXDR upcoming-urgency-checkbox.
     // soft: true when the task landed in an earlier group because of
     //   start_date rather than attention_date — these sort after the
     //   "hard" attention-driven tasks within the same group.
-    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate, Option<NaiveDate>, bool)> = Vec::new();
+    let mut items: Vec<(Uuid, task::Infos, DeadlineGroup, NaiveDate, Urgency, bool)> = Vec::new();
 
     for (id, task) in tasks {
         if task.info().is_done() {
@@ -116,14 +113,14 @@ pub(super) fn group_upcoming<'a>(
 
         // Group by attention date; sort within groups by actual
         // due_date (UXDR).
-        let (group, sort_date, attention_label, soft) = if let Some(due_date) = due {
+        let (group, sort_date, urgency, soft) = if let Some(due_date) = due {
             let est = task.time_estimate().copied();
             let avail = *task.availability();
             let attention_group = deadline_group(
                 due_date, est, avail, today, tomorrow, this_sunday, next_sunday,
             );
             // Compute the raw attention date (without start_date
-            // override) to decide whether to show the indicator.
+            // override) for soft-shift comparison.
             let attention_date = match est {
                 Some(e) if e.lead_days() > 0 => {
                     let lead = e.lead_days();
@@ -176,15 +173,32 @@ pub(super) fn group_upcoming<'a>(
                 _ => (attention_group, false),
             };
 
-            // Only show indicator when attention shifted the group.
-            let label = attention_date.filter(|a| *a != due_date);
-            (group, due_date, label, soft)
+            // Urgency: checkbox accent per UXDR upcoming-urgency-checkbox.
+            // Later is too far out for urgency signals — always None.
+            use kid_types::TaskTimeEstimate as TTE;
+            let urgency = if matches!(group, DeadlineGroup::Later) {
+                Urgency::None
+            } else if soft {
+                match est {
+                    Some(TTE::Min15 | TTE::Min30 | TTE::Min45
+                       | TTE::Hours1 | TTE::Hours2) => Urgency::None,
+                    _ => Urgency::Standard, // HalfDay, Day1, Day2, or None
+                }
+            } else {
+                match est {
+                    Some(TTE::Min15 | TTE::Min30 | TTE::Min45
+                       | TTE::Hours1 | TTE::Hours2) => Urgency::Hard,
+                    _ => Urgency::High, // HalfDay, Day1, Day2, or None
+                }
+            };
+
+            (group, due_date, urgency, soft)
         } else {
             // start_date <= today, no due_date → Ready to Start
-            (DeadlineGroup::ReadyToStart, start.unwrap(), None, false)
+            (DeadlineGroup::ReadyToStart, start.unwrap(), Urgency::None, false)
         };
 
-        items.push((id.to_owned(), task.info().to_owned(), group, sort_date, attention_label, soft));
+        items.push((id.to_owned(), task.info().to_owned(), group, sort_date, urgency, soft));
     }
 
     // Sort: group order, then within-group rules per UXDR.
@@ -214,11 +228,11 @@ pub(super) fn group_upcoming<'a>(
 
     // Chunk into contiguous groups (items are already in group order).
     let mut groups: UpcomingGroups = Vec::new();
-    for (id, info, group, sort_date, attention_label, _) in items {
+    for (id, info, group, sort_date, urgency, _) in items {
         if groups.last().map_or(true, |(key, _)| *key != group) {
             groups.push((group, Vec::new()));
         }
-        groups.last_mut().unwrap().1.push((id, info, attention_label, sort_date));
+        groups.last_mut().unwrap().1.push((id, info, urgency, sort_date));
     }
 
     // Sort backlog: priority descending (A first), then UUID (creation order).

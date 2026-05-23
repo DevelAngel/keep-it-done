@@ -275,7 +275,7 @@ fn arrow_opacity_class(switch_count: u32) -> &'static str {
 enum TaskListData {
     Grouped(IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>),
     EstimateGrouped(Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>),
-    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Option<NaiveDate>, NaiveDate)>)>, Vec<(Uuid, task::Infos)>),
+    DeadlineGrouped(Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Urgency, NaiveDate)>)>, Vec<(Uuid, task::Infos)>),
     DayGrouped(Vec<(NaiveDate, Vec<server::RecentChange>)>),
 }
 
@@ -316,6 +316,23 @@ impl DeadlineGroup {
     fn is_overdue(self) -> bool {
         matches!(self, Self::Overdue)
     }
+}
+
+/// Urgency level for a task in the Upcoming view (UXDR:
+/// upcoming-urgency-checkbox). Controls checkbox border accent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Urgency {
+    /// Soft + sub-day estimate (≤ 2h), or ReadyToStart — no accent.
+    None,
+    /// Soft + estimate ≥ HalfDay or unknown — has time but needs
+    /// planning.
+    Standard,
+    /// Due in this group, sub-day estimate (≤ 2 hours) — completable
+    /// in a gap.
+    Hard,
+    /// Due in this group, estimate ≥ HalfDay or unknown, or overdue —
+    /// needs dedicated planning time.
+    High,
 }
 
 #[derive(Copy, Clone)]
@@ -924,10 +941,7 @@ fn TaskList() -> impl IntoView {
                                                                             } else {
                                                                                 None
                                                                             };
-                                                                            tasks.into_iter().enumerate().map(|(idx, (id, info, attention_date, _))| {
-                                                                                let attention_label = attention_date.map(|d| {
-                                                                                    format!("start by\n{}", d.format("%a %d.%m."))
-                                                                                }).unwrap_or_default();
+                                                                            tasks.into_iter().enumerate().map(|(idx, (id, info, urgency, _))| {
                                                                                 let divider = separator_idx == Some(idx);
                                                                                 view! {
                                                                                     {divider.then(|| view! {
@@ -941,7 +955,7 @@ fn TaskList() -> impl IntoView {
                                                                                         checkbox_checked_classes={view.checkbox_checked_classes()}
                                                                                         spinner_gradient={view.spinner_gradient()}
                                                                                         priority_a_border={view.priority_a_border()}
-                                                                                        attention_label=attention_label
+                                                                                        urgency=urgency
                                                                                         show_category=true
                                                                                     />
                                                                                 }
@@ -1142,7 +1156,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     checkbox_checked_classes: &'static str,
     spinner_gradient: &'static str,
     priority_a_border: &'static str,
-    #[prop(optional)] attention_label: String,
+    #[prop(optional)] urgency: Option<Urgency>,
     #[prop(default = false)] show_category: bool,
     #[prop(default = false)] show_contexts: bool,
 ) -> impl IntoView {
@@ -1215,8 +1229,8 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
             data-testid=testid
             class=move || {
                 let accent = match priority.get() {
-                    Some(TaskPriority::A) => priority_a_border,
-                    _ => "",
+                    Some(TaskPriority::A) if !priority_a_border.is_empty() => priority_a_border,
+                    _ => "border-l-[3px] border-l-transparent",
                 };
                 format!("transition-colors {accent}")
             }
@@ -1226,20 +1240,31 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                 class="flex items-center px-6 py-2 hover:bg-slate-800 transition-colors cursor-pointer"
                 on:click=handle_task_click
             >
-                // Checkbox
-                <input
-                    type="checkbox"
-                    class=format!("w-5 h-5 rounded-full border-2 border-slate-600 cursor-pointer appearance-none mr-4 flex-shrink-0 transition-all checked:bg-gradient-to-br {checkbox_checked_classes} relative")
-                    prop:checked=move || checked.get()
-                    prop:disabled=move || complete_task.pending().get()
-                    on:click=move |ev| ev.stop_propagation()
-                    on:change=move |ev| {
-                        ev.stop_propagation();
-                        let checked = event_target_checked(&ev);
-                        set_checked.set(checked);
-                        complete_task.dispatch((id, checked));
-                    }
-                />
+                // Checkbox — urgency accent per UXDR upcoming-urgency-checkbox.
+                // Fixed-size box centers the checkbox so varying border
+                // widths don't shift the column.
+                <div class="w-5 h-5 mr-4 flex-shrink-0 flex items-center justify-center">
+                    <input
+                        type="checkbox"
+                        class=format!(
+                            "rounded-full cursor-pointer appearance-none transition-all checked:bg-gradient-to-br {checkbox_checked_classes} {}",
+                            match urgency {
+                                Some(Urgency::High) => "w-5 h-5 border-[3px] border-slate-600 ring-2 ring-slate-600/30",
+                                Some(Urgency::Hard | Urgency::Standard) => "w-5 h-5 border-[3px] border-slate-600",
+                                _ => "w-4 h-4 border-2 border-slate-600",
+                            }
+                        )
+                        prop:checked=move || checked.get()
+                        prop:disabled=move || complete_task.pending().get()
+                        on:click=move |ev| ev.stop_propagation()
+                        on:change=move |ev| {
+                            ev.stop_propagation();
+                            let checked = event_target_checked(&ev);
+                            set_checked.set(checked);
+                            complete_task.dispatch((id, checked));
+                        }
+                    />
+                </div>
                 // Summary + optional category tag
                 <div class="flex-1">
                     <span class=move || if checked.get() && strikethrough_when_done {
@@ -1288,10 +1313,6 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                         </div>
                     })}
                 </div>
-                // Attention indicator (Upcoming view: task shifted to earlier group)
-                {(!attention_label.is_empty()).then(|| view! {
-                    <span class="ml-2 text-xs text-slate-500 text-right whitespace-pre-line" data-testid="attention-label">{attention_label.clone()}</span>
-                })}
                 // Spinner
                 <Show when=move || complete_task.pending().get()>
                     <div class="ml-4 flex-shrink-0">
