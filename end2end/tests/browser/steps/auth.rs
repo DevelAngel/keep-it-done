@@ -51,16 +51,3 @@ async fn see_session_expired(world: &mut AppWorld) -> Result<()> {
     );
     Ok(())
 }
-
-#[then("the session expired message contains a reload link")]
-async fn session_expired_has_link(world: &mut AppWorld) -> Result<()> {
-    let container = world
-        .http
-        .query(By::Testid("session-expired"))
-        .first()
-        .await?;
-    let link = container.find(By::Tag("a")).await?;
-    let href = link.attr("href").await?;
-    assert_eq!(href.as_deref(), Some("/"), "reload link should point to /");
-    Ok(())
-}

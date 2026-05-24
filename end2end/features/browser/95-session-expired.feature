@@ -12,5 +12,4 @@ Feature: Session expired shows friendly message
     And the auth proxy rejects server requests
     And I click the next view arrow
     Then I see the session expired message
-    And the session expired message contains a reload link
     And I save a screenshot as "session-expired"

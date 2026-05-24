@@ -31,8 +31,7 @@ pub fn ErrorTemplate(
         if is_unauthorized(&errs) {
             Either::Left(view! {
                 <div data-testid="session-expired" class="px-6 py-12 text-center">
-                    <p class="text-lg text-slate-300 mb-4">"Session expired — please log in again."</p>
-                    <a href="/" class="text-sky-400 underline hover:text-sky-300">"Reload"</a>
+                    <p class="text-lg text-slate-300">"Session expired — please log in again."</p>
                 </div>
             })
         } else {
