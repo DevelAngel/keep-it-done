@@ -46,7 +46,7 @@ async fn see_session_expired(world: &mut AppWorld) -> Result<()> {
         .await?;
     let text = el.text().await?;
     assert!(
-        text.contains("Sitzung abgelaufen"),
+        text.contains("Session expired"),
         "expected session-expired hint, got: {text}",
     );
     Ok(())

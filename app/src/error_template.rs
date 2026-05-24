@@ -31,14 +31,14 @@ pub fn ErrorTemplate(
         if is_unauthorized(&errs) {
             Either::Left(view! {
                 <div data-testid="session-expired" class="px-6 py-12 text-center">
-                    <p class="text-lg text-slate-300 mb-4">"Sitzung abgelaufen — bitte neu anmelden."</p>
-                    <a href="/" class="text-sky-400 underline hover:text-sky-300">"Neu laden"</a>
+                    <p class="text-lg text-slate-300 mb-4">"Session expired — please log in again."</p>
+                    <a href="/" class="text-sky-400 underline hover:text-sky-300">"Reload"</a>
                 </div>
             })
         } else {
             Either::Right(view! {
                 <div class="px-6 py-12 text-center">
-                    <h1 class="text-lg font-semibold text-red-400 mb-4">"Fehler"</h1>
+                    <h1 class="text-lg font-semibold text-red-400 mb-4">"Error"</h1>
                     {errs
                         .into_iter()
                         .map(|error| {
