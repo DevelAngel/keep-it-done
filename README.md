@@ -78,11 +78,15 @@ Five views, switchable by swipe or tap:
 
 ### Recent Changes
 
-![Recent Changes: tasks updated within the last 24 hours sorted by most recent change.](screenshots/task-list-recentchanges.png "Recent Changes view")
+![Recent Changes: tasks updated within the last days sorted by most recent change.](screenshots/task-list-recentchanges.png "Recent Changes view")
 
 ### Task Details Expansion
 
 ![Task detail expansion: task expanded to reveal priority badge, due date, start date, context badge, and notes.](screenshots/task-detail-expansion.png "Task detail expansion")
+
+### Auth Session Expiration Error
+
+![Auth session expiration error: a frendly error message is shown](screenshots/session-expired.png "Auth session expiration error")
 
 ## Task Fields
 

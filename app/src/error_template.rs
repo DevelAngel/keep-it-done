@@ -30,7 +30,7 @@ pub fn ErrorTemplate(
         let errs = errors();
         if is_unauthorized(&errs) {
             Either::Left(view! {
-                <div class="px-6 py-12 text-center">
+                <div data-testid="session-expired" class="px-6 py-12 text-center">
                     <p class="text-lg text-slate-300 mb-4">"Sitzung abgelaufen — bitte neu anmelden."</p>
                     <a href="/" class="text-sky-400 underline hover:text-sky-300">"Neu laden"</a>
                 </div>
