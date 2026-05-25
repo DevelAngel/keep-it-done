@@ -14,6 +14,7 @@ Feature: Delete Task via inline confirm
     When I open the app in All Open view
     Then I see tasks in the list
     When I expand the task "Buy bananas"
+    And I activate edit mode
     And I tap the delete button
     And I confirm the deletion
     Then I do not see the task "Buy bananas"
@@ -29,6 +30,7 @@ Feature: Delete Task via inline confirm
     When I open the app in All Open view
     Then I see tasks in the list
     When I expand the task "Mow the lawn"
+    And I activate edit mode
     And I tap the delete button
     And I confirm the deletion
     And I flush the task cache
@@ -43,6 +45,7 @@ Feature: Delete Task via inline confirm
     When I open the app in All Open view
     Then I see tasks in the list
     When I expand the task "Task alpha"
+    And I activate edit mode
     And I tap the delete button
     And I confirm the deletion
     And I flush the task cache
@@ -58,6 +61,7 @@ Feature: Delete Task via inline confirm
     When I open the app in All Open view
     Then I see tasks in the list
     When I expand the task "Water plants"
+    And I activate edit mode
     And I tap the delete button
     And I wait for the disarm timeout
     Then the delete button shows idle state
@@ -73,6 +77,7 @@ Feature: Delete Task via inline confirm
     When I open the app in All Open view
     Then I see tasks in the list
     When I expand the task "Call plumber"
+    And I activate edit mode
     And I tap the delete button
     Then the delete button shows armed state
     And I still see the task "Call plumber"

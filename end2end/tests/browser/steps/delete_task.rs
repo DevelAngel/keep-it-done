@@ -34,6 +34,25 @@ async fn expand_task(world: &mut AppWorld, summary: String) -> Result<()> {
     Ok(())
 }
 
+#[when("I activate edit mode")]
+async fn activate_edit_mode(world: &mut AppWorld) -> Result<()> {
+    let button = world
+        .http
+        .query(By::Testid("edit-mode-toggle"))
+        .first()
+        .await?;
+    button.click().await?;
+
+    // Wait until the delete button is rendered.
+    world
+        .http
+        .query(By::Testid("delete-task-button"))
+        .first()
+        .await?;
+
+    Ok(())
+}
+
 #[when("I tap the delete button")]
 async fn tap_delete_button(world: &mut AppWorld) -> Result<()> {
     let button = world
