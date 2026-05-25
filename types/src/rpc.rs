@@ -36,4 +36,7 @@ pub trait TaskService {
     async fn set_priority(id: Uuid, priority: Option<TaskPriority>, actor: String);
     async fn set_time_offset(seconds: i64);
     async fn reset_time_offset();
+    /// Force-flush dirty state to disk (deletions, writes).
+    /// Returns the number of tasks flushed.
+    async fn flush() -> usize;
 }

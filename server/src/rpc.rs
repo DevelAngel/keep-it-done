@@ -201,4 +201,16 @@ impl TaskService for RpcService {
         tracing::info!("resetting time offset");
         self.time_offset.reset();
     }
+
+    async fn flush(self, _: Context) -> usize {
+        tracing::info!("force-flushing task cache");
+        let mut cache = self.task_cache.write().await;
+        match cache.flush().await {
+            Ok(num) => num,
+            Err(e) => {
+                tracing::error!("flush failed: {e}");
+                0
+            }
+        }
+    }
 }

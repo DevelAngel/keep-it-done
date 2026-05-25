@@ -2135,6 +2135,7 @@ fn DeleteButton(id: Uuid) -> impl IntoView {
         <div class="flex justify-center mt-6 mb-2">
             <button
                 type="button"
+                data-testid="delete-task-button"
                 aria-label=move || if armed.get() { "Confirm deletion" } else { "Delete task" }
                 class=move || if pending.get() {
                     "min-h-[44px] px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium animate-pulse pointer-events-none"
