@@ -142,6 +142,7 @@ pub fn FlushStatusLed() -> impl IntoView {
             role="status"
             aria-live="polite"
             on:click=on_led_click
+            data-testid=led_testid
         >
             <span class="sr-only">
                 {move || match led_state.get() {
@@ -158,6 +159,7 @@ pub fn FlushStatusLed() -> impl IntoView {
                     border = panel_border(),
                 )
                 role="alert"
+                data-testid="flush-error-panel"
             >
                 <div class="mx-auto max-w-xl">
                     "\u{26A0}\u{FE0F} Flush error: "

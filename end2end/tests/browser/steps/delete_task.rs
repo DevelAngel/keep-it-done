@@ -1,6 +1,5 @@
 use anyhow::{bail, Result};
 use cucumber::{then, when};
-use tarpc::context;
 use thirtyfour::prelude::*;
 
 use crate::world::AppWorld;
@@ -126,12 +125,6 @@ async fn task_still_visible(world: &mut AppWorld, summary: String) -> Result<()>
     find_task(&body, &summary).await.unwrap_or_else(|_| {
         panic!("expected task \"{summary}\" to still be visible")
     });
-    Ok(())
-}
-
-#[when("I flush the task cache")]
-async fn flush_task_cache(world: &mut AppWorld) -> Result<()> {
-    world.rpc.flush(context::current()).await?;
     Ok(())
 }
 
