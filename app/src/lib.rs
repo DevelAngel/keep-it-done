@@ -2095,11 +2095,16 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     <div class="text-sm text-slate-200">{created}</div>
                     <div class="text-xs text-slate-500 font-mono mt-0.5">{id.to_string()}</div>
                 </div>
+                // Delete — last timeline entry, only in edit mode
+                {move || edit_mode.get().then(|| view! {
+                    <div class="relative">
+                        <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-red-900 border-4 border-slate-900 shadow flex items-center justify-center">
+                            <div class="w-2 h-2 rounded-full bg-red-400"></div>
+                        </div>
+                        <DeleteButton id=id/>
+                    </div>
+                })}
             </div>
-            // Delete button — only visible in edit mode
-            {move || edit_mode.get().then(|| view! {
-                <DeleteButton id=id/>
-            })}
         </div>
     }
 }
@@ -2144,29 +2149,27 @@ fn DeleteButton(id: Uuid) -> impl IntoView {
     };
 
     view! {
-        <div class="flex justify-center mt-6 mb-2">
-            <button
-                type="button"
-                data-testid="delete-task-button"
-                aria-label=move || if armed.get() { "Confirm deletion" } else { "Delete task" }
-                class=move || if pending.get() {
-                    "min-h-[44px] px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium animate-pulse pointer-events-none"
-                } else if armed.get() {
-                    "min-h-[44px] px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium transition-colors duration-200"
-                } else {
-                    "min-h-[44px] px-4 py-2 rounded-lg border border-slate-700 text-slate-500 text-sm font-medium hover:border-slate-600 hover:text-slate-400 transition-colors duration-200"
-                }
-                on:click=on_click
-            >
-                {move || if pending.get() {
-                    "Deleting\u{2009}…".to_string()
-                } else if armed.get() {
-                    "Confirm delete".to_string()
-                } else {
-                    "\u{1F5D1}\u{FE0F} Delete".to_string()
-                }}
-            </button>
-        </div>
+        <button
+            type="button"
+            data-testid="delete-task-button"
+            aria-label=move || if armed.get() { "Confirm deletion" } else { "Delete task" }
+            class=move || if pending.get() {
+                "text-sm font-semibold text-red-400 animate-pulse pointer-events-none transition-colors"
+            } else if armed.get() {
+                "text-sm font-semibold text-red-400 hover:text-red-300 transition-colors"
+            } else {
+                "text-sm font-semibold text-slate-400 hover:text-red-400 transition-colors"
+            }
+            on:click=on_click
+        >
+            {move || if pending.get() {
+                "Deleting\u{2009}…".to_string()
+            } else if armed.get() {
+                "Confirm delete".to_string()
+            } else {
+                "Delete task".to_string()
+            }}
+        </button>
     }
 }
 
