@@ -2096,8 +2096,10 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     <div class="text-xs text-slate-500 font-mono mt-0.5">{id.to_string()}</div>
                 </div>
             </div>
-            // Delete button — outside timeline spine (meta-action, not a property)
-            <DeleteButton id=id/>
+            // Delete button — only visible in edit mode
+            {move || edit_mode.get().then(|| view! {
+                <DeleteButton id=id/>
+            })}
         </div>
     }
 }
