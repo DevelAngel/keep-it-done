@@ -312,11 +312,12 @@ pub async fn complete_task(id: Uuid, completed: bool) -> Result<(), ServerFnErro
 
 #[cfg(feature = "ssr")]
 pub mod ssr {
+    use crate::events::ServerEvent;
     use kid_types::Uuid;
     use kid_types::server::TaskCache;
 
     use leptos::prelude::ServerFnError;
-    use tokio::sync::RwLock;
+    use tokio::sync::{RwLock, broadcast};
 
     use std::ops::Deref;
     use std::path::PathBuf;
@@ -334,6 +335,33 @@ pub mod ssr {
 
     impl Deref for SharedTaskCache {
         type Target = Arc<RwLock<TaskCache>>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    /// Broadcast channel for server-to-client push events.
+    ///
+    /// Any server-side producer (background flush, RPC handler) can
+    /// send events. The SSE endpoint subscribes and streams to browsers.
+    #[derive(Clone, Debug)]
+    pub struct SharedEventBus(broadcast::Sender<ServerEvent>);
+
+    impl SharedEventBus {
+        pub fn new() -> Self {
+            let (tx, _) = broadcast::channel(16);
+            Self(tx)
+        }
+    }
+
+    impl Default for SharedEventBus {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl Deref for SharedEventBus {
+        type Target = broadcast::Sender<ServerEvent>;
         fn deref(&self) -> &Self::Target {
             &self.0
         }

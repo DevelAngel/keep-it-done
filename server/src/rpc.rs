@@ -1,4 +1,6 @@
+use crate::cache::SharedEventBus;
 use crate::{SharedTaskCache, SharedTimeOffset};
+use kid_app::events::{FlushOutcome, ServerEvent};
 
 pub use kid_types::rpc::{SwitchDirError, TaskService};
 use kid_types::task::Details as TaskDetails;
@@ -29,6 +31,7 @@ impl RpcServer {
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
         time_offset: SharedTimeOffset,
+        event_bus: SharedEventBus,
     ) -> Result<()> {
         tracing::info!(
             "RPC server will listen to: {}",
@@ -44,7 +47,8 @@ impl RpcServer {
             .map(|channel| {
                 let task_cache = task_cache.clone();
                 let time_offset = time_offset.clone();
-                let server = RpcService { task_cache, time_offset };
+                let event_bus = event_bus.clone();
+                let server = RpcService { task_cache, time_offset, event_bus };
                 channel.execute(server.serve()).for_each(Self::spawn)
             })
             .buffer_unordered(10);
@@ -66,6 +70,7 @@ impl RpcServer {
 struct RpcService {
     task_cache: SharedTaskCache,
     time_offset: SharedTimeOffset,
+    event_bus: SharedEventBus,
 }
 
 impl TaskService for RpcService {
@@ -206,9 +211,19 @@ impl TaskService for RpcService {
         tracing::info!("force-flushing task cache");
         let mut cache = self.task_cache.write().await;
         match cache.flush().await {
-            Ok(num) => num,
+            Ok(num) => {
+                if num > 0 {
+                    let _ = self.event_bus.send(ServerEvent::Flush(
+                        FlushOutcome::Success { count: num },
+                    ));
+                }
+                num
+            }
             Err(e) => {
                 tracing::error!("flush failed: {e}");
+                let _ = self.event_bus.send(ServerEvent::Flush(
+                    FlushOutcome::Error { message: e.to_string() },
+                ));
                 0
             }
         }

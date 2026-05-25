@@ -1,5 +1,6 @@
 use crate::http::HttpServer;
 use crate::rpc::RpcServer;
+use crate::cache::SharedEventBus;
 use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 
 use leptos::prelude::*;
@@ -25,6 +26,7 @@ pub struct ServerBuilder<RPC, HTTP, LeptosOptions> {
     shutdown: CancellationToken,
     task_cache: SharedTaskCache,
     time_offset: SharedTimeOffset,
+    event_bus: SharedEventBus,
 }
 
 #[doc(hidden)]
@@ -43,6 +45,7 @@ impl ServerBuilder<Unset, Unset, Unset> {
             shutdown: shutdown.clone(),
             task_cache: task_cache.clone(),
             time_offset: time_offset.clone(),
+            event_bus: SharedEventBus::new(),
         }
     }
 }
@@ -56,6 +59,7 @@ impl<W, L> ServerBuilder<Unset, W, L> {
             shutdown: self.shutdown,
             task_cache: self.task_cache,
             time_offset: self.time_offset,
+            event_bus: self.event_bus,
         }
     }
 }
@@ -69,6 +73,7 @@ impl<R, L> ServerBuilder<R, Unset, L> {
             shutdown: self.shutdown,
             task_cache: self.task_cache,
             time_offset: self.time_offset,
+            event_bus: self.event_bus,
         }
     }
 }
@@ -85,6 +90,7 @@ impl<R, W> ServerBuilder<R, W, Unset> {
             shutdown: self.shutdown,
             task_cache: self.task_cache,
             time_offset: self.time_offset,
+            event_bus: self.event_bus,
         }
     }
 }
@@ -103,15 +109,23 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             self.shutdown.clone(),
             self.task_cache.clone(),
             self.time_offset.clone(),
+            self.event_bus.clone(),
         ));
         let rpc_service = spawn(RpcServer::serve(
             rpc_listener,
             self.shutdown.clone(),
             self.task_cache.clone(),
             self.time_offset.clone(),
+            self.event_bus.clone(),
         ));
-        let task_flush =
-            { spawn(async move { self.task_cache.background_flush(self.shutdown).await }) };
+        let task_flush = {
+            let event_bus = self.event_bus;
+            spawn(async move {
+                self.task_cache
+                    .background_flush(self.shutdown, &event_bus)
+                    .await
+            })
+        };
         Ok(ServerHandles {
             task_flush,
             rpc_service,

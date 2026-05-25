@@ -26,6 +26,7 @@ leptos = { workspace = true, features = ["ssr"] }
 leptos_axum.workspace = true
 miette = { workspace = true, features = ["fancy"] }
 rand.workspace = true
+serde_json.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tokio-util.workspace = true

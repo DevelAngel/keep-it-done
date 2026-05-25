@@ -1,5 +1,7 @@
 pub mod cache;
 mod error_template;
+pub mod events;
+mod flush_led;
 pub mod server;
 pub mod time;
 
@@ -1088,10 +1090,18 @@ fn TaskList() -> impl IntoView {
                     {concat!("kid ", env!("CARGO_PKG_VERSION"))}
                 </footer>
             </div>
-            <Show when=move || edit_mode.get()>
-                <div class="fixed top-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
-                <div class="fixed bottom-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
-            </Show>
+            <flush_led::FlushStatusLed/>
+            {move || {
+                let flush_panel = use_context::<flush_led::FlushPanelOpen>()
+                    .map(|p| p.get())
+                    .unwrap_or(false);
+                edit_mode.get().then(|| view! {
+                    <div class="fixed top-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
+                    <Show when=move || !flush_panel>
+                        <div class="fixed bottom-0 left-0 right-0 h-[3px] bg-amber-400 z-50"></div>
+                    </Show>
+                })
+            }}
         </div>
     }
 }

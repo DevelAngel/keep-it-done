@@ -9,7 +9,7 @@ workspace = true
 
 [features]
 default = []
-hydrate = ["leptos/hydrate", "chrono/wasmbind", "dep:web-sys"]
+hydrate = ["leptos/hydrate", "chrono/wasmbind", "dep:web-sys", "dep:wasm-bindgen"]
 ssr = [
   "leptos/ssr",
   "leptos_meta/ssr",
@@ -35,4 +35,6 @@ strum.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
-web-sys = { workspace = true, optional = true, features = ["Window", "Document", "Element"] }
+serde_json.workspace = true
+wasm-bindgen = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = ["Window", "Document", "Element", "EventSource", "MessageEvent"] }

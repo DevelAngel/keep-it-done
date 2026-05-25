@@ -1,8 +1,14 @@
+use crate::cache::SharedEventBus;
 use crate::{SharedTaskCache, SharedTimeOffset};
+use kid_app::events::ServerEvent;
 use kid_app::server::ssr::FallbackUser;
 use kid_app::{App, shell};
 
 use axum::Router;
+use axum::extract::State;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::routing::get;
+use futures::stream::Stream;
 use leptos::prelude::*;
 use leptos_axum::{LeptosRoutes, generate_route_list};
 use miette::{IntoDiagnostic, Result};
@@ -18,6 +24,7 @@ impl HttpServer {
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
         time_offset: SharedTimeOffset,
+        event_bus: SharedEventBus,
     ) -> Result<()> {
         let fallback_user = FallbackUser::new(
             std::env::var("KID_FALLBACK_USER").ok(),
@@ -37,6 +44,7 @@ impl HttpServer {
             let task_cache = task_cache.clone();
             let time_offset = time_offset.clone();
             Router::new()
+                .route("/api/events", get(sse_handler).with_state(event_bus))
                 .leptos_routes_with_context(
                     &leptos_options,
                     routes,
@@ -62,4 +70,26 @@ impl HttpServer {
             .into_diagnostic()?;
         Ok(())
     }
+}
+
+async fn sse_handler(
+    State(event_bus): State<SharedEventBus>,
+) -> Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>> {
+    let rx: tokio::sync::broadcast::Receiver<ServerEvent> = event_bus.subscribe();
+    let stream = futures::stream::unfold(rx, |mut rx| async move {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let data = serde_json::to_string(&event).ok()?;
+                    return Some((Ok(Event::default().data(data)), rx));
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::debug!("SSE client lagged, skipped {n} events");
+                    continue;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+            }
+        }
+    });
+    Sse::new(stream).keep_alive(KeepAlive::default())
 }
