@@ -134,6 +134,25 @@ impl Deref for ScrollToTaskId {
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
+/// Wraps the delete-task server action so it can be provided via context.
+#[derive(Clone, Copy)]
+struct DeleteTaskAction(ServerAction<server::DeleteTask>);
+
+impl Deref for DeleteTaskAction {
+    type Target = ServerAction<server::DeleteTask>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+/// Wraps the expanded-task-id write signal so TaskDetails can collapse
+/// the panel after deletion.
+#[derive(Clone, Copy)]
+struct CollapseExpanded(WriteSignal<Option<Uuid>>);
+
+impl Deref for CollapseExpanded {
+    type Target = WriteSignal<Option<Uuid>>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
 /// SSR-evaluated auto-expand: when `?expand=first` is set, a [`Memo`]
 /// resolves to the first task ID once the resource has loaded.
 #[derive(Clone, Copy)]
@@ -485,6 +504,8 @@ fn TaskList() -> impl IntoView {
         }
     });
     let delete_task = ServerAction::<server::DeleteTask>::new();
+    provide_context(DeleteTaskAction(delete_task));
+    provide_context(CollapseExpanded(set_expanded_task_id));
     let (completion_version, set_completion_version) = signal(0u32);
     let category_version = RwSignal::new(0u32);
     provide_context(category_version);
@@ -2065,6 +2086,73 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     <div class="text-xs text-slate-500 font-mono mt-0.5">{id.to_string()}</div>
                 </div>
             </div>
+            // Delete button — outside timeline spine (meta-action, not a property)
+            <DeleteButton id=id/>
+        </div>
+    }
+}
+
+/// Inline-confirm delete button (UXDR: Task Deletion).
+///
+/// States: Idle → Armed (3 s auto-disarm) → Pending → deleted.
+/// Reads [`DeleteTaskAction`] and [`CollapseExpanded`] from context.
+#[component]
+fn DeleteButton(id: Uuid) -> impl IntoView {
+    // false = Idle, true = Armed
+    let armed = RwSignal::new(false);
+    let pending = RwSignal::new(false);
+
+    let delete_action = use_context::<DeleteTaskAction>()
+        .expect("DeleteTaskAction context missing");
+    let collapse = use_context::<CollapseExpanded>()
+        .expect("CollapseExpanded context missing");
+
+    let on_click = move |_| {
+        if pending.get_untracked() { return; }
+        if !armed.get_untracked() {
+            // Idle → Armed
+            armed.set(true);
+            // Auto-disarm after 3 s; if already disarmed (confirmed
+            // or collapsed), the set(false) is a harmless no-op.
+            set_timeout(
+                move || armed.set(false),
+                std::time::Duration::from_secs(3),
+            );
+        } else {
+            // Armed → Pending → delete
+            armed.set(false);
+            pending.set(true);
+            delete_action.dispatch(server::DeleteTask { id });
+            // Collapse the detail panel after a short delay for visual feedback
+            set_timeout(
+                move || collapse.set(None),
+                std::time::Duration::from_millis(300),
+            );
+        }
+    };
+
+    view! {
+        <div class="flex justify-center mt-6 mb-2">
+            <button
+                type="button"
+                aria-label=move || if armed.get() { "Confirm deletion" } else { "Delete task" }
+                class=move || if pending.get() {
+                    "min-h-[44px] px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium animate-pulse pointer-events-none"
+                } else if armed.get() {
+                    "min-h-[44px] px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium transition-colors duration-200"
+                } else {
+                    "min-h-[44px] px-4 py-2 rounded-lg border border-slate-700 text-slate-500 text-sm font-medium hover:border-slate-600 hover:text-slate-400 transition-colors duration-200"
+                }
+                on:click=on_click
+            >
+                {move || if pending.get() {
+                    "Deleting\u{2009}…".to_string()
+                } else if armed.get() {
+                    "Confirm delete".to_string()
+                } else {
+                    "\u{1F5D1}\u{FE0F} Delete".to_string()
+                }}
+            </button>
         </div>
     }
 }
