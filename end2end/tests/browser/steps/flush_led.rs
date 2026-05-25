@@ -1,5 +1,6 @@
 use anyhow::Result;
 use cucumber::{then, when};
+use kid_types::{Task, TaskSummary};
 use tarpc::context;
 use thirtyfour::prelude::*;
 
@@ -8,6 +9,17 @@ use std::fs;
 use crate::world::AppWorld;
 
 // -- Triggers -----------------------------------------------------
+
+#[when(expr = "I add a task {string} via RPC")]
+async fn add_task_via_rpc(world: &mut AppWorld, summary: String) -> Result<()> {
+    let summary: TaskSummary = summary.parse().expect("valid summary");
+    let task = Task::new(summary);
+    world
+        .rpc
+        .add(context::current(), task, "e2e-flush".into())
+        .await?;
+    Ok(())
+}
 
 #[when("I flush the task cache")]
 async fn flush_task_cache(world: &mut AppWorld) -> Result<()> {

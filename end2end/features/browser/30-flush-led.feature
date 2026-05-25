@@ -14,7 +14,8 @@ Feature: Flush Status LED
     When I open the app in All Open view
     Then I see tasks in the list
     And the flush LED is hidden
-    When I flush the task cache
+    When I add a task "Flush marker" via RPC
+    And I flush the task cache
     Then the flush LED shows success
 
   Scenario: Green LED auto-dismisses after 3 seconds
@@ -24,7 +25,8 @@ Feature: Flush Status LED
       | Fix fence | Inbox    | open   | 1        |
     When I open the app in All Open view
     Then I see tasks in the list
-    When I flush the task cache
+    When I add a task "Flush marker" via RPC
+    And I flush the task cache
     Then the flush LED shows success
     When I wait for the LED to auto-dismiss
     Then the flush LED is hidden
@@ -38,8 +40,9 @@ Feature: Flush Status LED
       | Clean desk | Inbox    | open   | 1        |
     When I open the app in All Open view
     Then I see tasks in the list
-    # Flush once to clear dirty state from switch_dir
-    When I flush the task cache
+    # Create a real task so the first flush has dirty state
+    When I add a task "Flush marker" via RPC
+    And I flush the task cache
     And I wait for the LED to auto-dismiss
     # Second flush has nothing dirty
     When I flush the task cache
@@ -55,7 +58,8 @@ Feature: Flush Status LED
       | Water plants| Inbox    | open   | 1        |
     When I open the app in All Open view
     Then I see tasks in the list
-    When I make the tasks directory read-only
+    When I add a task "Flush marker" via RPC
+    And I make the tasks directory read-only
     And I flush the task cache
     Then the flush LED shows error
     When I click the flush LED
