@@ -753,6 +753,11 @@ fn TaskList() -> impl IntoView {
     provide_context(CollapseExpanded(set_expanded_task_id));
     let (completion_version, set_completion_version) = signal(0u32);
     let category_version = RwSignal::new(0u32);
+    // Task-change notification signals (Layers 1–3, UXDR task-change-display).
+    let task_change_version = flush_led::TaskChangeVersion::default();
+    provide_context(task_change_version);
+    let recently_changed_ids = flush_led::RecentlyChangedIds::default();
+    provide_context(recently_changed_ids);
     provide_context(category_version);
     let available_categories_res = Resource::new(move || category_version.get(), |_| server::fetch_categories());
     let available_categories_ctx: RwSignal<Vec<String>> = RwSignal::new(vec![]);
@@ -819,7 +824,7 @@ fn TaskList() -> impl IntoView {
     let extra_days = RwSignal::new(0u32);
 
     let task_list = Resource::new(
-        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get(), today_signal.get(), extra_days.get()),
+        move || (add_task.version().get(), delete_task.version().get(), completion_version.get(), category_version.get(), current_view.get(), today_signal.get(), extra_days.get(), task_change_version.get()),
         move |_| async move {
             match current_view.get_untracked() {
                 View::Upcoming       => {
@@ -1486,6 +1491,14 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     let testid = format!("task-{id}");
     let task_ref = NodeRef::<leptos::html::Div>::new();
 
+    // Layer 2: external-change highlight (UXDR task-change-display).
+    let recently_changed = use_context::<flush_led::RecentlyChangedIds>();
+    let is_recently_changed = move || {
+        recently_changed
+            .map(|rc| rc.get().contains(&id))
+            .unwrap_or(false)
+    };
+
     // Scroll to this task when it was just created
     if let Some(scroll_to) = use_context::<ScrollToTaskId>() {
         Effect::new(move || {
@@ -1550,11 +1563,15 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
             node_ref=task_ref
             data-testid=testid
             class=move || {
-                let accent = match priority.get() {
-                    Some(TaskPriority::A) if !priority_a_border.is_empty() => priority_a_border,
-                    _ => "border-l-[3px] border-l-transparent",
+                let accent = if is_recently_changed() {
+                    "border-l-[3px] border-l-sky-400"
+                } else {
+                    match priority.get() {
+                        Some(TaskPriority::A) if !priority_a_border.is_empty() => priority_a_border,
+                        _ => "border-l-[3px] border-l-transparent",
+                    }
                 };
-                format!("transition-colors {accent}")
+                format!("transition-colors duration-700 {accent}")
             }
             class:bg-slate-800=is_expanded
         >
@@ -1889,7 +1906,37 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
         }
     });
 
+    // Layer 3: conflict banner (UXDR task-change-display).
+    let recently_changed = use_context::<flush_led::RecentlyChangedIds>();
+    let is_externally_changed = move || {
+        recently_changed
+            .map(|rc| rc.get().contains(&id))
+            .unwrap_or(false)
+    };
+    let reload_details = move |_| {
+        // Clear the conflict flag for this task and refetch details.
+        if let Some(rc) = recently_changed {
+            rc.update(|ids| ids.retain(|i| *i != id));
+        }
+        details.refetch();
+    };
+
     view! {
+        // Conflict banner — shown when the viewed task was changed externally.
+        <Show when=is_externally_changed>
+            <div
+                class="px-6 py-2 bg-amber-950/60 border-t-2 border-t-amber-400 text-amber-200 text-sm flex items-center justify-between"
+                role="alert"
+                data-testid="conflict-banner"
+            >
+                <span>"\u{26A0}\u{FE0F} Extern ge\u{00E4}ndert."</span>
+                <button
+                    type="button"
+                    class="text-amber-300 hover:text-amber-100 underline text-xs"
+                    on:click=reload_details
+                >"Neu laden"</button>
+            </div>
+        </Show>
         <div class="px-6 pb-4 pt-3 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900" data-testid="task-details">
             // Summary (editable in edit mode)
             {move || edit_mode.get().then(|| view! {

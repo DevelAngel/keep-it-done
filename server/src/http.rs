@@ -44,14 +44,18 @@ impl HttpServer {
             let task_cache = task_cache.clone();
             let time_offset = time_offset.clone();
             Router::new()
-                .route("/api/events", get(sse_handler).with_state(event_bus))
+                .route("/api/events", get(sse_handler).with_state(event_bus.clone()))
                 .leptos_routes_with_context(
                     &leptos_options,
                     routes,
-                    move || {
-                        provide_context(task_cache.clone());
-                        provide_context(fallback_user.clone());
-                        provide_context(time_offset.clone());
+                    {
+                        let event_bus = event_bus.clone();
+                        move || {
+                            provide_context(task_cache.clone());
+                            provide_context(fallback_user.clone());
+                            provide_context(time_offset.clone());
+                            provide_context(event_bus.clone());
+                        }
                     },
                     {
                         let leptos_options = leptos_options.clone();

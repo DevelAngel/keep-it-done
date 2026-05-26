@@ -20,12 +20,23 @@ pub struct TaskCache {
     dirty: ChangeSet,
 }
 
-#[derive(Debug)]
 pub struct TaskMutGuard<'a> {
     id: Uuid,
     task: &'a mut Task,
     dirty: &'a mut ChangeSet,
     actor: String,
+    on_drop: Option<Box<dyn FnOnce(Uuid, String) + Send>>,
+}
+
+impl std::fmt::Debug for TaskMutGuard<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TaskMutGuard")
+            .field("id", &self.id)
+            .field("task", &self.task)
+            .field("actor", &self.actor)
+            .field("on_drop", &self.on_drop.as_ref().map(|_| ".."))
+            .finish()
+    }
 }
 
 pub type TaskLoadResult<T> = Result<T, LoadErrors>;
@@ -208,6 +219,27 @@ impl TaskCache {
             dirty,
             task,
             actor,
+            on_drop: None,
+        })
+    }
+
+    /// Like [`get_mut`](Self::get_mut), but calls `on_change` with
+    /// `(id, actor)` when the guard is dropped.  Used by the server
+    /// to broadcast `TaskChanged` events automatically.
+    pub fn get_mut_notifying(
+        &mut self,
+        id: &Uuid,
+        actor: impl Into<String>,
+        on_change: impl FnOnce(Uuid, String) + Send + 'static,
+    ) -> Option<TaskMutGuard<'_>> {
+        let dirty = &mut self.dirty;
+        let actor = actor.into();
+        self.tasks.get_mut(id).map(|task| TaskMutGuard {
+            id: *id,
+            dirty,
+            task,
+            actor,
+            on_drop: Some(Box::new(on_change)),
         })
     }
 
@@ -503,6 +535,9 @@ impl<'a> Drop for TaskMutGuard<'a> {
     fn drop(&mut self) {
         self.task.add_author(&self.actor);
         self.dirty.insert(self.id);
+        if let Some(cb) = self.on_drop.take() {
+            cb(self.id, self.actor.clone());
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+use kid_types::Uuid;
 use leptos::prelude::*;
 
 use std::ops::Deref;
@@ -11,6 +12,33 @@ pub struct FlushPanelOpen(RwSignal<bool>);
 
 impl Deref for FlushPanelOpen {
     type Target = RwSignal<bool>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Bumped whenever a `TaskChanged` SSE event arrives.
+///
+/// Used as a Resource dependency to trigger silent refetch (Layer 1).
+#[derive(Clone, Copy, Default)]
+pub struct TaskChangeVersion(pub RwSignal<u32>);
+
+impl Deref for TaskChangeVersion {
+    type Target = RwSignal<u32>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Set of task IDs that were recently changed externally.
+///
+/// Drives the inline row highlight (Layer 2) and the conflict
+/// banner in the detail panel (Layer 3).
+#[derive(Clone, Copy, Default)]
+pub struct RecentlyChangedIds(pub RwSignal<Vec<Uuid>>);
+
+impl Deref for RecentlyChangedIds {
+    type Target = RwSignal<Vec<Uuid>>;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -47,6 +75,9 @@ pub fn FlushStatusLed() -> impl IntoView {
         use wasm_bindgen::prelude::*;
         use web_sys::{EventSource, MessageEvent};
 
+        let task_change_version = use_context::<TaskChangeVersion>().unwrap_or_default();
+        let recently_changed = use_context::<RecentlyChangedIds>().unwrap_or_default();
+
         Effect::new(move |_| {
             let Ok(es) = EventSource::new("/api/events") else {
                 tracing::warn!("failed to create EventSource");
@@ -56,35 +87,53 @@ pub fn FlushStatusLed() -> impl IntoView {
                 let Some(data) = event.data().as_string() else {
                     return;
                 };
-                let Ok(ServerEvent::Flush(outcome)) = serde_json::from_str::<ServerEvent>(&data)
-                else {
+                let Ok(server_event) = serde_json::from_str::<ServerEvent>(&data) else {
                     return;
                 };
-                match outcome {
-                    FlushOutcome::Success { .. } => {
-                        // If error panel was open, close it.
-                        panel_open.set(false);
-                        led_state.set(LedState::Success);
-                        // Auto-dismiss after 3 s.
-                        set_timeout(
-                            move || {
-                                if matches!(led_state.get_untracked(), LedState::Success) {
-                                    led_state.set(LedState::Hidden);
-                                }
-                            },
-                            std::time::Duration::from_secs(3),
-                        );
-                    }
-                    FlushOutcome::Error { message } => {
-                        // If panel is open, pulse the LED briefly.
-                        if panel_open.get_untracked() {
-                            pulse.set(true);
+                match server_event {
+                    ServerEvent::Flush(outcome) => match outcome {
+                        FlushOutcome::Success { .. } => {
+                            // If error panel was open, close it.
+                            panel_open.set(false);
+                            led_state.set(LedState::Success);
+                            // Auto-dismiss after 3 s.
                             set_timeout(
-                                move || pulse.set(false),
-                                std::time::Duration::from_millis(300),
+                                move || {
+                                    if matches!(led_state.get_untracked(), LedState::Success) {
+                                        led_state.set(LedState::Hidden);
+                                    }
+                                },
+                                std::time::Duration::from_secs(3),
                             );
                         }
-                        led_state.set(LedState::Error { message });
+                        FlushOutcome::Error { message } => {
+                            // If panel is open, pulse the LED briefly.
+                            if panel_open.get_untracked() {
+                                pulse.set(true);
+                                set_timeout(
+                                    move || pulse.set(false),
+                                    std::time::Duration::from_millis(300),
+                                );
+                            }
+                            led_state.set(LedState::Error { message });
+                        }
+                    },
+                    ServerEvent::TaskChanged { id, .. } => {
+                        // Layer 1: bump version → triggers Resource refetch.
+                        task_change_version.update(|v| *v = v.wrapping_add(1));
+                        // Layer 2 + 3: record changed ID for highlight / conflict.
+                        recently_changed.update(|ids| {
+                            if !ids.contains(&id) {
+                                ids.push(id);
+                            }
+                        });
+                        // Layer 2: auto-clear highlight after 4 s.
+                        set_timeout(
+                            move || {
+                                recently_changed.update(|ids| ids.retain(|i| *i != id));
+                            },
+                            std::time::Duration::from_secs(4),
+                        );
                     }
                 }
             });

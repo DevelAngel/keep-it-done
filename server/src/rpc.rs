@@ -73,6 +73,16 @@ struct RpcService {
     event_bus: SharedEventBus,
 }
 
+impl RpcService {
+    /// Return a closure that broadcasts a `TaskChanged` event.
+    fn notify_callback(&self) -> impl FnOnce(Uuid, String) + Send + 'static {
+        let bus = self.event_bus.clone();
+        move |id, actor| {
+            let _ = bus.send(ServerEvent::TaskChanged { id, actor });
+        }
+    }
+}
+
 impl TaskService for RpcService {
     async fn count(self, _: Context) -> usize {
         let task_cache = self.task_cache.read().await;
@@ -105,39 +115,45 @@ impl TaskService for RpcService {
 
     async fn add(self, _: Context, task: Task, actor: String) {
         let mut task_cache = self.task_cache.write().await;
-        task_cache.add(task, &actor);
+        let id = task_cache.add(task, &actor);
+        let _ = self.event_bus.send(ServerEvent::TaskChanged { id, actor });
     }
 
     async fn add_with_id(self, _: Context, id: Uuid, task: Task, actor: String) {
         let mut task_cache = self.task_cache.write().await;
         task_cache.add_with_id(id, task, &actor);
+        let _ = self.event_bus.send(ServerEvent::TaskChanged { id, actor });
     }
 
     async fn rename(self, _: Context, id: Uuid, summary: TaskSummary, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             task.rename(summary);
         }
     }
 
     async fn replace(self, _: Context, id: Uuid, details: TaskDetails, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             task.set_details(details);
         }
     }
 
     async fn update(self, _: Context, id: Uuid, details: TaskDetailsPatch, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             tracing::debug!("Patch details: {details:#?}");
             task.patch_details(details);
         }
     }
 
     async fn complete(self, _: Context, id: Uuid, reopen: bool, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             if reopen {
                 task.mark_todo();
             } else {
@@ -147,29 +163,33 @@ impl TaskService for RpcService {
     }
 
     async fn recategorize(self, _: Context, id: Uuid, category: TaskCategory, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             task.set_category(category);
         }
     }
 
     async fn replace_contexts(self, _: Context, id: Uuid, contexts: IndexSet<TaskContext>, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             task.set_contexts(contexts);
         }
     }
 
     async fn add_contexts(self, _: Context, id: Uuid, contexts: IndexSet<TaskContext>, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             task.extend_contexts(contexts);
         }
     }
 
     async fn set_priority(self, _: Context, id: Uuid, priority: Option<TaskPriority>, actor: String) {
+        let notify = self.notify_callback();
         let mut task_cache = self.task_cache.write().await;
-        if let Some(mut task) = task_cache.get_mut(&id, &actor) {
+        if let Some(mut task) = task_cache.get_mut_notifying(&id, &actor, notify) {
             match priority {
                 Some(p) => task.set_priority(p),
                 None => task.clear_priority(),
