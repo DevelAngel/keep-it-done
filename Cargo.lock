@@ -1996,6 +1996,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
+ "sublime_fuzzy",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2069,7 +2070,7 @@ dependencies = [
  "leptos",
  "leptos_axum",
  "miette",
- "rand 0.8.5",
+ "rand 0.10.0",
  "serde_json",
  "tarpc",
  "tokio",
@@ -2094,7 +2095,7 @@ dependencies = [
  "kid-types-derive",
  "miette",
  "predicates",
- "rand 0.8.5",
+ "rand 0.10.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -3936,6 +3937,12 @@ dependencies = [
  "rustversion",
  "syn",
 ]
+
+[[package]]
+name = "sublime_fuzzy"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa7986063f7c0ab374407e586d7048a3d5aac94f103f751088bf398e07cd5400"
 
 [[package]]
 name = "subtle"

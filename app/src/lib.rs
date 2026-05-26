@@ -482,16 +482,15 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
 fn apply_search(data: TaskListData, query: &str) -> TaskListData {
     let query = query.trim();
     if query.is_empty() { return data; }
-    let query_lower = query.to_lowercase();
-    let words: Vec<&str> = query_lower.split_whitespace().collect();
+    let words: Vec<&str> = query.split_whitespace().collect();
     let matches = |info: &task::Infos| -> bool {
         let haystack = format!(
             "{} {} {}",
             info.summary(),
             info.category(),
             info.contexts().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(" "),
-        ).to_lowercase();
-        words.iter().all(|w| haystack.contains(w))
+        );
+        words.iter().all(|w| sublime_fuzzy::best_match(w, &haystack).is_some())
     };
     match data {
         TaskListData::Grouped(groups) => TaskListData::Grouped(
