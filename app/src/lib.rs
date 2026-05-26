@@ -289,6 +289,10 @@ impl View {
             View::RecentlyChanged => "",  // left border reserved for AI-involvement
         }
     }
+
+    fn has_search(self) -> bool {
+        matches!(self, View::AllOpen | View::WhatIFinished)
+    }
 }
 
 fn arrow_opacity_class(switch_count: u32) -> &'static str {
@@ -475,6 +479,49 @@ fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
     }
 }
 
+fn apply_search(data: TaskListData, query: &str) -> TaskListData {
+    let query = query.trim();
+    if query.is_empty() { return data; }
+    let query_lower = query.to_lowercase();
+    let words: Vec<&str> = query_lower.split_whitespace().collect();
+    let matches = |info: &task::Infos| -> bool {
+        let haystack = format!(
+            "{} {} {}",
+            info.summary(),
+            info.category(),
+            info.contexts().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(" "),
+        ).to_lowercase();
+        words.iter().all(|w| haystack.contains(w))
+    };
+    match data {
+        TaskListData::Grouped(groups) => TaskListData::Grouped(
+            groups.into_iter().filter_map(|(cat, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
+                if filtered.is_empty() { None } else { Some((cat, filtered)) }
+            }).collect()
+        ),
+        TaskListData::EstimateGrouped(groups) => TaskListData::EstimateGrouped(
+            groups.into_iter().filter_map(|(est, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info)| matches(info)).collect();
+                if filtered.is_empty() { None } else { Some((est, filtered)) }
+            }).collect()
+        ),
+        TaskListData::DeadlineGrouped(groups, backlog) => TaskListData::DeadlineGrouped(
+            groups.into_iter().filter_map(|(dg, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|(_, info, _, _)| matches(info)).collect();
+                if filtered.is_empty() { None } else { Some((dg, filtered)) }
+            }).collect(),
+            backlog.into_iter().filter(|(_, info)| matches(info)).collect(),
+        ),
+        TaskListData::DayGrouped(groups) => TaskListData::DayGrouped(
+            groups.into_iter().filter_map(|(day, tasks)| {
+                let filtered: Vec<_> = tasks.into_iter().filter(|rc| matches(&rc.info)).collect();
+                if filtered.is_empty() { None } else { Some((day, filtered)) }
+            }).collect()
+        ),
+    }
+}
+
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
@@ -538,6 +585,7 @@ fn TaskList() -> impl IntoView {
 
     let filter_open = RwSignal::new(false);
     let active_filters: RwSignal<HashMap<View, Vec<String>>> = RwSignal::new(HashMap::new());
+    let search_query: RwSignal<HashMap<View, String>> = RwSignal::new(HashMap::new());
     let filter_ctx_resource = Resource::new(|| (), |_| server::fetch_contexts());
     let available_contexts_ctx: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     Effect::new(move |_| {
@@ -700,10 +748,16 @@ fn TaskList() -> impl IntoView {
                         // Filter button (left)
                         <button
                             type="button"
-                            class=move || if filter_open.get() || active_filters.with(|m| !m.get(&current_view.get()).map(Vec::is_empty).unwrap_or(true)) {
-                                "absolute -left-2 w-8 h-8 flex items-center justify-center text-teal-300 hover:text-white transition-colors"
-                            } else {
-                                "absolute -left-2 w-8 h-8 flex items-center justify-center text-white opacity-60 hover:opacity-100 transition-colors"
+                            class=move || {
+                                let v = current_view.get();
+                                let has_active = filter_open.get()
+                                    || active_filters.with(|m| m.get(&v).is_some_and(|f| !f.is_empty()))
+                                    || search_query.with(|m| m.get(&v).is_some_and(|q| !q.trim().is_empty()));
+                                if has_active {
+                                    "absolute -left-2 w-8 h-8 flex items-center justify-center text-teal-300 hover:text-white transition-colors"
+                                } else {
+                                    "absolute -left-2 w-8 h-8 flex items-center justify-center text-white opacity-60 hover:opacity-100 transition-colors"
+                                }
                             }
                             on:click=move |_| filter_open.update(|o| *o = !*o)
                             aria-label="Toggle filter"
@@ -735,6 +789,33 @@ fn TaskList() -> impl IntoView {
                     let view = current_view.get();
                     view! {
                         <div class="px-4 py-3 bg-slate-800 border-b border-slate-700">
+                            {view.has_search().then(|| view! {
+                                <div class="relative mb-2">
+                                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                    <input
+                                        type="text"
+                                        class="w-full pl-9 pr-8 py-1.5 bg-slate-700 text-slate-200 text-sm rounded-lg border border-slate-600 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 outline-none placeholder:text-slate-500"
+                                        placeholder="Search tasks\u{2026}"
+                                        prop:value=move || search_query.with(|m| m.get(&view).cloned().unwrap_or_default())
+                                        on:input=move |ev| {
+                                            let val = event_target_value(&ev);
+                                            search_query.update(|m| { m.insert(view, val); });
+                                        }
+                                    />
+                                    {move || search_query.with(|m| m.get(&view).is_some_and(|q| !q.is_empty())).then(|| view! {
+                                        <button
+                                            type="button"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm"
+                                            on:click=move |_| search_query.update(|m| { m.insert(view, String::new()); })
+                                            aria-label="Clear search"
+                                        >
+                                            "\u{2715}"
+                                        </button>
+                                    })}
+                                </div>
+                            })}
                             <div class="flex flex-wrap gap-1.5">
                                 {move || available_contexts_ctx.get().into_iter().map(|ctx| {
                                     let label_class = ctx.clone();
@@ -774,6 +855,7 @@ fn TaskList() -> impl IntoView {
                             {move || {
                                 let view = current_view.get();
                                 let filters = active_filters.with(|m| m.get(&view).cloned().unwrap_or_default());
+                                let query = search_query.with(|m| m.get(&view).cloned().unwrap_or_default());
                                 Suspend::new(async move {
                                     task_list.await.map(|data| {
                                         // Total backlog count before filtering (for "n of m" label).
@@ -782,6 +864,7 @@ fn TaskList() -> impl IntoView {
                                             _ => 0,
                                         };
                                         let data = apply_filter(data, &filters);
+                                        let data = apply_search(data, &query);
                                         // Extract filtered backlog for empty-state disclosure.
                                         let empty_backlog = match &data {
                                             TaskListData::DeadlineGrouped(groups, bl) if groups.is_empty() && !bl.is_empty() => {
@@ -796,10 +879,15 @@ fn TaskList() -> impl IntoView {
                                             TaskListData::DayGrouped(v) => v.iter().all(|(_, t)| t.is_empty()),
                                         };
                                         if is_empty {
+                                            let empty_msg = if !query.is_empty() || !filters.is_empty() {
+                                                "No matches."
+                                            } else {
+                                                view.empty_message()
+                                            };
                                             Either::Left(view! {
                                                 <div>
                                                     <p class="px-6 py-6 text-center text-slate-400">
-                                                        {view.empty_message().to_string()}
+                                                        {empty_msg.to_string()}
                                                     </p>
                                                     {if let Some(backlog) = empty_backlog {
                                                         let backlog_expanded = RwSignal::new(false);
