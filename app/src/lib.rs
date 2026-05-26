@@ -521,6 +521,203 @@ fn apply_search(data: TaskListData, query: &str) -> TaskListData {
     }
 }
 
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+    use indexmap::IndexSet;
+    use kid_types::task::{Summary, Task};
+
+    fn infos(summary: &str) -> task::Infos {
+        Task::new(summary.parse::<Summary>().unwrap()).info().clone()
+    }
+
+    fn infos_cat(summary: &str, category: &str) -> task::Infos {
+        Task::new(summary.parse::<Summary>().unwrap())
+            .with_category(category.parse().unwrap())
+            .info()
+            .clone()
+    }
+
+    fn infos_ctx(summary: &str, contexts: &[&str]) -> task::Infos {
+        let ctx: IndexSet<_> = contexts.iter().map(|c| c.parse().unwrap()).collect();
+        Task::new(summary.parse::<Summary>().unwrap())
+            .with_contexts(ctx)
+            .info()
+            .clone()
+    }
+
+    fn grouped(tasks: Vec<(&str, task::Infos)>) -> TaskListData {
+        let mut map = IndexMap::new();
+        for (cat, info) in tasks {
+            map.entry(cat.parse().unwrap())
+                .or_insert_with(Vec::new)
+                .push((Uuid::now_v7(), info));
+        }
+        TaskListData::Grouped(map)
+    }
+
+    fn grouped_count(data: &TaskListData) -> usize {
+        match data {
+            TaskListData::Grouped(m) => m.values().map(|v| v.len()).sum(),
+            _ => panic!("expected Grouped"),
+        }
+    }
+
+    fn grouped_summaries(data: &TaskListData) -> Vec<String> {
+        match data {
+            TaskListData::Grouped(m) => m.values()
+                .flat_map(|v| v.iter().map(|(_, i)| i.summary().to_string()))
+                .collect(),
+            _ => panic!("expected Grouped"),
+        }
+    }
+
+    // --- empty / whitespace query returns data unchanged ---
+
+    #[test]
+    fn empty_query_returns_unchanged() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    #[test]
+    fn whitespace_only_query_returns_unchanged() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "   ");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    // --- exact and case-insensitive matching ---
+
+    #[test]
+    fn exact_match() {
+        let data = grouped(vec![
+            ("Inbox", infos("Milch kaufen")),
+            ("Inbox", infos("Rasen mähen")),
+        ]);
+        let result = apply_search(data, "Milch");
+        assert_eq!(grouped_summaries(&result), vec!["Milch kaufen"]);
+    }
+
+    #[test]
+    fn case_insensitive() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "milch");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    // --- subsequence fuzzy matching ---
+
+    #[test]
+    fn subsequence_skipped_chars() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "mlch");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    #[test]
+    fn subsequence_word_starts() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "mkf");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    #[test]
+    fn missing_char_no_match() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        // 'q' appears nowhere in "Milch kaufen Inbox"
+        let result = apply_search(data, "milq");
+        assert_eq!(grouped_count(&result), 0);
+    }
+
+    // --- multi-word AND logic ---
+
+    #[test]
+    fn multi_word_all_must_match() {
+        let data = grouped(vec![
+            ("Inbox", infos("Milch kaufen")),
+            ("Inbox", infos("Schuhe kaufen")),
+        ]);
+        let result = apply_search(data, "milch kauf");
+        assert_eq!(grouped_summaries(&result), vec!["Milch kaufen"]);
+    }
+
+    #[test]
+    fn multi_word_order_irrelevant() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "kauf milch");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    #[test]
+    fn multi_word_one_missing_no_match() {
+        let data = grouped(vec![("Inbox", infos("Milch kaufen"))]);
+        let result = apply_search(data, "milch haus");
+        assert_eq!(grouped_count(&result), 0);
+    }
+
+    // --- searches across category and contexts ---
+
+    #[test]
+    fn matches_category() {
+        let data = grouped(vec![
+            ("Haushalt", infos_cat("Staubsaugen", "Haushalt")),
+            ("Finanzen", infos_cat("Rechnung zahlen", "Finanzen")),
+        ]);
+        let result = apply_search(data, "haus");
+        assert_eq!(grouped_summaries(&result), vec!["Staubsaugen"]);
+    }
+
+    #[test]
+    fn matches_context() {
+        let data = grouped(vec![
+            ("Inbox", infos_ctx("Anrufen", &["@telefon"])),
+            ("Inbox", infos_ctx("Einkaufen", &["@unterwegs"])),
+        ]);
+        let result = apply_search(data, "telefon");
+        assert_eq!(grouped_summaries(&result), vec!["Anrufen"]);
+    }
+
+    #[test]
+    fn cross_field_multi_word() {
+        let data = grouped(vec![
+            ("Haushalt", infos_ctx("Staubsaugen", &["@abends"])),
+        ]);
+        // "staub" matches summary, "abend" matches context
+        let result = apply_search(data, "staub abend");
+        assert_eq!(grouped_count(&result), 1);
+    }
+
+    // --- empty groups removed ---
+
+    #[test]
+    fn empty_groups_removed() {
+        let data = grouped(vec![
+            ("Haushalt", infos_cat("Staubsaugen", "Haushalt")),
+            ("Finanzen", infos_cat("Rechnung zahlen", "Finanzen")),
+        ]);
+        let result = apply_search(data, "staub");
+        match &result {
+            TaskListData::Grouped(m) => {
+                assert_eq!(m.len(), 1);
+                assert!(m.contains_key(&"Haushalt".parse::<TaskCategory>().unwrap()));
+            }
+            _ => panic!("expected Grouped"),
+        }
+    }
+
+    #[test]
+    fn all_groups_empty_yields_empty_map() {
+        let data = grouped(vec![
+            ("Haushalt", infos("Staubsaugen")),
+            ("Finanzen", infos("Rechnung zahlen")),
+        ]);
+        let result = apply_search(data, "xyznotfound");
+        assert_eq!(grouped_count(&result), 0);
+    }
+}
+
 #[component]
 fn TaskList() -> impl IntoView {
     let (expanded_task_id, set_expanded_task_id) = signal(None::<Uuid>);
