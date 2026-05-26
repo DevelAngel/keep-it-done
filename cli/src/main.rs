@@ -1,8 +1,8 @@
-use kid_cli::cli::{Cli, Commands, Parser, ServerArgs};
+use kid_cli::cli::{Cli, Commands, Parser, ServerArgs, StatusFilter};
 use kid_cli::connect;
 use kid_cli::task::{TaskDetails, TaskDetailsPatch, TaskPrint};
 
-use kid_types::{Task, TaskCategory, TaskContext, TaskPriority, TaskSummary, Uuid};
+use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
 use indexmap::IndexSet;
 
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -26,10 +26,11 @@ async fn main() -> Result<()> {
         Commands::Schema { pretty, outfile } => schema(pretty, outfile.as_deref()).await?,
         Commands::List {
             server,
-            json,
+            search,
+            status,
             pretty,
         } => {
-            list(&server, json, pretty).await?;
+            list(&server, search.as_deref(), status, pretty).await?;
         }
         Commands::Add {
             server,
@@ -114,7 +115,7 @@ async fn schema(pretty: bool, outfile: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-async fn list(server: &ServerArgs, json: bool, pretty: bool) -> Result<()> {
+async fn list(server: &ServerArgs, search: Option<&str>, status: StatusFilter, pretty: bool) -> Result<()> {
     let client = connect(&server.addr).await?;
     let task_list = async move {
         // Send the request twice, just to be safe! ;)
@@ -128,26 +129,53 @@ async fn list(server: &ServerArgs, json: bool, pretty: bool) -> Result<()> {
     .into_diagnostic()
     .wrap_err("failed to fetch the task list")?;
 
-    // Print task list to standard out
-    if json {
-        let task_list: Vec<_> = task_list
-            .iter()
-            .map(|(id, task)| TaskPrint::new(id, task))
-            .collect();
-        let stdout = io::stdout().lock();
-        let writer = BufWriter::new(stdout);
-        if pretty {
-            serde_json::to_writer_pretty(writer, &task_list).into_diagnostic()?;
-        } else {
-            serde_json::to_writer(writer, &task_list).into_diagnostic()?;
+    // Filter by status
+    let task_list: Vec<_> = task_list
+        .into_iter()
+        .filter(|(_, task)| match status {
+            StatusFilter::All => true,
+            StatusFilter::Open => !task.is_done(),
+            StatusFilter::Done => task.is_done(),
+        })
+        .collect();
+
+    // Apply fuzzy search
+    let task_list: Vec<_> = match search.map(str::trim).filter(|q| !q.is_empty()) {
+        Some(query) => {
+            let words: Vec<&str> = query.split_whitespace().collect();
+            task_list
+                .into_iter()
+                .filter(|(_, task)| {
+                    let haystack = format!(
+                        "{} {} {}",
+                        task.summary(),
+                        task.category(),
+                        task.contexts()
+                            .iter()
+                            .map(|c| c.to_string())
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    );
+                    words
+                        .iter()
+                        .all(|w| sublime_fuzzy::best_match(w, &haystack).is_some())
+                })
+                .collect()
         }
+        None => task_list,
+    };
+
+    // JSON output
+    let task_list: Vec<_> = task_list
+        .iter()
+        .map(|(id, task)| TaskPrint::new(id, task))
+        .collect();
+    let stdout = io::stdout().lock();
+    let writer = BufWriter::new(stdout);
+    if pretty {
+        serde_json::to_writer_pretty(writer, &task_list).into_diagnostic()?;
     } else {
-        task_list
-            .iter()
-            .map(|(id, task)| TaskPrint::new(id, task))
-            .enumerate()
-            .map(|(i, task)| (i + 1, task))
-            .for_each(|(n, task)| println!("{n:>3}: {task}"));
+        serde_json::to_writer(writer, &task_list).into_diagnostic()?;
     }
 
     Ok(())

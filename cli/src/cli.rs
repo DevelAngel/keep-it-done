@@ -29,15 +29,17 @@ pub enum Commands {
         #[clap(short, long = "out")]
         outfile: Option<PathBuf>,
     },
-    /// List all tasks
+    /// List tasks (JSON output)
     List {
-        /// printed in JSON
+        /// Fuzzy search query
+        search: Option<String>,
+        /// Filter by status (default: open)
+        #[clap(short, long, default_value = "open", value_enum)]
+        status: StatusFilter,
+        /// Pretty-print JSON output
         #[clap(short, long, default_value_t = false)]
-        json: bool,
-        /// pretty-printed JSON
-        #[clap(short, long, default_value_t = false, requires("json"))]
         pretty: bool,
-        /// server options
+        /// Server options
         #[clap(flatten)]
         server: ServerArgs,
     },
@@ -197,6 +199,16 @@ pub enum Commands {
         #[clap(flatten)]
         server: ServerArgs,
     },
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum StatusFilter {
+    /// Only open tasks (default)
+    Open,
+    /// Only completed tasks
+    Done,
+    /// All tasks regardless of status
+    All,
 }
 
 #[derive(Debug, Args)]

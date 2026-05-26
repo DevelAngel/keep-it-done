@@ -27,6 +27,7 @@ miette = { workspace = true, features = ["fancy"] }
 schemars.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sublime_fuzzy.workspace = true
 tarpc = { workspace = true, features = ["full"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = [
