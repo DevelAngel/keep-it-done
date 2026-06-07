@@ -37,6 +37,11 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <link rel="manifest" href="manifest.json"/>
+                <meta name="theme-color" content="#0891b2"/>
+                <meta name="apple-mobile-web-app-capable" content="yes"/>
+                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+                <link rel="apple-touch-icon" href="favicon-192x192.png"/>
                 <link rel="icon" href="favicon.ico"/>
                 <link rel="icon" type="image/png" href="favicon-16x16.png"/>
                 <link rel="icon" type="image/png" href="favicon-32x32.png"/>
@@ -62,7 +67,7 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/kid.css"/>
 
         // sets the document title
-        <Title text="Tasks"/>
+        <Title text="Keep It Done"/>
 
         // SSR→WASM bridge: inject the time offset so hydration
         // initializes today_signal with the same value as SSR.
