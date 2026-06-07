@@ -47,6 +47,9 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="icon" type="image/png" href="favicon-32x32.png"/>
                 <link rel="icon" type="image/png" href="favicon-64x46.png"/>
                 <link rel="icon" type="image/png" href="favicon-128x128.png"/>
+                <script>
+                    "if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js'); }"
+                </script>
                 <AutoReload options=options.clone()/>
                 <HydrationScripts options/>
                 <MetaTags/>
