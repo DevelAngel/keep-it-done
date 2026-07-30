@@ -18,8 +18,8 @@ use kid_types::Uuid;
 
 use crate::{DeadlineGroup, Urgency};
 
-pub(super) type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Urgency, NaiveDate)>)>;
-pub(super) type UpcomingBacklog = Vec<(Uuid, task::Infos)>;
+pub type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Urgency, NaiveDate)>)>;
+pub type UpcomingBacklog = Vec<(Uuid, task::Infos)>;
 
 /// Assign a deadline group based on the task's attention date.
 ///
@@ -78,7 +78,7 @@ pub(super) fn deadline_group(
 /// Each grouped task carries an [`Urgency`] level that controls the
 /// checkbox border accent (UXDR: upcoming-urgency-checkbox).
 #[cfg(feature = "ssr")]
-pub(super) fn group_upcoming<'a>(
+pub fn group_upcoming<'a>(
     tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
     today: NaiveDate,
 ) -> (UpcomingGroups, UpcomingBacklog) {

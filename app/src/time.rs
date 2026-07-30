@@ -70,3 +70,22 @@ pub fn now() -> DateTime<Utc> {
 pub fn today() -> NaiveDate {
     now().date_naive()
 }
+
+/// Like [`now()`], but takes an explicit offset (in seconds) instead of
+/// reading it from Leptos context/the DOM.
+///
+/// For callers outside the Leptos reactive scope - e.g. the MCP server,
+/// which reads the same `SharedTimeOffset` directly rather than through a
+/// context - that don't have `now()`/`today()`'s implicit context access
+/// available.
+pub fn now_at_offset(offset_seconds: Option<i64>) -> DateTime<Utc> {
+    match offset_seconds.map(TimeDelta::seconds) {
+        Some(offset) => Utc::now() + offset,
+        None => Utc::now(),
+    }
+}
+
+/// Like [`today()`], but takes an explicit offset; see [`now_at_offset()`].
+pub fn today_at_offset(offset_seconds: Option<i64>) -> NaiveDate {
+    now_at_offset(offset_seconds).date_naive()
+}

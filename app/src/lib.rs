@@ -345,7 +345,7 @@ impl DeadlineGroup {
 
     /// Context-aware label: returns "This/Next Weekend" when every task
     /// in the group falls on Sat/Sun, otherwise the default label.
-    pub(crate) fn display_label(self, all_weekend: bool) -> &'static str {
+    pub fn display_label(self, all_weekend: bool) -> &'static str {
         match (self, all_weekend) {
             (Self::ThisWeek, true) => "This Weekend",
             (Self::NextWeek, true) => "Next Weekend",
@@ -353,7 +353,7 @@ impl DeadlineGroup {
         }
     }
 
-    fn is_overdue(self) -> bool {
+    pub fn is_overdue(self) -> bool {
         matches!(self, Self::Overdue)
     }
 }

@@ -178,6 +178,7 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             mcp_listener,
             self.shutdown.clone(),
             self.task_cache.clone(),
+            self.time_offset.clone(),
             self.mcp_base_url
                 .expect("mcp_base_url must be set via with_mcp_base_url"),
             self.mcp_allowed_origins.clone(),

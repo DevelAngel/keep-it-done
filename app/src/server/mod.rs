@@ -1,6 +1,12 @@
 mod internal;
 
-use self::internal::{UpcomingGroups, UpcomingBacklog};
+/// Re-exported for reuse outside the leptos server-function boundary, e.g.
+/// by the MCP server's `kid://daily_report` resource, which needs the same
+/// deadline-urgency grouping as the Upcoming view without going through
+/// `fetch_upcoming`'s leptos server-function/context machinery.
+#[cfg(feature = "ssr")]
+pub use self::internal::group_upcoming;
+pub use self::internal::{UpcomingGroups, UpcomingBacklog};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {

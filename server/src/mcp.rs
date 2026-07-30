@@ -3,12 +3,15 @@
 //! behind the tool/resource split, the assistant-identity handling,
 //! and the separate-port transport choice.
 
-use crate::SharedTaskCache;
 use crate::oauth::{self, McpOAuthStore};
+use crate::{SharedTaskCache, SharedTimeOffset};
 
+use kid_app::{DeadlineGroup, server::group_upcoming};
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
 use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
+
+use chrono::{Datelike, Weekday};
 
 use axum::Router;
 use axum::middleware;
@@ -47,6 +50,7 @@ pub struct McpServer;
 #[derive(Clone)]
 pub struct McpService {
     task_cache: SharedTaskCache,
+    time_offset: SharedTimeOffset,
     tool_router: ToolRouter<Self>,
 }
 
@@ -159,6 +163,7 @@ impl McpServer {
         listener: TcpListener,
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
+        time_offset: SharedTimeOffset,
         base_url: Url,
         allowed_origins: Vec<Url>,
         clients: crate::oauth::McpClientsConfig,
@@ -180,7 +185,7 @@ impl McpServer {
             .collect();
 
         let mcp_service = StreamableHttpService::new(
-            move || Ok(McpService::new(task_cache.clone())),
+            move || Ok(McpService::new(task_cache.clone(), time_offset.clone())),
             Arc::new(LocalSessionManager::default()),
             StreamableHttpServerConfig::default()
                 .with_allowed_origins(allowed_origins)
@@ -275,6 +280,20 @@ impl ServerHandler for McpService {
                 Resource::new(self::contexts::URI, self::contexts::NAME)
                     .with_description("Contexts currently in use")
                     .with_mime_type("application/json"),
+                Resource::new(self::daily_report::URI, self::daily_report::NAME)
+                    .with_description(
+                        "Markdown summary of open tasks for today: grouped into \
+                         Overdue, Today, Tomorrow, This Week, Next Week, Later, and \
+                         Ready to Start. Use this to tell a human what's on their \
+                         plate.",
+                    )
+                    .with_mime_type("text/markdown"),
+                Resource::new(self::backlog::URI, self::backlog::NAME)
+                    .with_description(
+                        "Markdown list of open tasks that have no due date and \
+                         aren't ready to start yet.",
+                    )
+                    .with_mime_type("text/markdown"),
             ],
             next_cursor: None,
             meta: None,
@@ -307,6 +326,24 @@ impl ServerHandler for McpService {
                 let json = serde_json::to_string(&contexts).unwrap_or_default();
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(json, &uri).with_mime_type("application/json"),
+                ]))
+            }
+            self::daily_report::URI => {
+                let cache = self.task_cache.read().await;
+                let today = kid_app::time::today_at_offset(self.time_offset.get());
+                let (groups, _backlog) = group_upcoming(cache.iter(), today);
+                let markdown = render_daily_report(groups);
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
+                ]))
+            }
+            self::backlog::URI => {
+                let cache = self.task_cache.read().await;
+                let today = kid_app::time::today_at_offset(self.time_offset.get());
+                let (_groups, backlog) = group_upcoming(cache.iter(), today);
+                let markdown = render_backlog(backlog);
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             _ => Err(McpError::resource_not_found(
@@ -600,9 +637,10 @@ impl McpService {
 }
 
 impl McpService {
-    pub fn new(task_cache: SharedTaskCache) -> Self {
+    pub fn new(task_cache: SharedTaskCache, time_offset: SharedTimeOffset) -> Self {
         Self {
             task_cache,
+            time_offset,
             tool_router: Self::tool_router(),
         }
     }
@@ -635,6 +673,83 @@ pub(super) mod categories {
 pub(super) mod contexts {
     pub const NAME: &str = "contexts";
     pub const URI: &str = "kid://contexts";
+}
+pub(super) mod daily_report {
+    pub const NAME: &str = "daily_report";
+    pub const URI: &str = "kid://daily_report";
+}
+pub(super) mod backlog {
+    pub const NAME: &str = "backlog";
+    pub const URI: &str = "kid://backlog";
+}
+
+/// Renders `groups` (the dated-or-ready part of [`group_upcoming`]'s result)
+/// as Markdown: one heading per [`DeadlineGroup`], with the same "This/Next
+/// Weekend" relabeling and weekday/weekend divider as the Upcoming view when
+/// every task in a `ThisWeek`/`NextWeek` group falls on a weekend.
+fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
+    let mut markdown = String::from("# Daily Report\n");
+
+    if groups.is_empty() {
+        markdown.push_str("\nNo open tasks due, or ready to start, today.\n");
+        return markdown;
+    }
+
+    for (group, tasks) in &groups {
+        let all_weekend = matches!(group, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek)
+            && tasks
+                .iter()
+                .all(|(_, _, _, date)| matches!(date.weekday(), Weekday::Sat | Weekday::Sun));
+        let separator_idx = if matches!(group, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek) {
+            tasks
+                .iter()
+                .position(|(_, _, _, date)| matches!(date.weekday(), Weekday::Sat | Weekday::Sun))
+                .filter(|&idx| idx > 0)
+        } else {
+            None
+        };
+
+        markdown.push_str(&format!("\n## {}\n\n", group.display_label(all_weekend)));
+        for (idx, (_, info, ..)) in tasks.iter().enumerate() {
+            if separator_idx == Some(idx) {
+                markdown.push_str("---\n\n");
+            }
+            markdown.push_str(&task_line(info));
+        }
+    }
+
+    markdown
+}
+
+/// Renders `backlog` (the dateless part of [`group_upcoming`]'s result) as
+/// Markdown.
+fn render_backlog(backlog: kid_app::server::UpcomingBacklog) -> String {
+    let mut markdown = String::from("# Backlog\n\n");
+
+    if backlog.is_empty() {
+        markdown.push_str("No open tasks without a date.\n");
+        return markdown;
+    }
+
+    for (_, info) in &backlog {
+        markdown.push_str(&task_line(info));
+    }
+
+    markdown
+}
+
+/// Renders one task as a Markdown checkbox line, e.g.
+/// `- [ ] Buy groceries _Household_`. Always unchecked: `group_upcoming`
+/// only ever returns open tasks.
+fn task_line(info: &kid_types::task::Infos) -> String {
+    let summary = info.summary();
+    let category = info.category();
+    let category = if category.is_empty() {
+        "⚠ no category"
+    } else {
+        category
+    };
+    format!("- [ ] {summary} _{category}_\n")
 }
 
 /// Derives a `Host` header value (`host` or `host:port`) from a configured
