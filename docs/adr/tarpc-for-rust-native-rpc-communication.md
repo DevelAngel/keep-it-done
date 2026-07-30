@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by [rmcp for MCP-Based Agent Communication](rmcp-mcp-server.md)
 date: 2026-03-29
 ---
 
