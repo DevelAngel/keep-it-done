@@ -171,12 +171,6 @@ flush-LED test) go through the ordinary MCP client instead.
   mitigated by binding to a private/VPN-only interface, same as the
   old RPC port always was
 
-### Open
-
-- `docs/ai/SKILL.md` and `docs/ai/local-llm-server.md` describe a
-  CLI-driven workflow that no longer exists and need a follow-up
-  rewrite once the resource/tool set has settled
-
 ## Pros and Cons of the Options
 
 ### rmcp as a standalone server, separate port (chosen)
