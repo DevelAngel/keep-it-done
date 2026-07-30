@@ -1,5 +1,6 @@
 use clap::Args;
 pub use clap::Parser;
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 use url::Url;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -18,7 +19,7 @@ pub struct Cli {
     pub tasks_dir: Option<PathBuf>,
 
     #[command(flatten)]
-    pub verbosity: Verbosity,
+    pub verbosity: Verbosity<InfoLevel>,
 }
 
 #[derive(Debug, Args)]
@@ -77,9 +78,3 @@ pub struct ServerArgs {
     )]
     pub test_control_addr: Option<SocketAddr>,
 }
-
-#[cfg(debug_assertions)]
-pub type Verbosity = clap_verbosity_flag::Verbosity<clap_verbosity_flag::WarnLevel>;
-
-#[cfg(not(debug_assertions))]
-pub type Verbosity = clap_verbosity_flag::Verbosity;
