@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use url::Url;
 
@@ -222,9 +223,18 @@ impl McpServer {
             )
             .with_state(oauth_store.clone());
 
+        // In deployment, static assets live under LEPTOS_SITE_ROOT; for
+        // local dev (where that's unset) public/ is a sibling of server/
+        // (this crate's manifest dir) in the workspace.
+        let favicons_dir = std::env::var("LEPTOS_SITE_ROOT").unwrap_or_else(|_| {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../public").to_owned()
+        });
+        let favicons = ServeDir::new(favicons_dir);
+
         let app = Router::new()
             .merge(protected_mcp_router)
             .merge(oauth_server_router)
+            .fallback_service(favicons)
             .layer(CorsLayer::permissive())
             .layer(TraceLayer::new_for_http());
 
