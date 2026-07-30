@@ -49,14 +49,13 @@ leptos_axum = "0.8.2"
 miette = "7.6.0"
 predicates = "3.1.4"
 rand = "0"
-rmcp = "2.2.0"
+rmcp = { version = "2.2.0", features = ["reqwest"] }
 schemars = { version = "1.2.1", default-features = false }
 serde = "1.0.228"
 serde_json = "1.0.149"
 serde_with = "3.17.0"
 strum = { version = "0.26", features = ["derive"] }
 sublime_fuzzy = "0.7.0"
-tarpc = "0.37.0"
 thiserror = "2.0.12"
 tokio = "1.40.0"
 tokio-util = "0.7.18"

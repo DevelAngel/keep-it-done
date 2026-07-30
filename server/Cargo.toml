@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies.kid-types]
 path = "../types"
+features = ["mcp"]
 
 [dependencies.kid-app]
 path = "../app"
@@ -25,10 +26,10 @@ indexmap.workspace = true
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum.workspace = true
 miette = { workspace = true, features = ["fancy"] }
-rand.workspace = true
-rmcp = { workspace = true, features = ["reqwest", "server", "transport-streamable-http-server"] }
+rmcp = { workspace = true, features = ["server", "server-side-http", "transport-streamable-http-server"] }
+serde.workspace = true
 serde_json.workspace = true
-tarpc = { workspace = true, features = ["full"] }
+sublime_fuzzy.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tokio-util.workspace = true
 tower.workspace = true

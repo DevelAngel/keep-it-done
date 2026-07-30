@@ -2,7 +2,7 @@ mod builder;
 mod cache;
 mod cli;
 mod http;
-mod rpc;
+mod mcp;
 
 use crate::builder::ServerBuilder;
 use crate::cache::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
 
     let leptos_conf = get_configuration(None).into_diagnostic()?;
     let http_addr = leptos_conf.leptos_options.site_addr;
-    let rpc_addr = args.server.addr;
+    let mcp_addr = args.server.mcp_addr;
 
     let task_cache = match args.tasks_dir {
         None => SharedTaskCache::default(),
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
 
     let shutdown = CancellationToken::new();
     let server = ServerBuilder::new(&shutdown, &task_cache, &time_offset)
-        .with_rpc_addr(&rpc_addr)
+        .with_mcp_addr(&mcp_addr)
         .with_http_addr(&http_addr)
         .with_leptos_options(&leptos_conf.leptos_options)
         .try_spawn()

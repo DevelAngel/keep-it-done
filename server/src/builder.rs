@@ -1,5 +1,5 @@
 use crate::http::HttpServer;
-use crate::rpc::RpcServer;
+use crate::mcp::McpServer;
 use crate::cache::SharedEventBus;
 use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 
@@ -15,12 +15,12 @@ use std::net::SocketAddr;
 
 pub struct ServerHandles {
     task_flush: JoinHandle<()>,
-    rpc_service: JoinHandle<Result<()>>,
+    mcp_service: JoinHandle<Result<()>>,
     http_service: JoinHandle<Result<()>>,
 }
 
-pub struct ServerBuilder<RPC, HTTP, LeptosOptions> {
-    rpc_addr: RPC,
+pub struct ServerBuilder<MCP, HTTP, LeptosOptions> {
+    mcp_addr: MCP,
     http_addr: HTTP,
     leptos_options: LeptosOptions,
     shutdown: CancellationToken,
@@ -39,7 +39,7 @@ impl ServerBuilder<Unset, Unset, Unset> {
         time_offset: &SharedTimeOffset,
     ) -> Self {
         Self {
-            rpc_addr: Unset,
+            mcp_addr: Unset,
             http_addr: Unset,
             leptos_options: Unset,
             shutdown: shutdown.clone(),
@@ -51,9 +51,9 @@ impl ServerBuilder<Unset, Unset, Unset> {
 }
 
 impl<W, L> ServerBuilder<Unset, W, L> {
-    pub fn with_rpc_addr(self, addr: &SocketAddr) -> ServerBuilder<SocketAddr, W, L> {
+    pub fn with_mcp_addr(self, addr: &SocketAddr) -> ServerBuilder<SocketAddr, W, L> {
         ServerBuilder {
-            rpc_addr: *addr,
+            mcp_addr: *addr,
             http_addr: self.http_addr,
             leptos_options: self.leptos_options,
             shutdown: self.shutdown,
@@ -67,7 +67,7 @@ impl<W, L> ServerBuilder<Unset, W, L> {
 impl<R, L> ServerBuilder<R, Unset, L> {
     pub fn with_http_addr(self, addr: &SocketAddr) -> ServerBuilder<R, SocketAddr, L> {
         ServerBuilder {
-            rpc_addr: self.rpc_addr,
+            mcp_addr: self.mcp_addr,
             http_addr: *addr,
             leptos_options: self.leptos_options,
             shutdown: self.shutdown,
@@ -84,7 +84,7 @@ impl<R, W> ServerBuilder<R, W, Unset> {
         options: &LeptosOptions,
     ) -> ServerBuilder<R, W, LeptosOptions> {
         ServerBuilder {
-            rpc_addr: self.rpc_addr,
+            mcp_addr: self.mcp_addr,
             http_addr: self.http_addr,
             leptos_options: options.clone(),
             shutdown: self.shutdown,
@@ -97,8 +97,8 @@ impl<R, W> ServerBuilder<R, W, Unset> {
 
 impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
     pub async fn try_spawn(self) -> Result<ServerHandles> {
-        let (rpc_listener, http_listener) = try_join!(
-            TcpListener::bind(&self.rpc_addr),
+        let (mcp_listener, http_listener) = try_join!(
+            TcpListener::bind(&self.mcp_addr),
             TcpListener::bind(&self.http_addr),
         )
         .into_diagnostic()?;
@@ -111,12 +111,10 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             self.time_offset.clone(),
             self.event_bus.clone(),
         ));
-        let rpc_service = spawn(RpcServer::serve(
-            rpc_listener,
+        let mcp_service = spawn(McpServer::serve(
+            mcp_listener,
             self.shutdown.clone(),
             self.task_cache.clone(),
-            self.time_offset.clone(),
-            self.event_bus.clone(),
         ));
         let task_flush = {
             let event_bus = self.event_bus;
@@ -128,7 +126,7 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
         };
         Ok(ServerHandles {
             task_flush,
-            rpc_service,
+            mcp_service,
             http_service,
         })
     }
@@ -137,7 +135,7 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
 impl ServerHandles {
     pub async fn join(self) -> Result<()> {
         let _ =
-            try_join!(self.task_flush, self.rpc_service, self.http_service).into_diagnostic()?;
+            try_join!(self.task_flush, self.mcp_service, self.http_service).into_diagnostic()?;
         Ok(())
     }
 }
