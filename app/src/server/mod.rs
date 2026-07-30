@@ -8,6 +8,12 @@ mod internal;
 pub use self::internal::group_upcoming;
 pub use self::internal::{UpcomingGroups, UpcomingBacklog};
 
+/// Re-exported for reuse outside the leptos server-function boundary, e.g.
+/// by the MCP server's `kid://quick_wins` resource — see `group_upcoming`
+/// above for why.
+#[cfg(feature = "ssr")]
+pub use self::internal::group_quick_wins;
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "ssr")] {
         use crate::time;

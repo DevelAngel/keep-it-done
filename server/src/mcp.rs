@@ -6,10 +6,12 @@
 use crate::oauth::{self, McpOAuthStore};
 use crate::{SharedTaskCache, SharedTimeOffset};
 
-use kid_app::{DeadlineGroup, server::group_upcoming};
+use kid_app::{DeadlineGroup, server::group_quick_wins, server::group_upcoming};
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
+use kid_types::{
+    Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid,
+};
 
 use chrono::{Datelike, Weekday};
 
@@ -282,6 +284,13 @@ impl ServerHandler for McpService {
                          aren't ready to start yet.",
                     )
                     .with_mime_type("text/markdown"),
+                Resource::new(self::quick_wins::URI, self::quick_wins::NAME)
+                    .with_description(
+                        "Markdown list of open tasks that have a time estimate, \
+                         grouped from shortest to longest. Use this to suggest \
+                         something to knock out with whatever time is available.",
+                    )
+                    .with_mime_type("text/markdown"),
             ],
             next_cursor: None,
             meta: None,
@@ -330,6 +339,14 @@ impl ServerHandler for McpService {
                 let today = kid_app::time::today_at_offset(self.time_offset.get());
                 let (_groups, backlog) = group_upcoming(cache.iter(), today);
                 let markdown = render_backlog(backlog);
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
+                ]))
+            }
+            self::quick_wins::URI => {
+                let cache = self.task_cache.read().await;
+                let groups = group_quick_wins(cache.iter());
+                let markdown = render_quick_wins(groups);
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
@@ -665,6 +682,10 @@ pub(super) mod backlog {
     pub const NAME: &str = "backlog";
     pub const URI: &str = "kid://backlog";
 }
+pub(super) mod quick_wins {
+    pub const NAME: &str = "quick_wins";
+    pub const URI: &str = "kid://quick_wins";
+}
 
 /// Renders `groups` (the dated-or-ready part of [`group_upcoming`]'s result)
 /// as Markdown: one heading per [`DeadlineGroup`], with the same "This/Next
@@ -716,6 +737,28 @@ fn render_backlog(backlog: kid_app::server::UpcomingBacklog) -> String {
 
     for (_, info) in &backlog {
         markdown.push_str(&task_line(info));
+    }
+
+    markdown
+}
+
+/// Renders `groups` ([`group_quick_wins`]'s result) as Markdown: one
+/// heading per time estimate, shortest first.
+fn render_quick_wins(
+    groups: Vec<(TaskTimeEstimate, Vec<(Uuid, kid_types::task::Infos)>)>,
+) -> String {
+    let mut markdown = String::from("# Quick Wins\n");
+
+    if groups.is_empty() {
+        markdown.push_str("\nNo open tasks have a time estimate.\n");
+        return markdown;
+    }
+
+    for (estimate, tasks) in &groups {
+        markdown.push_str(&format!("\n## {estimate}\n\n"));
+        for (_, info) in tasks {
+            markdown.push_str(&task_line(info));
+        }
     }
 
     markdown

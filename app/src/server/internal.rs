@@ -261,7 +261,7 @@ pub(super) fn group_by_category(list: Vec<(Uuid, task::Infos)>) -> IndexMap<Task
 /// Within each group: priority descending (A before B before C),
 /// then UUID ascending (creation order).
 #[cfg(feature = "ssr")]
-pub(super) fn group_quick_wins<'a>(
+pub fn group_quick_wins<'a>(
     tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
 ) -> Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)> {
     let list: Vec<_> = tasks
