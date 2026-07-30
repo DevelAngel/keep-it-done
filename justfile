@@ -43,25 +43,17 @@ check:
 server:
     cargo leptos build
 
-[group('build-debug')]
-cli:
-    cargo build -p kid-cli
-
 # --- release build ---
 
 [group('build-release')]
-release-native: release-native-server release-native-cli
+release-native: release-native-server
 
 [group('build-release')]
-release-cross: release-cross-server release-cross-cli
+release-cross: release-cross-server
 
 [group('build-release')]
 release-native-server:
     cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
-
-[group('build-release')]
-release-native-cli:
-    cargo build -p kid-cli --release --locked
 
 [group('build-release')]
 release-cross-server:
@@ -69,10 +61,6 @@ release-cross-server:
     LEPTOS_BIN_CARGO_COMMAND=cross \
     LEPTOS_BIN_TARGET_TRIPLE={{arch}}-unknown-linux-{{libc}} \
     cargo leptos build --release --bin-cargo-args="--locked" --lib-cargo-args="--locked"
-
-[group('build-release')]
-release-cross-cli:
-    cross build --target {{arch}}-unknown-linux-{{libc}} -p kid-cli --release --locked
 
 [group('build-release')]
 release-frontend:

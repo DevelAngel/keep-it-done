@@ -11,11 +11,10 @@ assert_fs.workspace = true
 chrono.workspace = true
 cucumber = "0.21"
 indexmap.workspace = true
-kid-cli = { path = "../cli" }
 kid-types = { path = "../types" }
+rmcp = { workspace = true, features = ["client", "transport-streamable-http-client-reqwest"] }
 serde_json.workspace = true
 strum.workspace = true
-tarpc.workspace = true
 thirtyfour = "0.37.0"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 uuid = { workspace = true, features = ["v7"] }
