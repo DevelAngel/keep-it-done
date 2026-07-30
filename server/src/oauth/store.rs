@@ -7,13 +7,15 @@ use rmcp::transport::auth::OAuthClientConfig;
 use secrecy::ExposeSecret;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::time;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 use uuid::Uuid;
+
+use std::collections::HashMap;
+use std::fmt::{self, Debug, Display, Formatter};
+use std::sync::Arc;
 
 use super::config::{ClientPrefix, McpClientsConfig};
 
@@ -76,23 +78,63 @@ pub struct OnBehalfOf(String);
 #[derive(Clone, Debug, From, PartialEq)]
 pub struct Prefix(pub ClientPrefix);
 
-impl std::fmt::Display for Prefix {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Prefix {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-#[derive(Clone, Debug, Deref, Display, Eq, From, FromStr, Hash, PartialEq)]
+#[derive(Clone, Eq, From, FromStr, Hash, PartialEq)]
 #[from(forward)]
 pub struct AuthCode(Uuid);
 
-#[derive(Clone, Debug, Deref, Display, Eq, From, FromStr, Hash, PartialEq)]
+#[derive(Clone, Eq, From, FromStr, Hash, PartialEq)]
 #[from(forward)]
 pub struct AccessCode(Uuid);
 
-#[derive(Clone, Debug, Deref, Display, Eq, From, FromStr, Hash, PartialEq)]
+#[derive(Clone, Eq, From, FromStr, Hash, PartialEq)]
 #[from(forward)]
 pub struct RefreshCode(Uuid);
+
+// No `Display`/`Deref` here on purpose: both would let `{}` or a
+// `.as_simple()` deref-call print the raw secret. Access is only possible
+// through `ExposeSecret::expose_secret`, mirroring how `secrecy` gates
+// access to `SecretString`/`SecretBox`.
+impl ExposeSecret<Uuid> for AuthCode {
+    fn expose_secret(&self) -> &Uuid {
+        &self.0
+    }
+}
+
+impl ExposeSecret<Uuid> for AccessCode {
+    fn expose_secret(&self) -> &Uuid {
+        &self.0
+    }
+}
+
+impl ExposeSecret<Uuid> for RefreshCode {
+    fn expose_secret(&self) -> &Uuid {
+        &self.0
+    }
+}
+
+impl Debug for AuthCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AuthCode").field(&"[REDACTED]").finish()
+    }
+}
+
+impl Debug for AccessCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AccessCode").field(&"[REDACTED]").finish()
+    }
+}
+
+impl Debug for RefreshCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("RefreshCode").field(&"[REDACTED]").finish()
+    }
+}
 
 impl Default for AuthCode {
     fn default() -> Self {
@@ -169,7 +211,7 @@ impl AdditionalData {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct TokenAnswer {
     pub token_type: String,
     pub access_token: String,
@@ -177,14 +219,25 @@ pub struct TokenAnswer {
     pub refresh_token: String,
 }
 
+impl Debug for TokenAnswer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TokenAnswer")
+            .field("token_type", &self.token_type)
+            .field("access_token", &"[REDACTED]")
+            .field("expires_in", &self.expires_in)
+            .field("refresh_token", &"[REDACTED]")
+            .finish()
+    }
+}
+
 impl TokenAnswer {
     fn new(access_token: AccessCode, refresh_token: RefreshCode) -> Self {
-        let conv = |token: Uuid| token.as_simple().to_string();
+        let conv = |token: &Uuid| token.as_simple().to_string();
         Self {
             token_type: "Bearer".to_owned(),
-            access_token: conv(*access_token),
+            access_token: conv(access_token.expose_secret()),
             expires_in: ACCESS_TOKEN_EXPIRES_IN,
-            refresh_token: conv(*refresh_token),
+            refresh_token: conv(refresh_token.expose_secret()),
         }
     }
 }
@@ -296,7 +349,7 @@ impl McpOAuthStore {
     /// must not be redeemable again after an expired or failed attempt.
     pub async fn validate_auth_code(&self, code: &str) -> Option<AdditionalData> {
         let Ok(code) = code.parse::<AuthCode>() else {
-            tracing::warn!("invalid authorization code: {}", code);
+            tracing::warn!("invalid authorization code: failed to parse");
             return None;
         };
 
@@ -304,7 +357,7 @@ impl McpOAuthStore {
         let data = auth_sessions.remove(&code)?;
 
         if data.is_older_than(AUTH_CODE_EXPIRES_IN) {
-            tracing::debug!("authorization code expired: {}", *code);
+            tracing::debug!("authorization code expired");
             return None;
         }
 
@@ -328,7 +381,7 @@ impl McpOAuthStore {
 
     pub async fn validate_access_token(&self, token: &str) -> Option<AdditionalData> {
         let Ok(token) = token.parse::<AccessCode>() else {
-            tracing::warn!("invalid access token: {}", token);
+            tracing::warn!("invalid access token: failed to parse");
             return None;
         };
 
@@ -336,7 +389,7 @@ impl McpOAuthStore {
         let data = access_tokens.get(&token)?;
 
         if data.is_expired() {
-            tracing::debug!("access token expired: {}", *token);
+            tracing::debug!("access token expired");
             access_tokens.remove(&token);
             return None;
         }
@@ -419,7 +472,7 @@ impl McpOAuthStore {
     /// `refresh_token` grant behavior.
     pub async fn validate_refresh_token(&self, token: &str) -> Option<AdditionalData> {
         let Ok(token) = token.parse::<RefreshCode>() else {
-            tracing::warn!("invalid refresh token: {}", token);
+            tracing::warn!("invalid refresh token: failed to parse");
             return None;
         };
 
@@ -427,7 +480,7 @@ impl McpOAuthStore {
         let data = refresh_tokens.get(&token)?;
 
         if data.is_older_than(REFRESH_TOKEN_EXPIRES_IN) {
-            tracing::debug!("refresh token expired: {}", *token);
+            tracing::debug!("refresh token expired");
             refresh_tokens.remove(&token);
             return None;
         }

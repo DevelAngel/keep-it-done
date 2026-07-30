@@ -1,4 +1,5 @@
 use rmcp::transport::auth::AuthorizationMetadata;
+use secrecy::{ExposeSecret, SecretString};
 
 use axum::Json;
 use axum::body::{self, Body};
@@ -58,24 +59,43 @@ pub struct ApprovalForm {
     code_challenge_method: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct TokenRequest {
     grant_type: String,
     #[serde(default)]
-    code: String,
+    code: SecretString,
     #[allow(dead_code)]
     #[serde(default)]
     client_id: String,
     #[allow(dead_code)]
     #[serde(default)]
-    client_secret: String,
+    client_secret: SecretString,
     #[allow(dead_code)]
     #[serde(default)]
     redirect_uri: String,
     #[serde(default)]
-    code_verifier: Option<String>,
+    code_verifier: Option<SecretString>,
     #[serde(default)]
-    refresh_token: String,
+    refresh_token: SecretString,
+}
+
+// Manual Debug: keeps non-secret fields visible for debugging while never
+// touching the secret values.
+impl std::fmt::Debug for TokenRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenRequest")
+            .field("grant_type", &self.grant_type)
+            .field("code", &"[REDACTED]")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("redirect_uri", &self.redirect_uri)
+            .field(
+                "code_verifier",
+                &self.code_verifier.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("refresh_token", &"[REDACTED]")
+            .finish()
+    }
 }
 
 /// OAuth 2.0 Protected Resource Metadata (RFC 9728),
@@ -235,7 +255,7 @@ pub async fn approve(
         format!(
             "{uri}?code={code}",
             uri = form.redirect_uri,
-            code = auth_code.as_simple()
+            code = auth_code.expose_secret().as_simple()
         )
     } else {
         tracing::warn!("user rejected the authorization request");
@@ -256,7 +276,7 @@ pub async fn gen_access_token(
     tracing::debug!("client requests an access token");
     let request = match body::to_bytes(request.into_body(), usize::MAX).await {
         Ok(bytes) => {
-            tracing::debug!("request body: {}", String::from_utf8_lossy(&bytes));
+            tracing::debug!("request body received ({} bytes)", bytes.len());
             bytes
         }
         Err(e) => {
@@ -315,7 +335,7 @@ pub async fn gen_access_token(
     };
 
     if let Some(client_secret) = client.client_secret.as_deref() {
-        if request.client_secret != client_secret {
+        if request.client_secret.expose_secret() != client_secret {
             tracing::warn!("invalid secret for client {}", client.client_id);
             return (
                 StatusCode::BAD_REQUEST,
@@ -332,9 +352,9 @@ pub async fn gen_access_token(
 
     match request.grant_type.as_str() {
         "authorization_code" => {
-            let auth_code = &request.code;
+            let auth_code = request.code.expose_secret();
             let Some(data) = state.validate_auth_code(auth_code).await else {
-                tracing::warn!("invalid authorization code: {}", auth_code);
+                tracing::warn!("invalid authorization code (client {})", request.client_id);
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(serde_json::json!({
@@ -348,8 +368,8 @@ pub async fn gen_access_token(
             if let Some(pkce) = &data.pkce {
                 let verified = request
                     .code_verifier
-                    .as_deref()
-                    .is_some_and(|verifier| pkce.verify(verifier));
+                    .as_ref()
+                    .is_some_and(|verifier| pkce.verify(verifier.expose_secret()));
                 if !verified {
                     tracing::warn!("PKCE verification failed for client {}", data.client_id);
                     return (
@@ -426,9 +446,9 @@ pub async fn gen_access_token(
             }
         }
         "refresh_token" => {
-            let refresh_token = &request.refresh_token;
+            let refresh_token = request.refresh_token.expose_secret();
             let Some(data) = state.validate_refresh_token(refresh_token).await else {
-                tracing::warn!("invalid refresh token: {}", refresh_token);
+                tracing::warn!("invalid refresh token (client {})", request.client_id);
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(serde_json::json!({
@@ -494,8 +514,6 @@ pub async fn validate_access_token(
             return token_store.unauthorized();
         }
     };
-    tracing::debug!("token: {token}");
-
     match token_store.validate_access_token(&token).await {
         Some(data) => {
             tracing::info!("valid access token (client {})", data.client_id);
