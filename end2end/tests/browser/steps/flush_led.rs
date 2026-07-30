@@ -1,29 +1,44 @@
 use anyhow::Result;
 use cucumber::{then, when};
-use kid_types::{Task, TaskSummary};
-use tarpc::context;
+use rmcp::model::CallToolRequestParams;
 use thirtyfour::prelude::*;
 
 use std::fs;
 
+use crate::helpers::TEST_CONTROL_ADDR;
 use crate::world::AppWorld;
 
 // -- Triggers -----------------------------------------------------
 
-#[when(expr = "I add a task {string} via RPC")]
-async fn add_task_via_rpc(world: &mut AppWorld, summary: String) -> Result<()> {
-    let summary: TaskSummary = summary.parse().expect("valid summary");
-    let task = Task::new(summary);
+#[when(expr = "I add a task {string} via MCP")]
+async fn add_task_via_mcp(world: &mut AppWorld, summary: String) -> Result<()> {
     world
-        .rpc
-        .add(context::current(), task, "e2e-flush".into())
+        .mcp()
+        .await?
+        .call_tool(
+            CallToolRequestParams::new("add").with_arguments(
+                serde_json::json!({
+                    "summary": summary,
+                    "category": "Inbox",
+                    "on_behalf_of": "e2e-flush",
+                })
+                .as_object()
+                .cloned()
+                .expect("object"),
+            ),
+        )
         .await?;
     Ok(())
 }
 
 #[when("I flush the task cache")]
 async fn flush_task_cache(world: &mut AppWorld) -> Result<()> {
-    world.rpc.flush(context::current()).await?;
+    world
+        .admin
+        .post(format!("http://{TEST_CONTROL_ADDR}/flush"))
+        .send()
+        .await?
+        .error_for_status()?;
     // Give the SSE event time to arrive and the DOM to update.
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     Ok(())

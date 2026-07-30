@@ -27,7 +27,9 @@ test-one name:
 [group('test')]
 test-e2e:
     @killall --quiet --interactive --wait kid-server || true
-    cargo leptos end-to-end
+    KID_TEST_CONTROL_ADDR=127.0.0.1:9200 \
+    KID_MCP_CLIENTS_FILE=end2end/mcp-clients.test.toml \
+    cargo leptos end-to-end --bin-features kid-server/test-control
 
 # --- build test ---
 

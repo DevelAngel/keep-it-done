@@ -1,0 +1,10 @@
+# OAuth client registry for the e2e browser test harness, pointed at via
+# KID_MCP_CLIENTS_FILE in `justfile`'s `test-e2e` target. Matches the
+# client_id/secret/redirect_uri baked into `helpers.rs`'s OAuth constants
+# — the redirect_uri is never actually served, since the harness captures
+# the authorization code straight from the `/oauth/approve` redirect
+# response instead of following a browser through it.
+[[client]]
+name = "kid-e2e"
+redirect_uri = "http://localhost:9299/callback"
+secret = "e2e-test-secret"

@@ -1,11 +1,6 @@
 [workspace]
 resolver = "3"
-# `end2end` is temporarily excluded: it drove server-control operations
-# (switch_dir/set_time_offset/reset_time_offset/count/flush) through the
-# removed tarpc RPC. Its MCP-based replacement is explicitly deferred,
-# see "Open" in docs/adr/rmcp-mcp-server.md.
-members = ["frontend", "server"]
-exclude = ["end2end"]
+members = ["end2end", "frontend", "server"]
 
 # need to be applied only to wasm build
 [profile.release]

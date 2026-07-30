@@ -4,6 +4,8 @@ mod cli;
 mod http;
 mod mcp;
 mod oauth;
+#[cfg(feature = "test-control")]
+mod testctl;
 
 use crate::builder::ServerBuilder;
 use crate::cache::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
@@ -66,15 +68,19 @@ async fn main() -> Result<()> {
     let mcp_clients = McpClientsConfig::load(args.server.mcp_clients_file.as_deref())?;
 
     let shutdown = CancellationToken::new();
-    let server = ServerBuilder::new(&shutdown, &task_cache, &time_offset)
+    #[allow(unused_mut)]
+    let mut server = ServerBuilder::new(&shutdown, &task_cache, &time_offset)
         .with_mcp_addr(&mcp_addr)
         .with_mcp_base_url(&args.server.mcp_base_url)
         .with_mcp_allowed_origins(&args.server.mcp_allowed_origins)
         .with_mcp_clients(mcp_clients)
         .with_http_addr(&http_addr)
-        .with_leptos_options(&leptos_conf.leptos_options)
-        .try_spawn()
-        .await?;
+        .with_leptos_options(&leptos_conf.leptos_options);
+    #[cfg(feature = "test-control")]
+    {
+        server = server.with_test_control_addr(args.server.test_control_addr);
+    }
+    let server = server.try_spawn().await?;
 
     setup_signals().await;
     graceful_shutdown(shutdown, task_cache).await;

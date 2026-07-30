@@ -44,7 +44,8 @@ The `kid-end2end` crate runs browser tests via
 [Cucumber](https://crates.io/crates/cucumber) (Gherkin feature files)
 and [thirtyfour](https://crates.io/crates/thirtyfour) (WebDriver).
 Tests connect to a running `kid-server` instance and seed task data
-over RPC.
+via a test-control admin channel, with task mutations exercised
+through the MCP client.
 
 There are two feature files (tagged for selective execution):
 
@@ -56,7 +57,8 @@ There are two feature files (tagged for selective execution):
 ### Requirements
 
 - Chrome or Chromium installed on the system
-- `kid-server` running on `:3000` (HTTP) and `:9000` (RPC)
+- `kid-server` running on `:3000` (HTTP), `:9100` (MCP), and `:9200`
+  (test-control admin channel, requires the `test-control` feature)
 
 ### Run all e2e tests (recommended)
 
@@ -89,17 +91,19 @@ $ cargo test --test browser -- --tags=@screenshot
 ### Screenshots
 
 The `@screenshot` feature uses a Scenario Outline that runs once per
-view. Each scenario seeds tasks via RPC from a Gherkin data table,
+view. Each scenario seeds tasks via the test-control admin channel
+from a Gherkin data table,
 opens the view directly via `?view=` query parameter (SSR, no WASM
 hydration needed), and saves a PNG to `screenshots/` at the workspace
 root. These paths are referenced in `README.md`.
 
 ### How it works
 
-1. A **before hook** creates a temp directory and calls `switch_dir`
-   over RPC so the server writes task files there.
-2. The **Given** step seeds tasks via `add_with_id` RPC — each task
-   gets a backdated UUID v7 so `days ago` values are realistic.
+1. A **before hook** creates a temp directory; the **Given** step
+   writes seed task files directly to disk, then calls `switch-dir`
+   on the test-control admin channel so the server loads them.
+2. Seed files get a backdated UUID v7 so `days ago` values are
+   realistic.
    Dates (`start`, `due`) use relative day offsets (`+5`, `-3`, `0`).
 3. Headless Chrome is launched at 360 x 1400 px (mobile width, tall) with
    scrollbars hidden. `WebDriver::managed` handles chromedriver
@@ -128,7 +132,7 @@ Each view needs specific task properties to display content:
 | ------------------------------ | ----------------------------------------------------- |
 | WebDriver connection refused   | Install Chrome and ensure `chromedriver` is available |
 | Screenshots show unstyled HTML | Run `cargo leptos build` to generate CSS/WASM assets  |
-| RPC connect failed             | Start the server: `cargo leptos watch`                |
+| Test-control connect failed    | Start the server: `cargo leptos watch`                |
 | Upcoming view shows no tasks   | Verify seed tasks have `start` or `due` dates set     |
 
 ## Running all tests

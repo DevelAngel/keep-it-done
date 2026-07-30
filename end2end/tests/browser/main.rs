@@ -1,4 +1,5 @@
 mod helpers;
+mod oauth;
 mod screenshots;
 mod seeds;
 mod steps;
@@ -7,10 +8,10 @@ mod world;
 use anyhow::Result;
 use assert_fs::TempDir;
 use cucumber::World as _;
-use tarpc::context;
 
 use std::env;
 
+use helpers::TEST_CONTROL_ADDR;
 use world::AppWorld;
 
 #[tokio::main]
@@ -32,16 +33,20 @@ async fn main() -> Result<()> {
             Box::pin(async move {
                 if let Some(world) = world {
                     world
-                        .rpc
-                        .reset_time_offset(context::current())
+                        .admin
+                        .post(format!("http://{TEST_CONTROL_ADDR}/reset-time-offset"))
+                        .send()
                         .await
+                        .and_then(reqwest::Response::error_for_status)
                         .expect("reset_time_offset failed");
                     let cwd = env::current_dir().expect("CWD available");
                     world
-                        .rpc
-                        .switch_dir(context::current(), cwd)
+                        .admin
+                        .post(format!("http://{TEST_CONTROL_ADDR}/switch-dir"))
+                        .json(&serde_json::json!({ "dir": cwd }))
+                        .send()
                         .await
-                        .expect("RPC call failed")
+                        .and_then(reqwest::Response::error_for_status)
                         .expect("switch_dir failed");
                     world.tasks_dir = None;
                 }

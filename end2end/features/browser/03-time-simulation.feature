@@ -1,7 +1,7 @@
 Feature: Upcoming view with simulated time
 
   Verify weekday-dependent grouping in the Upcoming view.
-  Uses the RPC time offset so the test result does not
+  Uses the test-control time offset so the test result does not
   depend on the real wall-clock day.
 
   See: docs/concepts/e2e-time-simulation.md

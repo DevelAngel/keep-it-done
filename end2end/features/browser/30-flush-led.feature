@@ -14,7 +14,7 @@ Feature: Flush Status LED
     When I open the app in All Open view
     Then I see tasks in the list
     And the flush LED is hidden
-    When I add a task "Flush marker" via RPC
+    When I add a task "Flush marker" via MCP
     And I flush the task cache
     Then the flush LED shows success
 
@@ -25,7 +25,7 @@ Feature: Flush Status LED
       | Fix fence | Inbox    | open   | 1        |
     When I open the app in All Open view
     Then I see tasks in the list
-    When I add a task "Flush marker" via RPC
+    When I add a task "Flush marker" via MCP
     And I flush the task cache
     Then the flush LED shows success
     When I wait for the LED to auto-dismiss
@@ -41,7 +41,7 @@ Feature: Flush Status LED
     When I open the app in All Open view
     Then I see tasks in the list
     # Create a real task so the first flush has dirty state
-    When I add a task "Flush marker" via RPC
+    When I add a task "Flush marker" via MCP
     And I flush the task cache
     And I wait for the LED to auto-dismiss
     # Second flush has nothing dirty
@@ -58,7 +58,7 @@ Feature: Flush Status LED
       | Water plants| Inbox    | open   | 1        |
     When I open the app in All Open view
     Then I see tasks in the list
-    When I add a task "Flush marker" via RPC
+    When I add a task "Flush marker" via MCP
     And I make the tasks directory read-only
     And I flush the task cache
     Then the flush LED shows error

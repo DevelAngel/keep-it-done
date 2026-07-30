@@ -129,17 +129,26 @@ verbose per-field prose (e.g. spelling out every enum value of
 belongs in the `kid://guide` resource, fetched once, not repeated in
 every tool schema.
 
-### MVP scope — server-control operations open
+### MVP scope — server-control operations kept off the MCP server
 
 `switch_dir`, `set_time_offset`, `reset_time_offset`, `count`, and
 `flush` existed purely to support the e2e browser test harness, not
 actual task management. Exposing them as regular MCP tools on an
-otherwise trusted-network port is an unresolved safety question
+otherwise trusted-network port would be an unresolved safety question
 (`switch_dir` accepts an arbitrary filesystem path; `set_time_offset`
-warps time for every connected client). This ADR explicitly leaves
-that question open — the initial rmcp server ships **task tools and
-resources only**. The e2e test harness's replacement for these RPC
-calls is a separate, later piece of work.
+warps time for every connected client) — so the rmcp server ships
+**task tools and resources only**, and stays that way.
+
+The e2e harness instead gets its own small JSON-over-HTTP admin
+channel (`kid-server/src/testctl.rs`), compiled in only behind the
+`test-control` Cargo feature (`cargo leptos end-to-end --bin-features
+kid-server/test-control`) and bound only when
+`KID_TEST_CONTROL_ADDR`/`--test-control-listen` is explicitly set.
+Production builds never enable the feature, so the admin channel does
+not exist in the shipped binary at all — two independent gates
+(compile-time feature, explicit address) instead of relying on either
+alone. Real task mutations the harness needs (e.g. `add` for the
+flush-LED test) go through the ordinary MCP client instead.
 
 ### Consequences
 
@@ -164,10 +173,6 @@ calls is a separate, later piece of work.
 
 ### Open
 
-- Server-control operations needed by the e2e harness
-  (`switch_dir`/`set_time_offset`/`reset_time_offset`/`count`/`flush`)
-  have no home yet in the MCP server — deliberately deferred, not
-  solved, pending a decision on safe exposure (see MVP scope above)
 - `docs/ai/SKILL.md` and `docs/ai/local-llm-server.md` describe a
   CLI-driven workflow that no longer exists and need a follow-up
   rewrite once the resource/tool set has settled
@@ -225,4 +230,3 @@ listener alongside the HTTP listener.
 - `docs/ai/SKILL.md` → content migrates into the `kid://guide` MCP resource
 - `docs/ai/local-llm-server.md` → CLI-driving language needs updating to MCP tool-calling language
 - `docs/test-instructions.md` → RPC references become MCP references
-- e2e harness replacement for `switch_dir`/`set_time_offset`/`reset_time_offset`/`count`/`flush`

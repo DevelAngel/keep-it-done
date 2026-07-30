@@ -3,6 +3,8 @@ use crate::mcp::McpServer;
 use crate::oauth::McpClientsConfig;
 use crate::cache::SharedEventBus;
 use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
+#[cfg(feature = "test-control")]
+use crate::testctl::TestControlServer;
 
 use leptos::prelude::*;
 use miette::{IntoDiagnostic, Result};
@@ -19,6 +21,8 @@ pub struct ServerHandles {
     task_flush: JoinHandle<()>,
     mcp_service: JoinHandle<Result<()>>,
     http_service: JoinHandle<Result<()>>,
+    #[cfg(feature = "test-control")]
+    test_control_service: Option<JoinHandle<Result<()>>>,
 }
 
 pub struct ServerBuilder<MCP, HTTP, LeptosOptions> {
@@ -32,6 +36,8 @@ pub struct ServerBuilder<MCP, HTTP, LeptosOptions> {
     task_cache: SharedTaskCache,
     time_offset: SharedTimeOffset,
     event_bus: SharedEventBus,
+    #[cfg(feature = "test-control")]
+    test_control_addr: Option<SocketAddr>,
 }
 
 #[doc(hidden)]
@@ -54,6 +60,8 @@ impl ServerBuilder<Unset, Unset, Unset> {
             task_cache: task_cache.clone(),
             time_offset: time_offset.clone(),
             event_bus: SharedEventBus::new(),
+            #[cfg(feature = "test-control")]
+            test_control_addr: None,
         }
     }
 }
@@ -71,6 +79,8 @@ impl<W, L> ServerBuilder<Unset, W, L> {
             task_cache: self.task_cache,
             time_offset: self.time_offset,
             event_bus: self.event_bus,
+            #[cfg(feature = "test-control")]
+            test_control_addr: self.test_control_addr,
         }
     }
 }
@@ -96,6 +106,15 @@ impl<R, W, L> ServerBuilder<R, W, L> {
         self.mcp_clients = clients;
         self
     }
+
+    /// Address for the e2e test harness's admin channel; see
+    /// `cli::ServerArgs::test_control_addr`. `None` (the default)
+    /// means the admin channel is never bound.
+    #[cfg(feature = "test-control")]
+    pub fn with_test_control_addr(mut self, addr: Option<SocketAddr>) -> Self {
+        self.test_control_addr = addr;
+        self
+    }
 }
 
 impl<R, L> ServerBuilder<R, Unset, L> {
@@ -111,6 +130,8 @@ impl<R, L> ServerBuilder<R, Unset, L> {
             task_cache: self.task_cache,
             time_offset: self.time_offset,
             event_bus: self.event_bus,
+            #[cfg(feature = "test-control")]
+            test_control_addr: self.test_control_addr,
         }
     }
 }
@@ -131,6 +152,8 @@ impl<R, W> ServerBuilder<R, W, Unset> {
             task_cache: self.task_cache,
             time_offset: self.time_offset,
             event_bus: self.event_bus,
+            #[cfg(feature = "test-control")]
+            test_control_addr: self.test_control_addr,
         }
     }
 }
@@ -159,6 +182,21 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             self.mcp_allowed_origins.clone(),
             self.mcp_clients.clone(),
         ));
+        #[cfg(feature = "test-control")]
+        let test_control_service = match self.test_control_addr {
+            Some(addr) => {
+                let listener = TcpListener::bind(&addr).await.into_diagnostic()?;
+                Some(spawn(TestControlServer::serve(
+                    listener,
+                    self.shutdown.clone(),
+                    self.task_cache.clone(),
+                    self.time_offset.clone(),
+                    self.event_bus.clone(),
+                )))
+            }
+            None => None,
+        };
+
         let task_flush = {
             let event_bus = self.event_bus;
             spawn(async move {
@@ -171,12 +209,25 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             task_flush,
             mcp_service,
             http_service,
+            #[cfg(feature = "test-control")]
+            test_control_service,
         })
     }
 }
 
 impl ServerHandles {
     pub async fn join(self) -> Result<()> {
+        #[cfg(feature = "test-control")]
+        if let Some(test_control_service) = self.test_control_service {
+            let _ = try_join!(
+                self.task_flush,
+                self.mcp_service,
+                self.http_service,
+                test_control_service
+            )
+            .into_diagnostic()?;
+            return Ok(());
+        }
         let _ =
             try_join!(self.task_flush, self.mcp_service, self.http_service).into_diagnostic()?;
         Ok(())

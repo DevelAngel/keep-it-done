@@ -7,6 +7,13 @@ authors.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+# Opt-in admin channel for the e2e browser test harness
+# (switch_dir/count/set_time_offset/reset_time_offset/flush). Never
+# enabled in production builds — see docs/adr/rmcp-mcp-server.md.
+test-control = []
+
 [dependencies.kid-types]
 path = "../types"
 features = ["mcp"]

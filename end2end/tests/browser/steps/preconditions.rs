@@ -2,10 +2,9 @@ use anyhow::Result;
 use chrono::{Datelike, TimeDelta, Utc};
 use cucumber::gherkin::Step;
 use cucumber::given;
-use tarpc::context;
-
 use std::collections::HashMap;
 
+use crate::helpers::TEST_CONTROL_ADDR;
 use crate::seeds;
 use crate::world::AppWorld;
 
@@ -59,9 +58,12 @@ async fn simulate_weekday(world: &mut AppWorld, weekday: String) -> Result<()> {
     let offset_seconds = days * 86_400;
 
     world
-        .rpc
-        .set_time_offset(context::current(), offset_seconds)
-        .await
+        .admin
+        .post(format!("http://{TEST_CONTROL_ADDR}/set-time-offset"))
+        .json(&serde_json::json!({ "seconds": offset_seconds }))
+        .send()
+        .await?
+        .error_for_status()
         .expect("set_time_offset failed");
     world.time_offset_seconds = Some(offset_seconds);
 
@@ -72,13 +74,22 @@ async fn simulate_weekday(world: &mut AppWorld, weekday: String) -> Result<()> {
 async fn empty_task_list(world: &mut AppWorld) -> Result<()> {
     let dir = world.tasks_dir.as_ref().expect("tasks_dir must be set");
     world
-        .rpc
-        .switch_dir(context::current(), dir.path().to_path_buf())
-        .await
-        .expect("RPC call failed")
+        .admin
+        .post(format!("http://{TEST_CONTROL_ADDR}/switch-dir"))
+        .json(&serde_json::json!({ "dir": dir.path() }))
+        .send()
+        .await?
+        .error_for_status()
         .expect("switch_dir failed");
-    let count = world.rpc.count(context::current()).await?;
-    assert_eq!(count, 0);
+    let count: serde_json::Value = world
+        .admin
+        .get(format!("http://{TEST_CONTROL_ADDR}/count"))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    assert_eq!(count["count"], 0);
     Ok(())
 }
 
@@ -128,10 +139,12 @@ async fn create_tasks(world: &mut AppWorld, step: &Step) -> Result<()> {
 
     // Now switch the server to this directory so it loads the files.
     world
-        .rpc
-        .switch_dir(context::current(), dir.path().to_path_buf())
-        .await
-        .expect("RPC call failed")
+        .admin
+        .post(format!("http://{TEST_CONTROL_ADDR}/switch-dir"))
+        .json(&serde_json::json!({ "dir": dir.path() }))
+        .send()
+        .await?
+        .error_for_status()
         .expect("switch_dir failed");
 
     Ok(())
