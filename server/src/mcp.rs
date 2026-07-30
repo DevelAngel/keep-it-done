@@ -667,24 +667,24 @@ fn parse_err(e: &str) -> McpError {
 }
 
 pub(super) mod categories {
-    pub const NAME: &str = "categories";
+    pub const NAME: &str = "Categories";
     pub const URI: &str = "kid://categories";
 }
 pub(super) mod contexts {
-    pub const NAME: &str = "contexts";
+    pub const NAME: &str = "Contexts";
     pub const URI: &str = "kid://contexts";
 }
 pub(super) mod daily_report {
-    pub const NAME: &str = "daily_report";
-    pub const URI: &str = "kid://daily_report";
+    pub const NAME: &str = "Daily Report";
+    pub const URI: &str = "kid://report/daily";
 }
 pub(super) mod backlog {
-    pub const NAME: &str = "backlog";
-    pub const URI: &str = "kid://backlog";
+    pub const NAME: &str = "Backlog";
+    pub const URI: &str = "kid://report/backlog";
 }
 pub(super) mod quick_wins {
-    pub const NAME: &str = "quick_wins";
-    pub const URI: &str = "kid://quick_wins";
+    pub const NAME: &str = "Quick Wins";
+    pub const URI: &str = "kid://report/quick_wins";
 }
 
 /// Renders `groups` (the dated-or-ready part of [`group_upcoming`]'s result)
