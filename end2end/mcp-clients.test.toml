@@ -6,5 +6,6 @@
 # response instead of following a browser through it.
 [[client]]
 name = "kid-e2e"
+on-behalf-of = "test"
 redirect_uri = "http://localhost:9299/callback"
 secret = "e2e-test-secret"

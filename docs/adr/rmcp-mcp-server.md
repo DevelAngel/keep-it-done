@@ -69,17 +69,24 @@ Tinyauth either.
 The old CLI required an explicit `--assistant` flag (default
 `"assistant"`, override via `KID_CLI_ASSISTANT`) that any caller could
 set to anything, including impersonating a different assistant. MCP's
-`initialize` handshake carries `clientInfo.name` — supplied by the
-assistant's own runtime, not by the request payload the assistant
-authors — so mutating tools now read the assistant name directly from
-`RequestContext::peer.peer_info().client_info.name` instead of
-accepting it as a tool parameter. Tools keep only `on_behalf_of` (the
-human on whose behalf the AI is acting) as an explicit string
-parameter; the full actor string remains `ai:<assistant>:<human>` (see
-`docs/concepts/author-tracking.md`).
+`initialize` handshake carries `clientInfo.name`, but that's supplied by
+the client's own runtime and thus just as freely claimed — no better
+than the old flag.
 
-Fallback when `peer_info()` is unexpectedly `None` (should not happen
-post-`initialize`): actor name falls back to `"ai:unknown:<on_behalf_of>"`.
+Instead, both halves of the actor string (`<client_id>:<on_behalf_of>`,
+see `docs/concepts/author-tracking.md`) are fixed server-side, per
+OAuth client, in `--mcp-clients-file`: `client_id` is derived from that
+client's `name` (optionally prefixed, e.g. `ai:claude-desktop` vs.
+`matrix-relay` — not every client is an AI assistant), and
+`on_behalf_of` names the human that client acts for. `validate_access_token`
+stashes both in the request's extensions after authenticating the
+client, and `McpService::actor` reads them back from there; neither is
+a tool parameter, so no client can claim to be someone else or act on
+someone else's behalf.
+
+Fallback when a piece is unexpectedly missing from the request
+extensions (should not happen for a request that made it past
+authentication): that piece falls back to `"unknown"`.
 
 ### Tools vs. Resources
 

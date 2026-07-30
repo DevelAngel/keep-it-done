@@ -96,8 +96,6 @@ struct AddInput {
     /// Optional task details (due_date, start_date, time_estimate, notes, availability)
     #[serde(default)]
     details: Option<TaskDetails>,
-    /// Human on whose behalf this task is created
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -105,7 +103,6 @@ struct RenameInput {
     id: Uuid,
     /// New summary — this is the task's identity, use `update` for other changes
     summary: String,
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -113,7 +110,6 @@ struct ReplaceInput {
     id: Uuid,
     /// Full replacement details — omitted fields become unset
     details: TaskDetails,
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -121,7 +117,6 @@ struct UpdateInput {
     id: Uuid,
     /// Patch — omitted fields stay unchanged, explicit null clears a field
     details: TaskDetailsPatch,
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -130,14 +125,12 @@ struct CompleteInput {
     /// Reopen the task instead of completing it
     #[serde(default)]
     reopen: bool,
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct RecategorizeInput {
     id: Uuid,
     category: String,
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -146,7 +139,6 @@ struct ContextsInput {
     /// Contexts, each starting with '@'
     #[serde(default)]
     contexts: Vec<String>,
-    on_behalf_of: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -155,7 +147,6 @@ struct SetPriorityInput {
     /// "A", "B", or "C" — omit or null to clear
     #[serde(default)]
     priority: Option<String>,
-    on_behalf_of: String,
 }
 
 impl McpServer {
@@ -260,10 +251,7 @@ impl ServerHandler for McpService {
             "Family task manager. Every task needs a category and should \
              have at least one context (GTD-style, starting with '@'). \
              Fetch kid://categories and kid://contexts to reuse existing \
-             values before inventing new ones. Mutating tools take \
-             `on_behalf_of` (the human who requested the change); the \
-             assistant's own name is derived from this MCP session, not \
-             a tool parameter.",
+             values before inventing new ones.",
         )
     }
 
@@ -415,7 +403,6 @@ impl McpService {
             category,
             contexts,
             details,
-            on_behalf_of,
         }): Parameters<AddInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
@@ -431,7 +418,7 @@ impl McpService {
         if let Some(details) = details {
             task = task.with_details(details);
         }
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         let id = cache.add(task, actor);
         Ok(CallToolResult::structured(serde_json::json!({ "id": id })))
@@ -440,15 +427,11 @@ impl McpService {
     #[tool(description = "Rename a task's summary — its identity. Use `update` for other changes")]
     async fn rename(
         &self,
-        Parameters(RenameInput {
-            id,
-            summary,
-            on_behalf_of,
-        }): Parameters<RenameInput>,
+        Parameters(RenameInput { id, summary }): Parameters<RenameInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let summary: TaskSummary = summary.parse().map_err(parse_err)?;
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -462,14 +445,10 @@ impl McpService {
     #[tool(description = "Replace all task details (PUT semantics — omitted fields cleared)")]
     async fn replace(
         &self,
-        Parameters(ReplaceInput {
-            id,
-            details,
-            on_behalf_of,
-        }): Parameters<ReplaceInput>,
+        Parameters(ReplaceInput { id, details }): Parameters<ReplaceInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -485,14 +464,10 @@ impl McpService {
     #[tool(description = "Patch task details (PATCH semantics — omitted fields unchanged)")]
     async fn update(
         &self,
-        Parameters(UpdateInput {
-            id,
-            details,
-            on_behalf_of,
-        }): Parameters<UpdateInput>,
+        Parameters(UpdateInput { id, details }): Parameters<UpdateInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -506,14 +481,10 @@ impl McpService {
     #[tool(description = "Complete a task, or reopen it with reopen=true")]
     async fn complete(
         &self,
-        Parameters(CompleteInput {
-            id,
-            reopen,
-            on_behalf_of,
-        }): Parameters<CompleteInput>,
+        Parameters(CompleteInput { id, reopen }): Parameters<CompleteInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -532,15 +503,11 @@ impl McpService {
     #[tool(description = "Change a task's category")]
     async fn recategorize(
         &self,
-        Parameters(RecategorizeInput {
-            id,
-            category,
-            on_behalf_of,
-        }): Parameters<RecategorizeInput>,
+        Parameters(RecategorizeInput { id, category }): Parameters<RecategorizeInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let category: TaskCategory = category.parse().map_err(parse_err)?;
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -556,18 +523,14 @@ impl McpService {
     #[tool(description = "Add contexts to a task, keeping existing ones")]
     async fn add_contexts(
         &self,
-        Parameters(ContextsInput {
-            id,
-            contexts,
-            on_behalf_of,
-        }): Parameters<ContextsInput>,
+        Parameters(ContextsInput { id, contexts }): Parameters<ContextsInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let contexts: IndexSet<TaskContext> = contexts
             .iter()
             .map(|s| s.parse().map_err(parse_err))
             .collect::<Result<_, _>>()?;
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -583,18 +546,14 @@ impl McpService {
     #[tool(description = "Replace all of a task's contexts (empty list clears them)")]
     async fn replace_contexts(
         &self,
-        Parameters(ContextsInput {
-            id,
-            contexts,
-            on_behalf_of,
-        }): Parameters<ContextsInput>,
+        Parameters(ContextsInput { id, contexts }): Parameters<ContextsInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let contexts: IndexSet<TaskContext> = contexts
             .iter()
             .map(|s| s.parse().map_err(parse_err))
             .collect::<Result<_, _>>()?;
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -610,16 +569,12 @@ impl McpService {
     #[tool(description = "Set or clear a task's priority")]
     async fn set_priority(
         &self,
-        Parameters(SetPriorityInput {
-            id,
-            priority,
-            on_behalf_of,
-        }): Parameters<SetPriorityInput>,
+        Parameters(SetPriorityInput { id, priority }): Parameters<SetPriorityInput>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let priority: Option<TaskPriority> =
             priority.map(|s| s.parse().map_err(parse_err)).transpose()?;
-        let actor = Self::actor(&context, &on_behalf_of);
+        let actor = Self::actor(&context)?;
         let mut cache = self.task_cache.write().await;
         match cache.get_mut(&id, actor) {
             Some(mut task) => {
@@ -645,16 +600,44 @@ impl McpService {
         }
     }
 
-    /// Derives the actor string `ai:<assistant>:<human>`
-    /// from the MCP handshake (`clientInfo.name`) and
-    /// the tool's `on_behalf_of` parameter.
-    fn actor(context: &RequestContext<RoleServer>, on_behalf_of: &str) -> String {
-        let assistant = context
-            .peer
-            .peer_info()
-            .map(|info| info.client_info.name.clone())
-            .unwrap_or_else(|| "unknown".to_string());
-        format!("ai:{assistant}:{on_behalf_of}")
+    /// Derives the actor string `<client_id>:<on_behalf_of>` entirely from
+    /// the `--mcp-clients-file` entry of the OAuth client that authenticated
+    /// this request - neither piece is claimed by the client itself.
+    ///
+    /// The client id is not the MCP handshake's self-reported
+    /// `clientInfo.name`, since that's freely claimed by the client and
+    /// thus unverified. It carries whatever prefix distinguishes it (e.g.
+    /// `ai:claude-desktop` vs. `matrix-relay`), since not every client is an
+    /// AI assistant. Likewise, `on_behalf_of` is fixed per client in that
+    /// same file, not a tool parameter - a client claiming this for itself
+    /// couldn't be trusted any more than it claiming its own identity.
+    ///
+    /// A client whose entry omits `on-behalf-of` is read-only: there's no
+    /// human to attribute a change to, so this returns an error instead of
+    /// making one up.
+    fn actor(context: &RequestContext<RoleServer>) -> Result<String, McpError> {
+        let extensions = context
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .map(|parts| &parts.extensions);
+        let client_id = extensions
+            .and_then(|ext| ext.get::<oauth::ClientId>())
+            .map(|id| id.to_string())
+            .unwrap_or_else(|| {
+                tracing::warn!("no authenticated client id in request extensions");
+                "unknown".to_string()
+            });
+        let prefix = extensions
+            .and_then(|ext| ext.get::<oauth::Prefix>())
+            .map(|prefix| format!("{prefix}:"))
+            .unwrap_or_default();
+        let Some(on_behalf_of) = extensions.and_then(|ext| ext.get::<oauth::OnBehalfOf>()) else {
+            return Err(McpError::invalid_request(
+                format!("client {prefix}{client_id} is read-only (no on-behalf-of configured)"),
+                None,
+            ));
+        };
+        Ok(format!("{prefix}{client_id}:{on_behalf_of}"))
     }
 
     fn not_found(id: Uuid) -> CallToolResult {

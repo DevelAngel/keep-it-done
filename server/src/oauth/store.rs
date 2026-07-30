@@ -15,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 use uuid::Uuid;
 
-use super::config::McpClientsConfig;
+use super::config::{ClientPrefix, McpClientsConfig};
 
 pub const ACCESS_TOKEN_EXPIRES_IN: u64 = 3600;
 
@@ -36,6 +36,10 @@ pub struct McpOAuthStore {
     /// (issuer, authorization/token endpoints).
     base_url: Url,
     clients: Arc<RwLock<HashMap<ClientId, OAuthClientConfig>>>,
+    /// Actor-string components for each client, keyed by the same
+    /// `ClientId` as `clients`. Kept separate since neither is part of the
+    /// OAuth protocol (`OAuthClientConfig`), just our own configuration.
+    actors: Arc<RwLock<HashMap<ClientId, ActorConfig>>>,
     auth_sessions: Arc<RwLock<HashMap<AuthCode, AdditionalData>>>,
     access_tokens: Arc<RwLock<HashMap<AccessCode, AdditionalData>>>,
     refresh_tokens: Arc<RwLock<HashMap<RefreshCode, AdditionalData>>>,
@@ -44,6 +48,39 @@ pub struct McpOAuthStore {
 #[derive(Clone, Debug, Deref, Display, Eq, From, Hash, PartialEq)]
 #[from(forward)]
 pub struct ClientId(String);
+
+/// Actor-string components of a client's `--mcp-clients-file` entry:
+/// `prefix` (e.g. distinguishing AI assistants) and the human it acts on
+/// behalf of. Neither is part of the OAuth client_id it authenticates
+/// with - both are stashed into request extensions by
+/// [`crate::oauth::validate_access_token`] alongside [`ClientId`], so
+/// handlers don't need to trust a tool parameter for either.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ActorConfig {
+    pub prefix: Option<ClientPrefix>,
+    /// `None` marks the client read-only: with no human to attribute a
+    /// change to, mutating tools must reject it (see [`OnBehalfOf`]).
+    pub on_behalf_of: Option<String>,
+}
+
+/// Human a client acts on behalf of, per its `--mcp-clients-file` entry.
+/// Only present in request extensions for clients whose entry configures
+/// `on-behalf-of`; its absence marks a client read-only.
+#[derive(Clone, Debug, Deref, Display, Eq, From, Hash, PartialEq)]
+#[from(forward)]
+pub struct OnBehalfOf(String);
+
+/// AI-assistant-distinguishing prefix of a client's actor string, per its
+/// `--mcp-clients-file` entry. Only present in request extensions for
+/// clients whose entry configures one.
+#[derive(Clone, Debug, From, PartialEq)]
+pub struct Prefix(pub ClientPrefix);
+
+impl std::fmt::Display for Prefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Clone, Debug, Deref, Display, Eq, From, FromStr, Hash, PartialEq)]
 #[from(forward)]
@@ -100,19 +137,21 @@ impl PkceChallenge {
 pub struct AdditionalData {
     created_at: DateTime<Utc>,
     pub client_id: ClientId,
+    pub actor: ActorConfig,
     pub pkce: Option<PkceChallenge>,
 }
 
 impl AdditionalData {
-    fn new(client_id: impl Into<ClientId>) -> Self {
-        Self::with_pkce(client_id, None)
+    fn new(client_id: ClientId, actor: ActorConfig) -> Self {
+        Self::with_pkce(client_id, actor, None)
     }
 
-    fn with_pkce(client_id: impl Into<ClientId>, pkce: Option<PkceChallenge>) -> Self {
+    fn with_pkce(client_id: ClientId, actor: ActorConfig, pkce: Option<PkceChallenge>) -> Self {
         let created_at = Utc::now();
         Self {
             created_at,
-            client_id: client_id.into(),
+            client_id,
+            actor,
             pkce,
         }
     }
@@ -159,29 +198,55 @@ impl ClientId {
 
 impl McpOAuthStore {
     pub fn new(base_url: Url, clients: McpClientsConfig) -> Self {
+        let mut actors = HashMap::new();
         let clients = clients
             .clients
             .into_iter()
             .map(|client| {
                 let redirect_uri = client
                     .redirect_uri
+                    .as_ref()
                     .map(|uri| uri.to_string())
                     .unwrap_or_default();
-                ClientId::from_config(
+                // The OAuth client_id is just `name`: `prefix` only matters
+                // for the actor string, not for authentication.
+                let (client_id, config) = ClientId::from_config(
                     OAuthClientConfig::new(client.name, redirect_uri)
                         .with_client_secret(client.secret.expose_secret())
                         .with_scopes(vec!["MCP".to_string()]),
-                )
+                );
+                actors.insert(
+                    client_id.clone(),
+                    ActorConfig {
+                        prefix: client.prefix,
+                        on_behalf_of: client.on_behalf_of,
+                    },
+                );
+                (client_id, config)
             })
             .collect();
 
         Self {
             base_url,
             clients: Arc::new(RwLock::new(clients)),
+            actors: Arc::new(RwLock::new(actors)),
             auth_sessions: Arc::new(RwLock::new(HashMap::new())),
             access_tokens: Arc::new(RwLock::new(HashMap::new())),
             refresh_tokens: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    /// Actor-string components for `client_id`, per its
+    /// `--mcp-clients-file` entry, or the read-only default if `client_id`
+    /// isn't registered at all (shouldn't happen for a client that already
+    /// made it past authentication).
+    async fn actor_config(&self, client_id: &ClientId) -> ActorConfig {
+        self.actors
+            .read()
+            .await
+            .get(client_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// This server's own base URL without a trailing slash,
@@ -215,7 +280,9 @@ impl McpOAuthStore {
         client_id: impl Into<ClientId>,
         pkce: Option<PkceChallenge>,
     ) -> AuthCode {
-        let data = AdditionalData::with_pkce(client_id, pkce);
+        let client_id = client_id.into();
+        let actor = self.actor_config(&client_id).await;
+        let data = AdditionalData::with_pkce(client_id, actor, pkce);
         let code = AuthCode::default();
 
         let mut auth_sessions = self.auth_sessions.write().await;
@@ -245,7 +312,9 @@ impl McpOAuthStore {
     }
 
     pub async fn gen_access_token(&self, client_id: impl Into<ClientId>) -> TokenAnswer {
-        let data = AdditionalData::new(client_id);
+        let client_id = client_id.into();
+        let actor = self.actor_config(&client_id).await;
+        let data = AdditionalData::new(client_id, actor);
         let access_token = AccessCode::default();
         let refresh_token = RefreshCode::default();
 

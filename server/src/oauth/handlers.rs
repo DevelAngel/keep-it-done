@@ -13,7 +13,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::store::{McpOAuthStore, PkceChallenge};
+use super::store::{McpOAuthStore, OnBehalfOf, PkceChallenge, Prefix};
 
 /// Query parameters of /authorize API call
 #[derive(Debug, Deserialize)]
@@ -474,7 +474,7 @@ pub async fn gen_access_token(
 
 pub async fn validate_access_token(
     State(token_store): State<Arc<McpOAuthStore>>,
-    request: Request<Body>,
+    mut request: Request<Body>,
     next: Next,
 ) -> Response {
     tracing::debug!("validate_token_middleware");
@@ -499,6 +499,19 @@ pub async fn validate_access_token(
     match token_store.validate_access_token(&token).await {
         Some(data) => {
             tracing::info!("valid access token (client {})", data.client_id);
+            // Lets handlers (e.g. the MCP tool/resource router) derive the
+            // acting client from the authenticated, server-assigned client
+            // id instead of the self-reported (and thus unverified) MCP
+            // `clientInfo.name` from the initialize handshake.
+            request.extensions_mut().insert(data.client_id);
+            if let Some(prefix) = data.actor.prefix {
+                request.extensions_mut().insert(Prefix(prefix));
+            }
+            if let Some(on_behalf_of) = data.actor.on_behalf_of {
+                request
+                    .extensions_mut()
+                    .insert(OnBehalfOf::from(on_behalf_of));
+            }
             next.run(request).await
         }
         None => {
