@@ -226,9 +226,8 @@ impl McpServer {
         // In deployment, static assets live under LEPTOS_SITE_ROOT; for
         // local dev (where that's unset) public/ is a sibling of server/
         // (this crate's manifest dir) in the workspace.
-        let favicons_dir = std::env::var("LEPTOS_SITE_ROOT").unwrap_or_else(|_| {
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../public").to_owned()
-        });
+        let favicons_dir = std::env::var("LEPTOS_SITE_ROOT")
+            .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../public").to_owned());
         let favicons = ServeDir::new(favicons_dir);
 
         let app = Router::new()
@@ -697,17 +696,61 @@ pub(super) mod quick_wins {
     pub const URI: &str = "kid://report/quick_wins";
 }
 
+/// Picks one of `sentences` at random.
+fn random_intro(sentences: &'static [&'static str]) -> &'static str {
+    use rand::prelude::IndexedRandom;
+    sentences.choose(&mut rand::rng()).unwrap()
+}
+
+const DAILY_REPORT_INTROS: [&str; 10] = [
+    "Hey! Listen! 🧚 New quests have appeared - time to set out!",
+    "Wake up, young hero. 🧚 The tasks of this day await your courage. 🌳",
+    "Hey! Hey! 🧚 Today's trials are ready for you!",
+    "The path ahead is clear, adventurer. 🧙 Let's clear these quests! 🗡️",
+    "Fairy's honor: today's objectives won't complete themselves. Onward! ✨",
+    "Hey! 🧚 Over here! Your quest log has refreshed for today!",
+    "It is time, hero. 🧝 Destiny - or at least today's to-do list - awaits.",
+    "Hyah! 🐲 A new day dawns over Hyrule, and with it, new quests. ☀️",
+    "The Great Deku Tree has watched over these tasks. Now they're yours. 🌳",
+    "Hey! Listen! Don't let the day slip by like a Skulltula in the dark. ✨",
+];
+
+const BACKLOG_INTROS: [&str; 10] = [
+    "Deep in the quest log, these tasks slumber - no deadline binds them yet. 🌳",
+    "Side quests, patiently waiting in the shadow of the Great Tree. 🍃",
+    "Hey! 🧚 These ones don't have a due date, but they haven't been forgotten!",
+    "The undated scrolls of your journey rest here, hero. 🧙",
+    "No urgency, no timer - just quests waiting for a worthy moment. 🧙",
+    "Hey! Listen! 🧚 These are the quests that time forgot - for now.",
+    "The Great Deku Tree has seen many ages pass, and these tasks with them. 🌳",
+    "A hero's journey is long. 🧝 These quests will keep for when you're ready.",
+    "Hey! 🧚 No rush on these ones - the forest keeps its secrets patiently. 🍃",
+    "Old quests, older courage. 🧙 They'll be here when you return. ✨",
+];
+
+const QUICK_WINS_INTROS: [&str; 10] = [
+    "Hey! Listen! 🧚 These quests are quick - a true hero clears them in a flash! ✨",
+    "Small trials, swiftly won. Even a Kokiri could finish these. 🍃",
+    "Hey! 🧚 No need for the Master Sword here - just a few minutes!",
+    "Short quests, sorted by how fast courage can conquer them. 🗡️",
+    "The Great Deku Tree smiles upon these easy victories. 🌳",
+    "Hey! Listen! 🧚 Quick as a Deku Nut - these won't take long!",
+    "Small deeds, hero, but every Triforce piece starts somewhere. ✨",
+    "Hey! 🧚 Over here! Easy quests, ripe for the taking!",
+    "Not every hero's journey needs an Epona 🐎 - these are a short walk. 🍃",
+    "Fast quests for a fast hero. Go get 'em! 🗡️",
+];
+
 /// Renders `groups` (the dated-or-ready part of [`group_upcoming`]'s result)
 /// as Markdown: one heading per [`DeadlineGroup`], with the same "This/Next
 /// Weekend" relabeling and weekday/weekend divider as the Upcoming view when
 /// every task in a `ThisWeek`/`NextWeek` group falls on a weekend.
 fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
-    let mut markdown = String::from("# Daily Report\n");
-
     if groups.is_empty() {
-        markdown.push_str("\nNo open tasks due, or ready to start, today.\n");
-        return markdown;
+        return format!("*Daily Report*\n\nNo open tasks due, or ready to start, today.\n");
     }
+
+    let mut markdown = format!("*Daily Report*\n\n{}\n", random_intro(&DAILY_REPORT_INTROS));
 
     for (group, tasks) in &groups {
         let all_weekend = matches!(group, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek)
@@ -723,7 +766,7 @@ fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
             None
         };
 
-        markdown.push_str(&format!("\n## {}\n\n", group.display_label(all_weekend)));
+        markdown.push_str(&format!("\n*{}*\n\n", group.display_label(all_weekend)));
         for (idx, (_, info, ..)) in tasks.iter().enumerate() {
             if separator_idx == Some(idx) {
                 markdown.push_str("---\n\n");
@@ -738,7 +781,7 @@ fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
 /// Renders `backlog` (the dateless part of [`group_upcoming`]'s result) as
 /// Markdown.
 fn render_backlog(backlog: kid_app::server::UpcomingBacklog) -> String {
-    let mut markdown = String::from("# Backlog\n\n");
+    let mut markdown = format!("*Backlog*\n\n{}\n\n", random_intro(&BACKLOG_INTROS));
 
     if backlog.is_empty() {
         markdown.push_str("No open tasks without a date.\n");
@@ -757,7 +800,7 @@ fn render_backlog(backlog: kid_app::server::UpcomingBacklog) -> String {
 fn render_quick_wins(
     groups: Vec<(TaskTimeEstimate, Vec<(Uuid, kid_types::task::Infos)>)>,
 ) -> String {
-    let mut markdown = String::from("# Quick Wins\n");
+    let mut markdown = format!("*Quick Wins*\n\n{}\n", random_intro(&QUICK_WINS_INTROS));
 
     if groups.is_empty() {
         markdown.push_str("\nNo open tasks have a time estimate.\n");
@@ -765,7 +808,7 @@ fn render_quick_wins(
     }
 
     for (estimate, tasks) in &groups {
-        markdown.push_str(&format!("\n## {estimate}\n\n"));
+        markdown.push_str(&format!("\n*{estimate}*\n\n"));
         for (_, info) in tasks {
             markdown.push_str(&task_line(info));
         }
@@ -785,7 +828,11 @@ fn task_line(info: &kid_types::task::Infos) -> String {
     } else {
         category
     };
-    format!("- [ ] {summary} _{category}_\n")
+    if info.is_done() {
+        format!("- ☑ {summary} _{category}_\n")
+    } else {
+        format!("- ☐ {summary} _{category}_\n")
+    }
 }
 
 /// Derives a `Host` header value (`host` or `host:port`) from a configured
