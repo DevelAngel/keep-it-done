@@ -1851,7 +1851,7 @@ dependencies = [
 
 [[package]]
 name = "kid-app"
-version = "0.21.0-alpha.1"
+version = "0.21.0-beta.1"
 dependencies = [
  "cfg-if",
  "chrono",
@@ -1875,7 +1875,7 @@ dependencies = [
 
 [[package]]
 name = "kid-frontend"
-version = "0.21.0-alpha.1"
+version = "0.21.0-beta.1"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -1888,7 +1888,7 @@ dependencies = [
 
 [[package]]
 name = "kid-server"
-version = "0.21.0-alpha.1"
+version = "0.21.0-beta.1"
 dependencies = [
  "anyhow",
  "askama",
@@ -1926,7 +1926,7 @@ dependencies = [
 
 [[package]]
 name = "kid-types"
-version = "0.21.0-alpha.1"
+version = "0.21.0-beta.1"
 dependencies = [
  "ahash",
  "assert_fs",
@@ -1952,7 +1952,7 @@ dependencies = [
 
 [[package]]
 name = "kid-types-derive"
-version = "0.21.0-alpha.1"
+version = "0.21.0-beta.1"
 dependencies = [
  "proc-macro2",
  "quote",
