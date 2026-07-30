@@ -12,7 +12,6 @@ use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSu
 
 use axum::Router;
 use axum::middleware;
-use axum::response::Html;
 use axum::routing::{get, post};
 
 use rmcp::handler::server::router::tool::ToolRouter;
@@ -33,7 +32,7 @@ use miette::{IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
-use tower_http::cors::{self, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use url::Url;
 
@@ -636,10 +635,6 @@ pub(super) mod categories {
 pub(super) mod contexts {
     pub const NAME: &str = "contexts";
     pub const URI: &str = "kid://contexts";
-}
-
-async fn index() -> Html<&'static str> {
-    Html(include_str!("../html/mcp_oauth_index.html"))
 }
 
 /// Derives a `Host` header value (`host` or `host:port`) from a configured
