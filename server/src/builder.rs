@@ -1,10 +1,10 @@
+use crate::cache::SharedEventBus;
 use crate::http::HttpServer;
 use crate::mcp::McpServer;
 use crate::oauth::McpClientsConfig;
-use crate::cache::SharedEventBus;
-use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 #[cfg(feature = "test-control")]
 use crate::testctl::TestControlServer;
+use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 
 use leptos::prelude::*;
 use miette::{IntoDiagnostic, Result};
@@ -178,7 +178,8 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             mcp_listener,
             self.shutdown.clone(),
             self.task_cache.clone(),
-            self.mcp_base_url.expect("mcp_base_url must be set via with_mcp_base_url"),
+            self.mcp_base_url
+                .expect("mcp_base_url must be set via with_mcp_base_url"),
             self.mcp_allowed_origins.clone(),
             self.mcp_clients.clone(),
         ));

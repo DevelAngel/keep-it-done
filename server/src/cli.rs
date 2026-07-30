@@ -70,7 +70,11 @@ pub struct ServerArgs {
     /// browser test harness. Only compiled in when the `test-control`
     /// Cargo feature is enabled; never set this in production.
     #[cfg(feature = "test-control")]
-    #[clap(long = "test-control-listen", global = true, env = "KID_TEST_CONTROL_ADDR")]
+    #[clap(
+        long = "test-control-listen",
+        global = true,
+        env = "KID_TEST_CONTROL_ADDR"
+    )]
     pub test_control_addr: Option<SocketAddr>,
 }
 

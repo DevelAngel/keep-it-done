@@ -102,7 +102,8 @@ pub fn FlushStatusLed() -> impl IntoView {
     };
 
     let led_class = move || {
-        let base = "fixed bottom-4 right-4 z-50 w-2.5 h-2.5 rounded-full transition-opacity duration-200";
+        let base =
+            "fixed bottom-4 right-4 z-50 w-2.5 h-2.5 rounded-full transition-opacity duration-200";
         match led_state.get() {
             LedState::Hidden => format!("{base} opacity-0 pointer-events-none"),
             LedState::Success => format!("{base} bg-green-500 pointer-events-none"),

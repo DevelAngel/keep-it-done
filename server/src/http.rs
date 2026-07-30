@@ -26,9 +26,7 @@ impl HttpServer {
         time_offset: SharedTimeOffset,
         event_bus: SharedEventBus,
     ) -> Result<()> {
-        let fallback_user = FallbackUser::new(
-            std::env::var("KID_FALLBACK_USER").ok(),
-        );
+        let fallback_user = FallbackUser::new(std::env::var("KID_FALLBACK_USER").ok());
         let fallback_label = match fallback_user.as_deref() {
             Some(user) => format!("fallback: {user}"),
             None => "no fallback, Remote-User required".into(),

@@ -8,9 +8,9 @@
 //! See "MVP scope — server-control operations open" in
 //! `docs/adr/rmcp-mcp-server.md`.
 
-use crate::cache::SharedEventBus;
 use crate::SharedTaskCache;
 use crate::SharedTimeOffset;
+use crate::cache::SharedEventBus;
 
 use kid_app::events::{FlushOutcome, ServerEvent};
 
@@ -75,7 +75,11 @@ impl TestControlServer {
             listener.local_addr().unwrap()
         );
 
-        let state = TestControlState { task_cache, time_offset, event_bus };
+        let state = TestControlState {
+            task_cache,
+            time_offset,
+            event_bus,
+        };
         let app = Router::new()
             .route("/switch-dir", post(switch_dir))
             .route("/count", get(count))
@@ -99,7 +103,8 @@ async fn switch_dir(
     State(state): State<TestControlState>,
     Json(SwitchDirRequest { dir }): Json<SwitchDirRequest>,
 ) -> Result<Json<SwitchDirResponse>, (StatusCode, String)> {
-    let internal_error = |e: &dyn std::fmt::Display| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+    let internal_error =
+        |e: &dyn std::fmt::Display| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
     let mut cache = state.task_cache.write().await;
     cache.flush().await.map_err(|e| internal_error(&e))?;
     if dir.is_absolute() {
@@ -147,9 +152,11 @@ async fn flush(State(state): State<TestControlState>) -> Json<FlushResponse> {
         }
         Err(e) => {
             tracing::error!("flush failed: {e}");
-            let _ = state.event_bus.send(ServerEvent::Flush(FlushOutcome::Error {
-                message: e.to_string(),
-            }));
+            let _ = state
+                .event_bus
+                .send(ServerEvent::Flush(FlushOutcome::Error {
+                    message: e.to_string(),
+                }));
             0
         }
     };
