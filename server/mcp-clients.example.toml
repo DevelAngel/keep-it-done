@@ -16,3 +16,10 @@ secret = "replace-with-a-generated-secret"
 name = "example.ai"
 redirect_uri = "https://example.ai/api/mcp/auth_callback"
 secret = "replace-with-a-another-generated-secret"
+
+# Machine client (e.g. a systemd-triggered one-shot job): no user is
+# present to approve an authorization_code flow, so it authenticates via
+# the client_credentials grant instead. redirect_uri can be omitted.
+[[client]]
+name = "matrix-relay"
+secret = "replace-with-yet-another-generated-secret"

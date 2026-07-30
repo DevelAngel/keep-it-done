@@ -163,8 +163,12 @@ impl McpOAuthStore {
             .clients
             .into_iter()
             .map(|client| {
+                let redirect_uri = client
+                    .redirect_uri
+                    .map(|uri| uri.to_string())
+                    .unwrap_or_default();
                 ClientId::from_config(
-                    OAuthClientConfig::new(client.name, client.redirect_uri.to_string())
+                    OAuthClientConfig::new(client.name, redirect_uri)
                         .with_client_secret(client.secret.expose_secret())
                         .with_scopes(vec!["MCP".to_string()]),
                 )

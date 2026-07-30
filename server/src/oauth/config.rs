@@ -7,10 +7,16 @@ use url::Url;
 
 /// A single OAuth client allowed to authenticate against the MCP server,
 /// as read from the `--mcp-clients-file` TOML file.
+///
+/// `redirect_uri` is required for clients that use the `authorization_code`
+/// grant (they're redirected back to it after user approval), but has no
+/// meaning for machine clients that only use the `client_credentials` grant
+/// - those can leave it unset.
 #[derive(Clone, Debug, Deserialize)]
 pub struct McpClientConfig {
     pub name: String,
-    pub redirect_uri: Url,
+    #[serde(default)]
+    pub redirect_uri: Option<Url>,
     pub secret: SecretString,
 }
 
@@ -20,6 +26,11 @@ pub struct McpClientConfig {
 /// [[client]]
 /// name = "mcp-inspector"
 /// redirect_uri = "http://localhost:6274/oauth/callback"
+/// secret = "..."
+///
+/// # machine client, only uses the client_credentials grant
+/// [[client]]
+/// name = "matrix-relay"
 /// secret = "..."
 /// ```
 #[derive(Clone, Debug, Default, Deserialize)]

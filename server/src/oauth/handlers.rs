@@ -94,7 +94,10 @@ pub async fn auth_server(State(state): State<Arc<McpOAuthStore>>) -> impl IntoRe
     tracing::debug!("client fetches metadata of authentication server");
 
     let base_url = state.base_url();
-    let additional_fields = HashMap::from([("response_types_supported".into(), json!(["code"]))]);
+    let additional_fields = HashMap::from([(
+        "grant_types_supported".into(),
+        json!(["authorization_code", "client_credentials", "refresh_token"]),
+    )]);
 
     let mut metadata = AuthorizationMetadata::default();
     metadata.registration_endpoint = Some(format!("{base_url}/register"));
@@ -311,7 +314,7 @@ pub async fn gen_access_token(
             .into_response();
     };
 
-    if let Some(client_secret) = client.client_secret {
+    if let Some(client_secret) = client.client_secret.as_deref() {
         if request.client_secret != client_secret {
             tracing::warn!("invalid secret for client {}", client.client_id);
             return (
@@ -379,6 +382,49 @@ pub async fn gen_access_token(
                 }
             }
         }
+        "client_credentials" => {
+            // No authorization code or user approval involved - the client
+            // secret comparison above *is* the authentication for this
+            // grant, per RFC 6749 §4.4. Unlike authorization_code (where
+            // PKCE can stand in for a public client without a secret), a
+            // secretless client here would be authenticated by nothing at
+            // all, so require one explicitly instead of relying on the
+            // generic check above, which silently skips clients without a
+            // configured secret.
+            if client.client_secret.is_none() {
+                tracing::warn!(
+                    "client {} has no secret configured; client_credentials requires one",
+                    client.client_id
+                );
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": "invalid_client",
+                        "error_description": "client_credentials requires a client secret"
+                    })),
+                )
+                    .into_response();
+            }
+
+            let token = state.gen_access_token(client.client_id).await;
+            match serde_json::to_value(token) {
+                Ok(token) => {
+                    tracing::info!("successfully created access token via client_credentials");
+                    (StatusCode::OK, Json(token)).into_response()
+                }
+                Err(e) => {
+                    tracing::error!("failed to create access token: {}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({
+                            "error": "server_error",
+                            "error_description": format!("failed to create access token: {}", e)
+                        })),
+                    )
+                        .into_response()
+                }
+            }
+        }
         "refresh_token" => {
             let refresh_token = &request.refresh_token;
             let Some(data) = state.validate_refresh_token(refresh_token).await else {
@@ -418,7 +464,7 @@ pub async fn gen_access_token(
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({
                     "error": "unsupported_grant_type",
-                    "error_description": "only authorization_code is supported"
+                    "error_description": "only authorization_code, client_credentials and refresh_token are supported"
                 })),
             )
                 .into_response()
