@@ -1,5 +1,6 @@
 use crate::http::HttpServer;
 use crate::mcp::McpServer;
+use crate::oauth::McpClientsConfig;
 use crate::cache::SharedEventBus;
 use crate::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 
@@ -10,6 +11,7 @@ use tokio::spawn;
 use tokio::task::JoinHandle;
 use tokio::try_join;
 use tokio_util::sync::CancellationToken;
+use url::Url;
 
 use std::net::SocketAddr;
 
@@ -21,6 +23,9 @@ pub struct ServerHandles {
 
 pub struct ServerBuilder<MCP, HTTP, LeptosOptions> {
     mcp_addr: MCP,
+    mcp_base_url: Option<Url>,
+    mcp_allowed_origins: Vec<Url>,
+    mcp_clients: McpClientsConfig,
     http_addr: HTTP,
     leptos_options: LeptosOptions,
     shutdown: CancellationToken,
@@ -40,6 +45,9 @@ impl ServerBuilder<Unset, Unset, Unset> {
     ) -> Self {
         Self {
             mcp_addr: Unset,
+            mcp_base_url: None,
+            mcp_allowed_origins: Vec::new(),
+            mcp_clients: McpClientsConfig::default(),
             http_addr: Unset,
             leptos_options: Unset,
             shutdown: shutdown.clone(),
@@ -54,6 +62,9 @@ impl<W, L> ServerBuilder<Unset, W, L> {
     pub fn with_mcp_addr(self, addr: &SocketAddr) -> ServerBuilder<SocketAddr, W, L> {
         ServerBuilder {
             mcp_addr: *addr,
+            mcp_base_url: self.mcp_base_url,
+            mcp_allowed_origins: self.mcp_allowed_origins,
+            mcp_clients: self.mcp_clients,
             http_addr: self.http_addr,
             leptos_options: self.leptos_options,
             shutdown: self.shutdown,
@@ -64,10 +75,36 @@ impl<W, L> ServerBuilder<Unset, W, L> {
     }
 }
 
+impl<R, W, L> ServerBuilder<R, W, L> {
+    /// This server's own public URL, used for OAuth metadata; see
+    /// `cli::ServerArgs::mcp_base_url`.
+    pub fn with_mcp_base_url(mut self, base_url: &Url) -> Self {
+        self.mcp_base_url = Some(base_url.clone());
+        self
+    }
+
+    /// Origins allowed to access the MCP server cross-origin; see
+    /// `cli::ServerArgs::mcp_allowed_origins`.
+    pub fn with_mcp_allowed_origins(mut self, origins: &[Url]) -> Self {
+        self.mcp_allowed_origins = origins.to_vec();
+        self
+    }
+
+    /// OAuth clients allowed to authenticate against the MCP server; see
+    /// `cli::ServerArgs::mcp_clients_file`.
+    pub fn with_mcp_clients(mut self, clients: McpClientsConfig) -> Self {
+        self.mcp_clients = clients;
+        self
+    }
+}
+
 impl<R, L> ServerBuilder<R, Unset, L> {
     pub fn with_http_addr(self, addr: &SocketAddr) -> ServerBuilder<R, SocketAddr, L> {
         ServerBuilder {
             mcp_addr: self.mcp_addr,
+            mcp_base_url: self.mcp_base_url,
+            mcp_allowed_origins: self.mcp_allowed_origins,
+            mcp_clients: self.mcp_clients,
             http_addr: *addr,
             leptos_options: self.leptos_options,
             shutdown: self.shutdown,
@@ -85,6 +122,9 @@ impl<R, W> ServerBuilder<R, W, Unset> {
     ) -> ServerBuilder<R, W, LeptosOptions> {
         ServerBuilder {
             mcp_addr: self.mcp_addr,
+            mcp_base_url: self.mcp_base_url,
+            mcp_allowed_origins: self.mcp_allowed_origins,
+            mcp_clients: self.mcp_clients,
             http_addr: self.http_addr,
             leptos_options: options.clone(),
             shutdown: self.shutdown,
@@ -115,6 +155,9 @@ impl ServerBuilder<SocketAddr, SocketAddr, LeptosOptions> {
             mcp_listener,
             self.shutdown.clone(),
             self.task_cache.clone(),
+            self.mcp_base_url.expect("mcp_base_url must be set via with_mcp_base_url"),
+            self.mcp_allowed_origins.clone(),
+            self.mcp_clients.clone(),
         ));
         let task_flush = {
             let event_bus = self.event_bus;

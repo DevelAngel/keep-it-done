@@ -18,21 +18,32 @@ features = ["ssr"]
 
 [dependencies]
 anyhow.workspace = true
+askama = "0.16.0"
 axum.workspace = true
+base64.workspace = true
+chrono.workspace = true
 clap = { workspace = true, features = ["env"] }
 clap-verbosity-flag.workspace = true
+derive_more = { workspace = true, features = ["deref", "from", "display", "from_str"] }
 futures.workspace = true
 indexmap.workspace = true
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum.workspace = true
 miette = { workspace = true, features = ["fancy"] }
-rmcp = { workspace = true, features = ["server", "server-side-http", "transport-streamable-http-server"] }
+rand = { workspace = true, features = ["std"] }
+rmcp = { workspace = true, features = ["auth", "server", "server-side-http", "transport-streamable-http-server"] }
+secrecy = { workspace = true, features = ["serde"] }
 serde.workspace = true
 serde_json.workspace = true
+serde_urlencoded = "0.7.1"
+sha2.workspace = true
 sublime_fuzzy.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 tokio-util.workspace = true
+toml.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
+uuid = { workspace = true, features = ["v4", "v7"] }

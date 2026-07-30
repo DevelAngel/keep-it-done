@@ -4,10 +4,16 @@
 //! and the separate-port transport choice.
 
 use crate::SharedTaskCache;
+use crate::oauth::{self, McpOAuthStore};
 
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
 use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
+
+use axum::Router;
+use axum::middleware;
+use axum::response::Html;
+use axum::routing::{get, post};
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::{Json, Parameters};
@@ -27,6 +33,9 @@ use miette::{IntoDiagnostic, Result};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
+use tower_http::cors::{self, CorsLayer};
+use tower_http::trace::TraceLayer;
+use url::Url;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -151,21 +160,78 @@ impl McpServer {
         listener: TcpListener,
         shutdown: CancellationToken,
         task_cache: SharedTaskCache,
+        base_url: Url,
+        allowed_origins: Vec<Url>,
+        clients: crate::oauth::McpClientsConfig,
     ) -> Result<()> {
         tracing::info!(
             "MCP server listening on: http://{}",
             listener.local_addr().unwrap()
         );
 
-        // TODO: CORS handling will be needed.
-        let service = StreamableHttpService::new(
+        // The server's own base URL must be allowed too, since it issues
+        // requests to itself (e.g. OAuth metadata, self-registration).
+        let all_origins: Vec<Url> = std::iter::once(base_url.clone())
+            .chain(allowed_origins)
+            .collect();
+        let allowed_hosts: Vec<String> = all_origins.iter().filter_map(host_header).collect();
+        let allowed_origins: Vec<String> = all_origins
+            .iter()
+            .map(|url| url.origin().ascii_serialization())
+            .collect();
+
+        let mcp_service = StreamableHttpService::new(
             move || Ok(McpService::new(task_cache.clone())),
             Arc::new(LocalSessionManager::default()),
-            StreamableHttpServerConfig::default(),
+            StreamableHttpServerConfig::default()
+                .with_allowed_origins(allowed_origins)
+                .with_allowed_hosts(allowed_hosts)
+                .with_cancellation_token(shutdown.child_token()),
         );
 
-        let router = axum::Router::new().nest_service("/mcp", service);
-        axum::serve(listener, router.into_make_service())
+        let oauth_store = Arc::new(McpOAuthStore::new(base_url, clients));
+        tokio::spawn({
+            let oauth_store = oauth_store.clone();
+            let shutdown = shutdown.child_token();
+            async move { oauth_store.background_cleanup(shutdown).await }
+        });
+
+        let protected_mcp_router =
+            Router::new()
+                .nest_service("/mcp", mcp_service)
+                .layer(middleware::from_fn_with_state(
+                    oauth_store.clone(),
+                    oauth::validate_access_token,
+                ));
+
+        let oauth_server_router = Router::new()
+            .route(
+                "/.well-known/oauth-authorization-server",
+                get(oauth::auth_server).options(oauth::auth_server),
+            )
+            .route(
+                "/.well-known/oauth-protected-resource",
+                get(oauth::protected_resource).options(oauth::protected_resource),
+            )
+            .route(
+                "/.well-known/oauth-protected-resource/mcp",
+                get(oauth::protected_resource).options(oauth::protected_resource),
+            )
+            .route("/authorize", get(oauth::authorize))
+            .route("/oauth/approve", post(oauth::approve))
+            .route(
+                "/token",
+                post(oauth::gen_access_token).options(oauth::gen_access_token),
+            )
+            .with_state(oauth_store.clone());
+
+        let app = Router::new()
+            .merge(protected_mcp_router)
+            .merge(oauth_server_router)
+            .layer(CorsLayer::permissive())
+            .layer(TraceLayer::new_for_http());
+
+        axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 shutdown.cancelled().await;
                 tracing::info!("MCP server shutting down");
@@ -570,4 +636,18 @@ pub(super) mod categories {
 pub(super) mod contexts {
     pub const NAME: &str = "contexts";
     pub const URI: &str = "kid://contexts";
+}
+
+async fn index() -> Html<&'static str> {
+    Html(include_str!("../html/mcp_oauth_index.html"))
+}
+
+/// Derives a `Host` header value (`host` or `host:port`) from a configured
+/// allowed origin, for `StreamableHttpServerConfig::with_allowed_hosts`.
+fn host_header(url: &Url) -> Option<String> {
+    let host = url.host_str()?;
+    Some(match url.port() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    })
 }

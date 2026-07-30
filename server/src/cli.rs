@@ -1,5 +1,6 @@
 use clap::Args;
 pub use clap::Parser;
+use url::Url;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
@@ -29,6 +30,40 @@ pub struct ServerArgs {
     /// Tinyauth's interactive login flow (see ADR: rmcp-mcp-server).
     #[clap(long = "mcp-listen", global = true, default_value_t = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 9100))]
     pub mcp_addr: SocketAddr,
+
+    /// This server's own public URL, used when issuing OAuth metadata
+    /// (issuer, authorization/token endpoints), e.g. "https://mcp.example.com".
+    #[clap(
+        long = "mcp-base-url",
+        global = true,
+        env = "KID_MCP_BASE_URL",
+        value_name = "URL",
+        default_value = "http://127.0.0.1:9100"
+    )]
+    pub mcp_base_url: Url,
+
+    /// Origins allowed to access the MCP server cross-origin, e.g.
+    /// "https://claude.ai". Can be repeated or comma-separated.
+    #[clap(
+        long = "mcp-allowed-origin",
+        global = true,
+        env = "KID_MCP_ALLOWED_ORIGINS",
+        value_name = "URL",
+        value_delimiter = ','
+    )]
+    pub mcp_allowed_origins: Vec<Url>,
+
+    /// TOML file listing OAuth clients allowed to authenticate against the
+    /// MCP server (name, redirect URI, secret). If unset or empty, MCP
+    /// OAuth is effectively disabled: no client can complete the
+    /// authorization flow.
+    #[clap(
+        long = "mcp-clients-file",
+        global = true,
+        env = "KID_MCP_CLIENTS_FILE",
+        value_name = "PATH"
+    )]
+    pub mcp_clients_file: Option<PathBuf>,
 }
 
 #[cfg(debug_assertions)]

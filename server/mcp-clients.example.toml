@@ -1,0 +1,18 @@
+# Example configuration for --mcp-clients-file / KID_MCP_CLIENTS_FILE.
+#
+# Lists the OAuth clients allowed to authenticate against the MCP server.
+# Copy this file, fill in real redirect URIs and secrets, and
+# point --mcp-clients-file at it.
+#
+# An unset or empty file disables MCP OAuth entirely
+# (no client can complete the authorization flow).
+
+[[client]]
+name = "mcp-inspector"
+redirect_uri = "http://localhost:6274/oauth/callback"
+secret = "replace-with-a-generated-secret"
+
+[[client]]
+name = "example.ai"
+redirect_uri = "https://example.ai/api/mcp/auth_callback"
+secret = "replace-with-a-another-generated-secret"

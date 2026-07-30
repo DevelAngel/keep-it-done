@@ -3,17 +3,19 @@ mod cache;
 mod cli;
 mod http;
 mod mcp;
+mod oauth;
 
 use crate::builder::ServerBuilder;
 use crate::cache::{SharedTaskCache, SharedTimeOffset, TaskCacheFlush};
 use crate::cli::{Cli, Parser};
+use crate::oauth::McpClientsConfig;
 
 use leptos::prelude::get_configuration;
 use miette::Result;
 use miette::{IntoDiagnostic, MietteHandlerOpts};
-use tracing::Level;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
+use tracing::Level;
 
 use std::env;
 
@@ -43,23 +45,32 @@ async fn main() -> Result<()> {
             SharedTaskCache::with_dir(dir)
         }
     };
-    task_cache.write().await.load().await.and_then(|(num_loaded, num_to_migrate)| {
-        if num_loaded > 0 {
-            tracing::info!("{num_loaded} tasks loaded");
-            if num_to_migrate > 0 {
-                tracing::info!("{num_to_migrate} tasks has to be migrated with next flush");
+    task_cache
+        .write()
+        .await
+        .load()
+        .await
+        .and_then(|(num_loaded, num_to_migrate)| {
+            if num_loaded > 0 {
+                tracing::info!("{num_loaded} tasks loaded");
+                if num_to_migrate > 0 {
+                    tracing::info!("{num_to_migrate} tasks has to be migrated with next flush");
+                }
+            } else {
+                tracing::warn!("no tasks loaded");
             }
-        } else {
-            tracing::warn!("no tasks loaded");
-        }
-        Ok(())
-    })?;
+            Ok(())
+        })?;
 
     let time_offset = SharedTimeOffset::default();
+    let mcp_clients = McpClientsConfig::load(args.server.mcp_clients_file.as_deref())?;
 
     let shutdown = CancellationToken::new();
     let server = ServerBuilder::new(&shutdown, &task_cache, &time_offset)
         .with_mcp_addr(&mcp_addr)
+        .with_mcp_base_url(&args.server.mcp_base_url)
+        .with_mcp_allowed_origins(&args.server.mcp_allowed_origins)
+        .with_mcp_clients(mcp_clients)
         .with_http_addr(&http_addr)
         .with_leptos_options(&leptos_conf.leptos_options)
         .try_spawn()
