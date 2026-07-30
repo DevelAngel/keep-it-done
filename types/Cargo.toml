@@ -9,14 +9,9 @@ workspace = true
 
 [features]
 default = []
-rpc = ["dep:tarpc"]
-cli = [
-  "rpc",
-  "dep:schemars",
-  "dep:clap"
-]
+# JSON-Schema generation for MCP tool input/resource structs (kid-server).
+mcp = ["dep:schemars"]
 ssr = [
-  "rpc",
   "uuid/rng-rand",
   "uuid/v7",
   "dep:ahash",
@@ -33,18 +28,16 @@ path = "derive"
 [dependencies]
 ahash = { workspace = true, optional = true }
 cfg-if.workspace = true
-clap = { workspace = true, features = ["derive"], optional = true }
 chrono = { workspace = true, features = ["now", "std", "serde"] }
 derive_more = { workspace = true, features = ["display"] }
 indexmap = { workspace = true, features = ["serde"] }
 miette = { workspace = true, features = ["fancy-no-syscall"], optional = true }
 rand = { workspace = true, optional = true }
-schemars = { workspace = true, features = ["std", "derive", "chrono04", "indexmap2", "preserve_order"], optional = true }
+schemars = { workspace = true, features = ["std", "derive", "chrono04", "indexmap2", "preserve_order", "uuid1"], optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["indexmap", "preserve_order"], optional = true }
 serde_with.workspace = true
 strum.workspace = true
-tarpc = { workspace = true, features = ["serde1"], optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs"], optional = true }
 tracing.workspace = true

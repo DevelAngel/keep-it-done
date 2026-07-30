@@ -1,6 +1,6 @@
 use crate::{TaskDetails, TaskId, TaskInfos, Uuid};
 
-#[cfg(any(feature = "rpc"))]
+#[cfg(feature = "ssr")]
 use kid_types_derive::GeneratePatch;
 
 #[cfg(feature = "ssr")]
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use strum::EnumIter;
 
-#[cfg(feature = "rpc")]
+#[cfg(feature = "ssr")]
 use serde_with::rust::double_option;
 
 use std::borrow::Cow;
@@ -32,8 +32,8 @@ pub enum Filter {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "cli", schemars(transparent))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", schemars(transparent))]
 pub struct Category(String);
 
 impl Default for Category {
@@ -94,8 +94,8 @@ fn deserialize_category_lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Categ
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "cli", schemars(transparent))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", schemars(transparent))]
 pub struct Summary(String);
 
 impl FromStr for Summary {
@@ -142,8 +142,8 @@ impl<'de> Deserialize<'de> for Summary {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "cli", schemars(transparent))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", schemars(transparent))]
 pub struct Context(String);
 
 impl FromStr for Context {
@@ -188,14 +188,14 @@ impl<'de> Deserialize<'de> for Context {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub struct Task {
     #[serde(flatten)]
     info: Infos,
     #[serde(flatten)]
     details: Details,
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    #[cfg_attr(feature = "cli", schemars(with = "IndexMap<String, Vec<DateTime<FixedOffset>>>"))]
+    #[cfg_attr(feature = "mcp", schemars(with = "IndexMap<String, Vec<DateTime<FixedOffset>>>"))]
     authors: IndexMap<String, Vec<DateTime<FixedOffset>>>,
 }
 
@@ -226,14 +226,14 @@ impl From<&IndexMap<String, Vec<DateTime<FixedOffset>>>> for Authors {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub struct Infos {
     summary: Summary,
     status: Status,
     #[serde(alias = "context", default, deserialize_with = "deserialize_category_lenient")]
     category: Category,
     #[serde(default, skip_serializing_if = "IndexSet::is_empty")]
-    #[cfg_attr(feature = "cli", schemars(with = "Vec<Context>"))]
+    #[cfg_attr(feature = "mcp", schemars(with = "Vec<Context>"))]
     contexts: IndexSet<Context>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     priority: Option<Priority>,
@@ -241,8 +241,12 @@ pub struct Infos {
 
 #[skip_serializing_none]
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "rpc", derive(GeneratePatch))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "ssr", derive(GeneratePatch))]
+#[cfg_attr(
+    all(feature = "ssr", feature = "mcp"),
+    patch_derives(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema)
+)]
 #[cfg_attr(feature = "ssr", derive(Patchable))]
 #[cfg_attr(feature = "ssr", patch_type(DetailsPatch))]
 pub struct Details {
@@ -257,7 +261,7 @@ pub struct Details {
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub enum Status {
     ToDo { since: DateTime<FixedOffset> },
     Done { since: DateTime<FixedOffset> },
@@ -324,7 +328,7 @@ impl Display for Status {
 }
 
 #[derive(Clone, Copy, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq, EnumIter)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 #[display(rename_all = "uppercase")]
 pub enum Priority {
     A,
@@ -347,7 +351,7 @@ impl FromStr for Priority {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub struct Date {
     pub date: DateTime<FixedOffset>,
     pub soft: bool,
@@ -388,7 +392,7 @@ fn deserialize_due_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option
 
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, EnumIter)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub enum TimeEstimate {
     Min15,
     Min30,
@@ -777,7 +781,7 @@ impl Display for TimeEstimate {
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq, EnumIter)]
-#[cfg_attr(feature = "cli", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub enum Availability {
     #[default]
     Anytime,

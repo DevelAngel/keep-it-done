@@ -111,8 +111,22 @@ pub fn generate_patch(input: TokenStream) -> TokenStream {
             quote! { #[serde(default, skip_serializing_if = "Option::is_none")] }
         };
 
+        // `serde(with = "double_option")` points schemars at a serde helper
+        // *module*, not a type — schemars_derive tries to resolve it as a
+        // type for JSON-Schema generation and fails. Point it at the real
+        // `Option<Option<T>>` shape explicitly instead. Only relevant when
+        // `schemars::JsonSchema` is actually derived on the patch struct
+        // (gated behind the `mcp` feature in `kid-types`).
+        let schemars_attr = if needs_double_option {
+            let with_str = quote!(#patch_ty).to_string();
+            quote! { #[cfg_attr(feature = "mcp", schemars(with = #with_str))] }
+        } else {
+            quote! {}
+        };
+
         quote! {
             #serde_attr
+            #schemars_attr
             #vis #name: #patch_ty
         }
     });

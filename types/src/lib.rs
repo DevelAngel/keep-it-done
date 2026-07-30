@@ -1,5 +1,3 @@
-#[cfg(feature = "rpc")]
-pub mod rpc;
 #[cfg(feature = "ssr")]
 pub mod server;
 pub mod task;
