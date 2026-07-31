@@ -22,9 +22,9 @@ use axum::routing::{get, post};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{
-    ContentBlock, ErrorData as McpError, Implementation, ListResourcesResult,
-    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, Resource,
-    ResourceContents, ServerCapabilities, ServerInfo,
+    CacheScope, ContentBlock, ErrorData as McpError, Implementation, ListResourcesResult,
+    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
+    Resource, ResourceContents, ResultType, ServerCapabilities, ServerInfo,
 };
 use rmcp::schemars::{self, JsonSchema};
 use rmcp::service::RequestContext;
@@ -271,6 +271,7 @@ impl ServerHandler for McpService {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        const TTL_MS: u64 = 10 * 60 * 1000;
         Ok(ListResourcesResult {
             resources: vec![
                 Resource::new(self::categories::URI, self::categories::NAME)
@@ -303,6 +304,10 @@ impl ServerHandler for McpService {
             ],
             next_cursor: None,
             meta: None,
+            // since 2026-07-28 spec
+            result_type: Some(ResultType::COMPLETE),
+            ttl_ms: Some(TTL_MS),
+            cache_scope: Some(CacheScope::Private),
         })
     }
 
@@ -310,8 +315,8 @@ impl ServerHandler for McpService {
         &self,
         ReadResourceRequestParams { uri, .. }: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        match uri.as_str() {
+    ) -> Result<ReadResourceResponse, McpError> {
+        let result = match uri.as_str() {
             self::categories::URI => {
                 let cache = self.task_cache.read().await;
                 let categories: BTreeSet<TaskCategory> = cache
@@ -364,7 +369,8 @@ impl ServerHandler for McpService {
                 format!("unknown resource: {uri}"),
                 None,
             )),
-        }
+        }?;
+        Ok(ReadResourceResponse::Complete(result))
     }
 }
 
