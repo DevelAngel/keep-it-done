@@ -112,13 +112,7 @@ struct ProtectedResourceMetadata {
 
 pub async fn auth_server(State(state): State<Arc<McpOAuthStore>>) -> impl IntoResponse {
     tracing::debug!("client fetches metadata of authentication server");
-
     let base_url = state.base_url();
-    let additional_fields = HashMap::from([(
-        "grant_types_supported".into(),
-        json!(["authorization_code", "client_credentials", "refresh_token"]),
-    )]);
-
     let mut metadata = AuthorizationMetadata::default();
     metadata.registration_endpoint = Some(format!("{base_url}/register"));
     metadata.authorization_endpoint = format!("{base_url}/authorize");
@@ -126,9 +120,11 @@ pub async fn auth_server(State(state): State<Arc<McpOAuthStore>>) -> impl IntoRe
     metadata.scopes_supported = Some(vec!["MCP".to_owned()]);
     metadata.response_types_supported = Some(vec!["code".to_owned()]);
     metadata.code_challenge_methods_supported = Some(vec!["S256".to_owned()]);
-    metadata.issuer = Some(state.issuer_host());
-    metadata.additional_fields = additional_fields;
-
+    metadata.issuer = Some(base_url);
+    metadata.additional_fields = HashMap::from([(
+        "grant_types_supported".into(),
+        json!(["authorization_code", "client_credentials", "refresh_token"]),
+    )]);
     tracing::debug!("metadata: {:?}", metadata);
     (StatusCode::OK, Json(metadata))
 }

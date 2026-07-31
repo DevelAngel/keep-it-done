@@ -308,18 +308,6 @@ impl McpOAuthStore {
         self.base_url.origin().ascii_serialization()
     }
 
-    /// `Host`/`issuer` value derived from the base URL,
-    /// e.g. `mcp.example.com` or `127.0.0.1:9100`.
-    pub fn issuer_host(&self) -> String {
-        match self.base_url.port() {
-            Some(port) => format!(
-                "{host}:{port}",
-                host = self.base_url.host_str().unwrap_or_default()
-            ),
-            None => self.base_url.host_str().unwrap_or_default().to_owned(),
-        }
-    }
-
     pub async fn client_registered<'a>(
         &'a self,
         client_id: impl Into<ClientId>,
