@@ -3,12 +3,33 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.22.0](https://github.com/DevelAngel/keep-it-done/compare/v0.21.0..v0.22.0) - 2026-08-01
+
+### Bug Fixes
+
+- **(server)** oauth server issuer mismatch - ([d3e9024](https://github.com/DevelAngel/keep-it-done/commit/d3e90247c27eb846e890b6f7f6cd83d667b71d84)) - Angelos Drossos
+
+### Build
+
+- **(server)** bump rmcp from 2.2.0 to 3.0.1 - ([7a40e75](https://github.com/DevelAngel/keep-it-done/commit/7a40e751a3787dbff09df5101143939289f670a3)) - Angelos Drossos
+
+### Features
+
+- **(server)** use MCP sampling for better reports - ([2716b32](https://github.com/DevelAngel/keep-it-done/commit/2716b32f9ccd5ffab066ee1a6a71f47ffc8d81a7)) - Angelos Drossos
+- **(server)** add weekly report of recent changes - ([09ad0ae](https://github.com/DevelAngel/keep-it-done/commit/09ad0ae299228e0e91d10ed878474ed586ab4c7b)) - Angelos Drossos
+
+---
 ## [0.21.0](https://github.com/DevelAngel/keep-it-done/compare/v0.20.0..v0.21.0) - 2026-07-31
 
 ### Bug Fixes
 
 - **(e2e)** replace tarpc harness with mcp + admin channel - ([d4418d0](https://github.com/DevelAngel/keep-it-done/commit/d4418d065641c5f4c54026e25a5038b5d095de76)) - Angelos Drossos
 - **(server)** stop leaking secrets via logs/Debug - ([154380b](https://github.com/DevelAngel/keep-it-done/commit/154380b31d1920585de952ba5b4d9ee2785a1c29)) - Angelos Drossos
+
+### Build
+
+- **(server)** add rmcp crate - ([d179adf](https://github.com/DevelAngel/keep-it-done/commit/d179adfd85f8ef1be13616f0015cc2d375b05cad)) - Angelos Drossos
+-  [**breaking**]remove kid-cli - ([34f2a30](https://github.com/DevelAngel/keep-it-done/commit/34f2a3039f5397e012198814c325dbbdfa42a1d9)) - Angelos Drossos
 
 ### Documentation
 
@@ -323,6 +344,10 @@ All notable changes to this project will be documented in this file. See [conven
 
 - **(app)** move contexts above details - ([a846e85](https://github.com/DevelAngel/keep-it-done/commit/a846e853dc4a56a8d15869e4cc00f42165ca2595)) - Angelos Drossos
 
+### Build
+
+- **(types)** add indexmap2 feature to schemars - ([8ef9acc](https://github.com/DevelAngel/keep-it-done/commit/8ef9acc7dc3dd11809f7bc5120e507e9e01718a4)) - Angelos Drossos
+
 ### Documentation
 
 - **(ai)** add local LLM server concept - ([76809d5](https://github.com/DevelAngel/keep-it-done/commit/76809d5910d2fa7cbc12ab221383d46868581176)) - Angelos Drossos
@@ -579,6 +604,14 @@ All notable changes to this project will be documented in this file. See [conven
 
 - **(cross)** POST 404 Not Found - ([518ac2b](https://github.com/DevelAngel/keep-it-done/commit/518ac2befb3462e122a1feb2d7908d9b99381d1a)) - Angelos Drossos
 - clippy findings - ([5e9c49d](https://github.com/DevelAngel/keep-it-done/commit/5e9c49d28be03f98d2b3f66473f62a4a900a4814)) - Angelos Drossos
+
+### Build
+
+- **(types)** improve cond. compilation (miette) - ([caed8e4](https://github.com/DevelAngel/keep-it-done/commit/caed8e41e268f7b977e552f97a2f82a6e6a93f80)) - Angelos Drossos
+- activate leptos tracing feature - ([8ee5305](https://github.com/DevelAngel/keep-it-done/commit/8ee530522392dd33f28355a05c8eb52c8ddd24d3)) - Angelos Drossos
+- support aarch64 build - ([d931d2c](https://github.com/DevelAngel/keep-it-done/commit/d931d2c20ccb992338093272ea6c10fb9bff6e1c)) - Angelos Drossos
+- update dependency versions - ([b359bc9](https://github.com/DevelAngel/keep-it-done/commit/b359bc94c049ab6da3f5918446872ecbd575099e)) - Angelos Drossos
+- add --locked - ([f21fbbf](https://github.com/DevelAngel/keep-it-done/commit/f21fbbf6171f80e7076b4ba3e52e95c768374076)) - Angelos Drossos
 
 ### Documentation
 
