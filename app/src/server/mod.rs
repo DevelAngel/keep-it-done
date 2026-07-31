@@ -6,7 +6,7 @@ mod internal;
 /// `fetch_upcoming`'s leptos server-function/context machinery.
 #[cfg(feature = "ssr")]
 pub use self::internal::group_upcoming;
-pub use self::internal::{UpcomingGroups, UpcomingBacklog};
+pub use self::internal::{UpcomingBacklog, UpcomingGroups};
 
 /// Re-exported for reuse outside the leptos server-function boundary, e.g.
 /// by the MCP server's `kid://quick_wins` resource — see `group_upcoming`
@@ -26,15 +26,15 @@ cfg_if::cfg_if! {
 use chrono::{DateTime, FixedOffset, NaiveDate};
 use indexmap::IndexMap;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use kid_types::TaskAuthors;
 use kid_types::TaskAvailability;
 use kid_types::TaskCategory;
 use kid_types::TaskContext;
 use kid_types::TaskDate;
-use kid_types::TaskSummary;
 use kid_types::TaskPriority;
+use kid_types::TaskSummary;
 use kid_types::TaskTimeEstimate;
 use kid_types::Uuid;
 use kid_types::task;
@@ -54,21 +54,24 @@ use leptos::prelude::*;
 */
 
 #[server(endpoint = "fetch_all_open")]
-pub async fn fetch_all_open() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
+pub async fn fetch_all_open()
+-> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     Ok(internal::group_all_open(cache.iter()))
 }
 
 #[server(endpoint = "fetch_what_i_finished")]
-pub async fn fetch_what_i_finished() -> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
+pub async fn fetch_what_i_finished()
+-> Result<IndexMap<TaskCategory, Vec<(Uuid, task::Infos)>>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     Ok(internal::group_finished(cache.iter()))
 }
 
 #[server(endpoint = "fetch_quick_wins")]
-pub async fn fetch_quick_wins() -> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>, ServerFnError> {
+pub async fn fetch_quick_wins()
+-> Result<Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>, ServerFnError> {
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     Ok(internal::group_quick_wins(cache.iter()))
@@ -108,7 +111,11 @@ pub async fn fetch_recently_changed(extra_days: u32) -> Result<Vec<RecentChange>
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
     let today = time::today();
-    Ok(internal::group_recently_changed(cache.iter(), today, extra_days))
+    Ok(internal::group_recently_changed(
+        cache.iter(),
+        today,
+        extra_days,
+    ))
 }
 
 #[server(endpoint = "fetch_categories")]
@@ -117,13 +124,16 @@ pub async fn fetch_categories() -> Result<Vec<TaskCategory>, ServerFnError> {
     let cache = cache.read().await;
     let mut cats: BTreeMap<TaskCategory, ()> = BTreeMap::new();
     for (_, task) in cache.iter() {
-        cats.entry(task.info().category().parse().unwrap()).or_default();
+        cats.entry(task.info().category().parse().unwrap())
+            .or_default();
     }
     Ok(cats.into_keys().collect())
 }
 
 #[server(endpoint = "fetch_task_details")]
-pub async fn fetch_task_details(id: Uuid) -> Result<(Uuid, task::Details, TaskAuthors), ServerFnError> {
+pub async fn fetch_task_details(
+    id: Uuid,
+) -> Result<(Uuid, task::Details, TaskAuthors), ServerFnError> {
     tracing::info!("fetch details for task id {id}");
     let cache = self::ssr::use_task_cache();
     let cache = cache.read().await;
@@ -174,7 +184,10 @@ pub async fn delete_task(id: Uuid) -> Result<(), ServerFnError> {
 }
 
 #[server(endpoint = "update_task_priority")]
-pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> Result<(), ServerFnError> {
+pub async fn update_task_priority(
+    id: Uuid,
+    priority: Option<TaskPriority>,
+) -> Result<(), ServerFnError> {
     let actor = self::ssr::use_actor().await?;
     tracing::info!("update priority for task {id}");
     let cache = self::ssr::use_task_cache();
@@ -190,7 +203,10 @@ pub async fn update_task_priority(id: Uuid, priority: Option<TaskPriority>) -> R
 }
 
 #[server(endpoint = "update_task_time_estimate")]
-pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstimate>) -> Result<(), ServerFnError> {
+pub async fn update_task_time_estimate(
+    id: Uuid,
+    estimate: Option<TaskTimeEstimate>,
+) -> Result<(), ServerFnError> {
     let actor = self::ssr::use_actor().await?;
     tracing::info!("update time estimate for task {id}");
     let cache = self::ssr::use_task_cache();
@@ -206,7 +222,10 @@ pub async fn update_task_time_estimate(id: Uuid, estimate: Option<TaskTimeEstima
 }
 
 #[server(endpoint = "update_task_availability")]
-pub async fn update_task_availability(id: Uuid, availability: TaskAvailability) -> Result<(), ServerFnError> {
+pub async fn update_task_availability(
+    id: Uuid,
+    availability: TaskAvailability,
+) -> Result<(), ServerFnError> {
     let actor = self::ssr::use_actor().await?;
     tracing::info!("update availability for task {id}");
     let cache = self::ssr::use_task_cache();
@@ -275,7 +294,10 @@ pub async fn fetch_contexts() -> Result<Vec<TaskContext>, ServerFnError> {
 }
 
 #[server(endpoint = "replace_task_contexts")]
-pub async fn replace_task_contexts(id: Uuid, contexts: Vec<TaskContext>) -> Result<(), ServerFnError> {
+pub async fn replace_task_contexts(
+    id: Uuid,
+    contexts: Vec<TaskContext>,
+) -> Result<(), ServerFnError> {
     let actor = self::ssr::use_actor().await?;
     tracing::info!("replace contexts for task {id}");
     let cache = self::ssr::use_task_cache();
@@ -433,10 +455,7 @@ pub mod ssr {
 
     pub async fn use_actor() -> Result<String, ServerFnError> {
         let headers: http::HeaderMap = leptos_axum::extract().await?;
-        if let Some(user) = headers
-            .get("Remote-User")
-            .and_then(|v| v.to_str().ok())
-        {
+        if let Some(user) = headers.get("Remote-User").and_then(|v| v.to_str().ok()) {
             return Ok(user.to_owned());
         }
 
@@ -444,11 +463,9 @@ pub mod ssr {
         let Some(fallback) = use_context::<FallbackUser>() else {
             unreachable!("fallback user context missing")
         };
-        (*fallback).clone().ok_or_else(|| {
-            ServerFnError::ServerError(
-                "no authenticated user".into(),
-            )
-        })
+        (*fallback)
+            .clone()
+            .ok_or_else(|| ServerFnError::ServerError("no authenticated user".into()))
     }
 
     pub fn task_not_exist_error(id: &Uuid) -> ServerFnError {
