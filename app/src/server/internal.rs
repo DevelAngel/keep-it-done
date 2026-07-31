@@ -21,6 +21,9 @@ use crate::{DeadlineGroup, Urgency};
 pub type UpcomingGroups = Vec<(DeadlineGroup, Vec<(Uuid, task::Infos, Urgency, NaiveDate)>)>;
 pub type UpcomingBacklog = Vec<(Uuid, task::Infos)>;
 
+#[cfg(feature = "ssr")]
+pub type QuickWinsGroups = Vec<(TaskTimeEstimate, Vec<(Uuid, task::Infos)>)>;
+
 /// Assign a deadline group based on the task's attention date.
 ///
 /// Overdue is always based on the actual `due_date`. For non-overdue

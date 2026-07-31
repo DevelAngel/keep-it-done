@@ -6,12 +6,13 @@
 use crate::oauth::{self, McpOAuthStore};
 use crate::{SharedTaskCache, SharedTimeOffset};
 
-use kid_app::{DeadlineGroup, server::group_quick_wins, server::group_upcoming};
+use kid_app::DeadlineGroup;
+use kid_app::server::{
+    QuickWinsGroups, UpcomingBacklog, UpcomingGroups, group_quick_wins, group_upcoming,
+};
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{
-    Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid,
-};
+use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
 
 use chrono::{Datelike, Weekday};
 
@@ -22,15 +23,18 @@ use axum::routing::{get, post};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{
-    CacheScope, ContentBlock, ErrorData as McpError, Implementation, ListResourcesResult,
-    PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse, ReadResourceResult,
-    Resource, ResourceContents, ResultType, ServerCapabilities, ServerInfo,
+    CacheScope, CallToolResult, ContentBlock, ContextInclusion, ErrorData as McpError,
+    Implementation, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
+    ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ResultType,
+    ServerCapabilities, ServerInfo,
 };
+#[allow(deprecated)] // MCP sampling
+use rmcp::model::{CreateMessageRequestParams, ModelHint, ModelPreferences, SamplingMessage};
 use rmcp::schemars::{self, JsonSchema};
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
-use rmcp::{RoleServer, ServerHandler, model::CallToolResult, tool, tool_handler, tool_router};
+use rmcp::{Peer, RoleServer, ServerHandler, tool, tool_handler, tool_router};
 
 use indexmap::IndexSet;
 use miette::{IntoDiagnostic, Result};
@@ -314,7 +318,7 @@ impl ServerHandler for McpService {
     async fn read_resource(
         &self,
         ReadResourceRequestParams { uri, .. }: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
         let result = match uri.as_str() {
             self::categories::URI => {
@@ -340,27 +344,57 @@ impl ServerHandler for McpService {
                 ]))
             }
             self::daily_report::URI => {
-                let cache = self.task_cache.read().await;
-                let today = kid_app::time::today_at_offset(self.time_offset.get());
-                let (groups, _backlog) = group_upcoming(cache.iter(), today);
-                let markdown = render_daily_report(groups);
+                const TITLE: &str = self::daily_report::NAME;
+                let markdown = {
+                    let cache = self.task_cache.read().await;
+                    let today = kid_app::time::today_at_offset(self.time_offset.get());
+                    let (groups, _backlog) = group_upcoming(cache.iter(), today);
+                    render_daily_report(groups)
+                };
+                let markdown = match ZeldaCommentary::request(&context.peer, TITLE, &markdown).await
+                {
+                    None => format!("**{TITLE}**\n\n{markdown}\n"),
+                    Some(ZeldaCommentary { intro, outro }) => {
+                        format!("**{TITLE}**\n\n{intro}\n\n{markdown}\n\n{outro}\n")
+                    }
+                };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             self::backlog::URI => {
-                let cache = self.task_cache.read().await;
-                let today = kid_app::time::today_at_offset(self.time_offset.get());
-                let (_groups, backlog) = group_upcoming(cache.iter(), today);
-                let markdown = render_backlog(backlog);
+                const TITLE: &str = self::backlog::NAME;
+                let markdown = {
+                    let cache = self.task_cache.read().await;
+                    let today = kid_app::time::today_at_offset(self.time_offset.get());
+                    let (_groups, backlog) = group_upcoming(cache.iter(), today);
+                    render_backlog(backlog)
+                };
+                let markdown = match ZeldaCommentary::request(&context.peer, TITLE, &markdown).await
+                {
+                    None => format!("**{TITLE}**\n\n{markdown}\n"),
+                    Some(ZeldaCommentary { intro, outro }) => {
+                        format!("**{TITLE}**\n\n{intro}\n\n{markdown}\n\n{outro}\n")
+                    }
+                };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             self::quick_wins::URI => {
-                let cache = self.task_cache.read().await;
-                let groups = group_quick_wins(cache.iter());
-                let markdown = render_quick_wins(groups);
+                const TITLE: &str = self::quick_wins::NAME;
+                let markdown = {
+                    let cache = self.task_cache.read().await;
+                    let groups = group_quick_wins(cache.iter());
+                    render_quick_wins(groups)
+                };
+                let markdown = match ZeldaCommentary::request(&context.peer, TITLE, &markdown).await
+                {
+                    None => format!("**{TITLE}**\n\n{markdown}\n"),
+                    Some(ZeldaCommentary { intro, outro }) => {
+                        format!("**{TITLE}**\n\n{intro}\n\n{markdown}\n\n{outro}\n")
+                    }
+                };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
@@ -702,62 +736,16 @@ pub(super) mod quick_wins {
     pub const URI: &str = "kid://report/quick_wins";
 }
 
-/// Picks one of `sentences` at random.
-fn random_intro(sentences: &'static [&'static str]) -> &'static str {
-    use rand::prelude::IndexedRandom;
-    sentences.choose(&mut rand::rng()).unwrap()
-}
-
-const DAILY_REPORT_INTROS: [&str; 10] = [
-    "Hey! Listen! 🧚 New quests have appeared - time to set out!",
-    "Wake up, young hero. 🧚 The tasks of this day await your courage. 🌳",
-    "Hey! Hey! 🧚 Today's trials are ready for you!",
-    "The path ahead is clear, adventurer. 🧙 Let's clear these quests! 🗡️",
-    "Fairy's honor: today's objectives won't complete themselves. Onward! ✨",
-    "Hey! 🧚 Over here! Your quest log has refreshed for today!",
-    "It is time, hero. 🧝 Destiny - or at least today's to-do list - awaits.",
-    "Hyah! 🐲 A new day dawns over Hyrule, and with it, new quests. ☀️",
-    "The Great Deku Tree has watched over these tasks. Now they're yours. 🌳",
-    "Hey! Listen! Don't let the day slip by like a Skulltula in the dark. ✨",
-];
-
-const BACKLOG_INTROS: [&str; 10] = [
-    "Deep in the quest log, these tasks slumber - no deadline binds them yet. 🌳",
-    "Side quests, patiently waiting in the shadow of the Great Tree. 🍃",
-    "Hey! 🧚 These ones don't have a due date, but they haven't been forgotten!",
-    "The undated scrolls of your journey rest here, hero. 🧙",
-    "No urgency, no timer - just quests waiting for a worthy moment. 🧙",
-    "Hey! Listen! 🧚 These are the quests that time forgot - for now.",
-    "The Great Deku Tree has seen many ages pass, and these tasks with them. 🌳",
-    "A hero's journey is long. 🧝 These quests will keep for when you're ready.",
-    "Hey! 🧚 No rush on these ones - the forest keeps its secrets patiently. 🍃",
-    "Old quests, older courage. 🧙 They'll be here when you return. ✨",
-];
-
-const QUICK_WINS_INTROS: [&str; 10] = [
-    "Hey! Listen! 🧚 These quests are quick - a true hero clears them in a flash! ✨",
-    "Small trials, swiftly won. Even a Kokiri could finish these. 🍃",
-    "Hey! 🧚 No need for the Master Sword here - just a few minutes!",
-    "Short quests, sorted by how fast courage can conquer them. 🗡️",
-    "The Great Deku Tree smiles upon these easy victories. 🌳",
-    "Hey! Listen! 🧚 Quick as a Deku Nut - these won't take long!",
-    "Small deeds, hero, but every Triforce piece starts somewhere. ✨",
-    "Hey! 🧚 Over here! Easy quests, ripe for the taking!",
-    "Not every hero's journey needs an Epona 🐎 - these are a short walk. 🍃",
-    "Fast quests for a fast hero. Go get 'em! 🗡️",
-];
-
 /// Renders `groups` (the dated-or-ready part of [`group_upcoming`]'s result)
 /// as Markdown: one heading per [`DeadlineGroup`], with the same "This/Next
 /// Weekend" relabeling and weekday/weekend divider as the Upcoming view when
 /// every task in a `ThisWeek`/`NextWeek` group falls on a weekend.
-fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
+fn render_daily_report(groups: UpcomingGroups) -> String {
     if groups.is_empty() {
-        return format!("*Daily Report*\n\nNo open tasks due, or ready to start, today.\n");
+        return "No open tasks due, or ready to start, today.\n".to_owned();
     }
 
-    let mut markdown = format!("*Daily Report*\n\n{}\n", random_intro(&DAILY_REPORT_INTROS));
-
+    let mut markdown = String::with_capacity(500);
     for (group, tasks) in &groups {
         let all_weekend = matches!(group, DeadlineGroup::ThisWeek | DeadlineGroup::NextWeek)
             && tasks
@@ -772,7 +760,7 @@ fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
             None
         };
 
-        markdown.push_str(&format!("\n*{}*\n\n", group.display_label(all_weekend)));
+        markdown.push_str(&format!("\n**{}**\n\n", group.display_label(all_weekend)));
         for (idx, (_, info, ..)) in tasks.iter().enumerate() {
             if separator_idx == Some(idx) {
                 markdown.push_str("---\n\n");
@@ -786,14 +774,12 @@ fn render_daily_report(groups: kid_app::server::UpcomingGroups) -> String {
 
 /// Renders `backlog` (the dateless part of [`group_upcoming`]'s result) as
 /// Markdown.
-fn render_backlog(backlog: kid_app::server::UpcomingBacklog) -> String {
-    let mut markdown = format!("*Backlog*\n\n{}\n\n", random_intro(&BACKLOG_INTROS));
-
+fn render_backlog(backlog: UpcomingBacklog) -> String {
     if backlog.is_empty() {
-        markdown.push_str("No open tasks without a date.\n");
-        return markdown;
+        return "No open tasks without a date.\n".to_owned();
     }
 
+    let mut markdown = String::with_capacity(500);
     for (_, info) in &backlog {
         markdown.push_str(&task_line(info));
     }
@@ -803,20 +789,16 @@ fn render_backlog(backlog: kid_app::server::UpcomingBacklog) -> String {
 
 /// Renders `groups` ([`group_quick_wins`]'s result) as Markdown: one
 /// heading per time estimate, shortest first.
-fn render_quick_wins(
-    groups: Vec<(TaskTimeEstimate, Vec<(Uuid, kid_types::task::Infos)>)>,
-) -> String {
-    let mut markdown = format!("*Quick Wins*\n\n{}\n", random_intro(&QUICK_WINS_INTROS));
-
+fn render_quick_wins<'a>(groups: QuickWinsGroups) -> String {
     if groups.is_empty() {
-        markdown.push_str("\nNo open tasks have a time estimate.\n");
-        return markdown;
-    }
+        return "No open tasks have a time estimate.\n".to_owned();
+    };
 
-    for (estimate, tasks) in &groups {
-        markdown.push_str(&format!("\n*{estimate}*\n\n"));
-        for (_, info) in tasks {
-            markdown.push_str(&task_line(info));
+    let mut markdown = String::with_capacity(500);
+    for (estimate, tasks) in groups {
+        markdown.push_str(&format!("\n**{estimate}**\n\n"));
+        for (_, ref task) in tasks {
+            markdown.push_str(&task_line(task));
         }
     }
 
@@ -826,7 +808,7 @@ fn render_quick_wins(
 /// Renders one task as a Markdown checkbox line, e.g.
 /// `- [ ] Buy groceries _Household_`. Always unchecked: `group_upcoming`
 /// only ever returns open tasks.
-fn task_line(info: &kid_types::task::Infos) -> String {
+fn task_line<'a>(info: &'a impl TaskInfos<'a>) -> String {
     let summary = info.summary();
     let category = info.category();
     let category = if category.is_empty() {
@@ -849,4 +831,87 @@ fn host_header(url: &Url) -> Option<String> {
         Some(port) => format!("{host}:{port}"),
         None => host.to_owned(),
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct ZeldaCommentary {
+    intro: String,
+    outro: String,
+}
+
+impl ZeldaCommentary {
+    async fn request(
+        peer: &Peer<RoleServer>,
+        report_title: &str,
+        report_markdown: &str,
+    ) -> Option<Self> {
+        use indoc::indoc;
+        const SYSTEM_PROMPT: &str = indoc! {r#"
+            You narrate household task reports in the voice of a Zelda game —
+            courage, quests, the Triforce, Navi-esque encouragement —
+            while staying grounded in the actual report content you are given.
+            Using emojis like 🧚 🌳 🍃 🗡️ ✨ 🐎 🧝 🧙 🐲 is your spirit.
+
+            You always respond with ONLY a JSON object.
+            No markdown code fences.
+            No prose before or after the JSON.
+            The object has exactly two fields:
+            - "intro" (one short motivating sentence, placed before a task list) and
+            - "outro" (a longer closing passage, 4-6 sentences, placed after the list).
+
+            Respond in the same language as the task titles in the report.
+            If tasks are in German, respond in German.
+            If tasks are in English, respond in English.
+            Match whichever language dominates the report —
+            ignore the language used in any example below,
+            which only demonstrates format and tone, not the language to use.
+        "#};
+
+        #[allow(deprecated)]
+        let user_msg =
+            SamplingMessage::user_text(format!("Report: {report_title}\n\n{report_markdown}"));
+
+        #[allow(deprecated)]
+        let model_hint = ModelHint::new("auto");
+        #[allow(deprecated)]
+        let model_prefs = ModelPreferences::new()
+            .with_hints(vec![model_hint])
+            .with_cost_priority(0.5)
+            .with_speed_priority(0.1)
+            .with_intelligence_priority(0.9);
+        let context = ContextInclusion::None;
+
+        #[allow(deprecated)]
+        let request = CreateMessageRequestParams::new(vec![user_msg], 600)
+            .with_model_preferences(model_prefs)
+            .with_system_prompt(SYSTEM_PROMPT)
+            .with_include_context(context)
+            .with_temperature(0.9);
+
+        #[allow(deprecated)]
+        let result = peer.create_message(request).await;
+        let response = match result {
+            Ok(r) => r,
+            Err(err) => {
+                tracing::warn!(?err, "sampling request failed, skipping zelda commentary");
+                return None;
+            }
+        };
+
+        #[allow(deprecated)]
+        let text = response
+            .message
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .map(|t| t.text.as_str())?;
+
+        match serde_json::from_str::<Self>(text) {
+            Ok(commentary) => Some(commentary),
+            Err(err) => {
+                tracing::warn!(?err, raw = %text, "zelda commentary was not valid JSON");
+                None
+            }
+        }
+    }
 }

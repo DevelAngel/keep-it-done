@@ -34,6 +34,7 @@ clap-verbosity-flag.workspace = true
 derive_more = { workspace = true, features = ["deref", "from", "display", "from_str"] }
 futures.workspace = true
 indexmap.workspace = true
+indoc.workspace = true
 leptos = { workspace = true, features = ["ssr"] }
 leptos_axum.workspace = true
 miette = { workspace = true, features = ["fancy"] }
