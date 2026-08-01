@@ -5,7 +5,7 @@ mod internal;
 /// deadline-urgency grouping as the Upcoming view without going through
 /// `fetch_upcoming`'s leptos server-function/context machinery.
 #[cfg(feature = "ssr")]
-pub use self::internal::{QuickWinsGroups, group_upcoming};
+pub use self::internal::{QuickWinsGroups, group_recently_changed_since, group_upcoming};
 pub use self::internal::{UpcomingBacklog, UpcomingGroups};
 
 /// Re-exported for reuse outside the leptos server-function boundary, e.g.

@@ -8,7 +8,8 @@ use crate::{SharedTaskCache, SharedTimeOffset};
 
 use kid_app::DeadlineGroup;
 use kid_app::server::{
-    QuickWinsGroups, UpcomingBacklog, UpcomingGroups, group_quick_wins, group_upcoming,
+    QuickWinsGroups, RecentChange, UpcomingBacklog, UpcomingGroups, group_quick_wins,
+    group_recently_changed_since, group_upcoming,
 };
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
@@ -275,6 +276,7 @@ impl ServerHandler for McpService {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        use indoc::indoc;
         const TTL_MS: u64 = 10 * 60 * 1000;
         Ok(ListResourcesResult {
             resources: vec![
@@ -284,6 +286,12 @@ impl ServerHandler for McpService {
                 Resource::new(self::contexts::URI, self::contexts::NAME)
                     .with_description("Contexts currently in use")
                     .with_mime_type("application/json"),
+                Resource::new(self::weekly_report::URI, self::weekly_report::NAME)
+                    .with_description(indoc! {"
+                        Narrative weekly review, reflecting on the last 7 days of task activity without scores, streaks, or comparisons.
+                        Falls back to a plain list of recent changes if sampling is unavailable.
+                    "})
+                    .with_mime_type("text/markdown"),
                 Resource::new(self::daily_report::URI, self::daily_report::NAME)
                     .with_description(
                         "Markdown summary of open tasks for today: grouped into \
@@ -341,6 +349,23 @@ impl ServerHandler for McpService {
                 let json = serde_json::to_string(&contexts).unwrap_or_default();
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(json, &uri).with_mime_type("application/json"),
+                ]))
+            }
+            self::weekly_report::URI => {
+                const TITLE: &str = self::weekly_report::NAME;
+                let changes_markdown = {
+                    let cache = self.task_cache.read().await;
+                    let today = kid_app::time::today_at_offset(self.time_offset.get());
+                    let changes = group_recently_changed_since(cache.iter(), today, 8);
+                    render_recent_changes(changes)
+                };
+                let markdown =
+                    match ZeldaReview::request(&context.peer, TITLE, &changes_markdown).await {
+                        Some(text) => format!("**{TITLE}**\n\n{text}\n"),
+                        None => format!("**{TITLE}**\n\n{changes_markdown}\n"),
+                    };
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             self::daily_report::URI => {
@@ -723,6 +748,10 @@ pub(super) mod contexts {
     pub const NAME: &str = "Contexts";
     pub const URI: &str = "kid://contexts";
 }
+pub(super) mod weekly_report {
+    pub const NAME: &str = "Weekly Review";
+    pub const URI: &str = "kid://report/weekly";
+}
 pub(super) mod daily_report {
     pub const NAME: &str = "Daily Report";
     pub const URI: &str = "kid://report/daily";
@@ -734,6 +763,27 @@ pub(super) mod backlog {
 pub(super) mod quick_wins {
     pub const NAME: &str = "Quick Wins";
     pub const URI: &str = "kid://report/quick_wins";
+}
+
+/// Renders `changes` ([`group_recently_changed`]'s result) as Markdown,
+/// grouped by day, most recent first. Fallback body for the weekly
+/// review resource when sampling is unavailable.
+fn render_recent_changes(changes: Vec<RecentChange>) -> String {
+    if changes.is_empty() {
+        return "No task activity in the last 7 days.\n".to_owned();
+    }
+
+    let mut markdown = String::with_capacity(500);
+    let mut current_day = None;
+    for change in &changes {
+        let day = change.last_changed.date_naive();
+        if current_day != Some(day) {
+            markdown.push_str(&format!("\n**{}**\n\n", day.format("%A, %-d %B")));
+            current_day = Some(day);
+        }
+        markdown.push_str(&task_line(&change.info));
+    }
+    markdown
 }
 
 /// Renders `groups` (the dated-or-ready part of [`group_upcoming`]'s result)
@@ -831,6 +881,115 @@ fn host_header(url: &Url) -> Option<String> {
         Some(port) => format!("{host}:{port}"),
         None => host.to_owned(),
     })
+}
+
+#[derive(Debug, Deserialize)]
+struct ZeldaReview {
+    text: String,
+}
+
+impl ZeldaReview {
+    async fn request(
+        peer: &Peer<RoleServer>,
+        report_title: &str,
+        report_markdown: &str,
+    ) -> Option<String> {
+        use indoc::indoc;
+        const SYSTEM_PROMPT: &str = indoc! {r#"
+            You narrate a weekly review of a household task list in the voice of
+            a Zelda game — courage, quests, the Triforce, Navi-esque
+            encouragement, emojis like 🧚 🌳 🍃 🗡️ ✨ 🐎 🧝 🧙 🐲 — based on a raw
+            list of tasks created, changed, or completed in the last 8 days.
+
+            The Zelda voice is decoration. These six rules govern the substance
+            and override the voice whenever they conflict:
+
+            1. Describe behavior, not performance. Never evaluate, rate, or
+               praise the person themselves — only what was done and how.
+               "You cleared the westward road before the second moon" not "You
+               did great this week."
+            2. No scores. No percentages, no "X of Y done", no streaks, no
+               points, no rank — not even reskinned as hearts, rupees, or
+               levels.
+            3. No comparisons to other weeks or to some ideal pace. Each week
+               stands alone.
+            4. Open or postponed tasks are never failure, never framed with
+               urgency or guilt. Frame them as a strategy choice: "This quest
+               still awaits — worth splitting into smaller trials, or naming a
+               day next week to take it on?"
+            5. Keep tone constant regardless of how much or little happened.
+               No extra triumph for a busy week, no dimmer tone for a quiet one.
+            6. When something was clearly hard or got pushed more than once,
+               treat it as a question of strategy, not resolve. Never imply the
+               person lacked courage, effort, or discipline — only that the
+               approach might want adjusting.
+
+            Structure the review in three parts, told in-voice:
+            - What realms/quest-lines the week's tasks clustered around (name
+              the actual categories/themes — don't just say "you were busy").
+            - What happened, narrated as a chronicle of actions and their order,
+              not a checklist recap.
+            - What quests remain open, each framed per rule 4.
+
+            You always respond with ONLY a JSON object, no markdown code fences,
+            no prose before or after. The object has exactly one field: "text",
+            containing the full review as Markdown (a few short paragraphs, no
+            headings needed).
+
+            Respond in the same language as the task titles in the list. If
+            tasks are in German, respond in German. If in English, respond in
+            English. The Zelda flavor words (Triforce, quest, etc.) may stay
+            in their conventional form even when translated loosely.
+        "#};
+
+        #[allow(deprecated)]
+        let user_msg = SamplingMessage::user_text(format!(
+            "Recent task activity for: {report_title}\n\n{report_markdown}"
+        ));
+
+        #[allow(deprecated)]
+        let model_hint = ModelHint::new("auto");
+        #[allow(deprecated)]
+        let model_prefs = ModelPreferences::new()
+            .with_hints(vec![model_hint])
+            .with_cost_priority(0.5)
+            .with_speed_priority(0.1)
+            .with_intelligence_priority(0.9);
+        let context = ContextInclusion::None;
+
+        #[allow(deprecated)]
+        let request = CreateMessageRequestParams::new(vec![user_msg], 800)
+            .with_model_preferences(model_prefs)
+            .with_system_prompt(SYSTEM_PROMPT)
+            .with_include_context(context)
+            .with_temperature(0.7);
+
+        #[allow(deprecated)]
+        let result = peer.create_message(request).await;
+        let response = match result {
+            Ok(r) => r,
+            Err(err) => {
+                tracing::warn!(?err, "sampling request failed, skipping weekly review");
+                return None;
+            }
+        };
+
+        #[allow(deprecated)]
+        let text = response
+            .message
+            .content
+            .first()
+            .and_then(|c| c.as_text())
+            .map(|t| t.text.as_str())?;
+
+        match serde_json::from_str::<Self>(text) {
+            Ok(review) => Some(review.text),
+            Err(err) => {
+                tracing::warn!(?err, raw = %text, "weekly review was not valid JSON");
+                None
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

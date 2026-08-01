@@ -421,6 +421,49 @@ pub(super) fn group_recently_changed<'a>(
         .collect()
 }
 
+/// Collect tasks changed within the last `days` days (inclusive of
+/// `today`), sorted by last-change descending. Unlike
+/// `group_recently_changed`, this uses a hard date cutoff — no calendar
+/// window, no extra-days padding for empty days.
+#[cfg(feature = "ssr")]
+pub fn group_recently_changed_since<'a>(
+    tasks: impl Iterator<Item = (&'a Uuid, &'a kid_types::Task)>,
+    today: NaiveDate,
+    days: u32,
+) -> Vec<super::RecentChange> {
+    let cutoff = today.checked_sub_days(Days::new(days as u64)).unwrap();
+    let mut all: Vec<_> = tasks
+        .filter_map(|(id, task)| {
+            let last_change = task
+                .authors()
+                .values()
+                .flatten()
+                .max()
+                .map(|t| t.with_timezone(&Utc))
+                .unwrap_or_else(|| task.info().since().with_timezone(&Utc));
+            if last_change.date_naive() < cutoff {
+                return None;
+            }
+            let authors = TaskAuthors::from(task.authors());
+            let ai_involved = authors.iter().any(|(a, _)| a.starts_with("ai:"));
+            let ai_last = authors
+                .iter()
+                .max_by_key(|(_, ts)| ts)
+                .is_some_and(|(a, _)| a.starts_with("ai:"));
+            Some(super::RecentChange {
+                id: id.to_owned(),
+                info: task.info().to_owned(),
+                authors,
+                last_changed: last_change.fixed_offset(),
+                ai_last,
+                ai_involved,
+            })
+        })
+        .collect();
+    all.sort_by(|a, b| b.last_changed.cmp(&a.last_changed));
+    all
+}
+
 #[cfg(all(test, feature = "ssr"))]
 mod tests {
     use super::*;
