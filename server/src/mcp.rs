@@ -24,18 +24,15 @@ use axum::routing::{get, post};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{
-    CacheScope, CallToolResult, ContentBlock, ContextInclusion, ErrorData as McpError,
-    Implementation, ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams,
-    ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ResultType,
-    ServerCapabilities, ServerInfo,
+    CacheScope, CallToolResult, ContentBlock, ErrorData as McpError, Implementation,
+    ListResourcesResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
+    ReadResourceResult, Resource, ResourceContents, ResultType, ServerCapabilities, ServerInfo,
 };
-#[allow(deprecated)] // MCP sampling
-use rmcp::model::{CreateMessageRequestParams, ModelHint, ModelPreferences, SamplingMessage};
 use rmcp::schemars::{self, JsonSchema};
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
-use rmcp::{Peer, RoleServer, ServerHandler, tool, tool_handler, tool_router};
+use rmcp::{RoleServer, ServerHandler, tool, tool_handler, tool_router};
 
 use indexmap::IndexSet;
 use miette::{IntoDiagnostic, Result};
@@ -326,7 +323,7 @@ impl ServerHandler for McpService {
     async fn read_resource(
         &self,
         ReadResourceRequestParams { uri, .. }: ReadResourceRequestParams,
-        context: RequestContext<RoleServer>,
+        _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, McpError> {
         let result = match uri.as_str() {
             self::categories::URI => {
@@ -352,73 +349,44 @@ impl ServerHandler for McpService {
                 ]))
             }
             self::weekly_report::URI => {
-                const TITLE: &str = self::weekly_report::NAME;
-                let changes_markdown = {
+                let markdown = {
+                    const DAYS: u32 = 8;
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
-                    let changes = group_recently_changed_since(cache.iter(), today, 8);
-                    render_recent_changes(changes)
+                    let changes = group_recently_changed_since(cache.iter(), today, DAYS);
+                    render_recent_changes(changes, DAYS)
                 };
-                let markdown =
-                    match ZeldaReview::request(&context.peer, TITLE, &changes_markdown).await {
-                        Some(text) => format!("**{TITLE}**\n\n{text}\n"),
-                        None => format!("**{TITLE}**\n\n{changes_markdown}\n"),
-                    };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             self::daily_report::URI => {
-                const TITLE: &str = self::daily_report::NAME;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
                     let (groups, _backlog) = group_upcoming(cache.iter(), today);
                     render_daily_report(groups)
                 };
-                let markdown = match ZeldaCommentary::request(&context.peer, TITLE, &markdown).await
-                {
-                    None => format!("**{TITLE}**\n\n{markdown}\n"),
-                    Some(ZeldaCommentary { intro, outro }) => {
-                        format!("**{TITLE}**\n\n{intro}\n\n{markdown}\n\n{outro}\n")
-                    }
-                };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             self::backlog::URI => {
-                const TITLE: &str = self::backlog::NAME;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
                     let (_groups, backlog) = group_upcoming(cache.iter(), today);
                     render_backlog(backlog)
                 };
-                let markdown = match ZeldaCommentary::request(&context.peer, TITLE, &markdown).await
-                {
-                    None => format!("**{TITLE}**\n\n{markdown}\n"),
-                    Some(ZeldaCommentary { intro, outro }) => {
-                        format!("**{TITLE}**\n\n{intro}\n\n{markdown}\n\n{outro}\n")
-                    }
-                };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
             self::quick_wins::URI => {
-                const TITLE: &str = self::quick_wins::NAME;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let groups = group_quick_wins(cache.iter());
                     render_quick_wins(groups)
-                };
-                let markdown = match ZeldaCommentary::request(&context.peer, TITLE, &markdown).await
-                {
-                    None => format!("**{TITLE}**\n\n{markdown}\n"),
-                    Some(ZeldaCommentary { intro, outro }) => {
-                        format!("**{TITLE}**\n\n{intro}\n\n{markdown}\n\n{outro}\n")
-                    }
                 };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
@@ -768,9 +736,9 @@ pub(super) mod quick_wins {
 /// Renders `changes` ([`group_recently_changed`]'s result) as Markdown,
 /// grouped by day, most recent first. Fallback body for the weekly
 /// review resource when sampling is unavailable.
-fn render_recent_changes(changes: Vec<RecentChange>) -> String {
+fn render_recent_changes(changes: Vec<RecentChange>, days: u32) -> String {
     if changes.is_empty() {
-        return "No task activity in the last 7 days.\n".to_owned();
+        return format!("No task activity in the last {days} days.\n");
     }
 
     let mut markdown = String::with_capacity(500);
@@ -881,196 +849,4 @@ fn host_header(url: &Url) -> Option<String> {
         Some(port) => format!("{host}:{port}"),
         None => host.to_owned(),
     })
-}
-
-#[derive(Debug, Deserialize)]
-struct ZeldaReview {
-    text: String,
-}
-
-impl ZeldaReview {
-    async fn request(
-        peer: &Peer<RoleServer>,
-        report_title: &str,
-        report_markdown: &str,
-    ) -> Option<String> {
-        use indoc::indoc;
-        const SYSTEM_PROMPT: &str = indoc! {r#"
-            You narrate a weekly review of a household task list in the voice of
-            a Zelda game — courage, quests, the Triforce, Navi-esque
-            encouragement, emojis like 🧚 🌳 🍃 🗡️ ✨ 🐎 🧝 🧙 🐲 — based on a raw
-            list of tasks created, changed, or completed in the last 8 days.
-
-            The Zelda voice is decoration. These six rules govern the substance
-            and override the voice whenever they conflict:
-
-            1. Describe behavior, not performance. Never evaluate, rate, or
-               praise the person themselves — only what was done and how.
-               "You cleared the westward road before the second moon" not "You
-               did great this week."
-            2. No scores. No percentages, no "X of Y done", no streaks, no
-               points, no rank — not even reskinned as hearts, rupees, or
-               levels.
-            3. No comparisons to other weeks or to some ideal pace. Each week
-               stands alone.
-            4. Open or postponed tasks are never failure, never framed with
-               urgency or guilt. Frame them as a strategy choice: "This quest
-               still awaits — worth splitting into smaller trials, or naming a
-               day next week to take it on?"
-            5. Keep tone constant regardless of how much or little happened.
-               No extra triumph for a busy week, no dimmer tone for a quiet one.
-            6. When something was clearly hard or got pushed more than once,
-               treat it as a question of strategy, not resolve. Never imply the
-               person lacked courage, effort, or discipline — only that the
-               approach might want adjusting.
-
-            Structure the review in three parts, told in-voice:
-            - What realms/quest-lines the week's tasks clustered around (name
-              the actual categories/themes — don't just say "you were busy").
-            - What happened, narrated as a chronicle of actions and their order,
-              not a checklist recap.
-            - What quests remain open, each framed per rule 4.
-
-            You always respond with ONLY a JSON object, no markdown code fences,
-            no prose before or after. The object has exactly one field: "text",
-            containing the full review as Markdown (a few short paragraphs, no
-            headings needed).
-
-            Respond in the same language as the task titles in the list. If
-            tasks are in German, respond in German. If in English, respond in
-            English. The Zelda flavor words (Triforce, quest, etc.) may stay
-            in their conventional form even when translated loosely.
-        "#};
-
-        #[allow(deprecated)]
-        let user_msg = SamplingMessage::user_text(format!(
-            "Recent task activity for: {report_title}\n\n{report_markdown}"
-        ));
-
-        #[allow(deprecated)]
-        let model_hint = ModelHint::new("auto");
-        #[allow(deprecated)]
-        let model_prefs = ModelPreferences::new()
-            .with_hints(vec![model_hint])
-            .with_cost_priority(0.5)
-            .with_speed_priority(0.1)
-            .with_intelligence_priority(0.9);
-        let context = ContextInclusion::None;
-
-        #[allow(deprecated)]
-        let request = CreateMessageRequestParams::new(vec![user_msg], 800)
-            .with_model_preferences(model_prefs)
-            .with_system_prompt(SYSTEM_PROMPT)
-            .with_include_context(context)
-            .with_temperature(0.7);
-
-        #[allow(deprecated)]
-        let result = peer.create_message(request).await;
-        let response = match result {
-            Ok(r) => r,
-            Err(err) => {
-                tracing::warn!(?err, "sampling request failed, skipping weekly review");
-                return None;
-            }
-        };
-
-        #[allow(deprecated)]
-        let text = response
-            .message
-            .content
-            .first()
-            .and_then(|c| c.as_text())
-            .map(|t| t.text.as_str())?;
-
-        match serde_json::from_str::<Self>(text) {
-            Ok(review) => Some(review.text),
-            Err(err) => {
-                tracing::warn!(?err, raw = %text, "weekly review was not valid JSON");
-                None
-            }
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct ZeldaCommentary {
-    intro: String,
-    outro: String,
-}
-
-impl ZeldaCommentary {
-    async fn request(
-        peer: &Peer<RoleServer>,
-        report_title: &str,
-        report_markdown: &str,
-    ) -> Option<Self> {
-        use indoc::indoc;
-        const SYSTEM_PROMPT: &str = indoc! {r#"
-            You narrate household task reports in the voice of a Zelda game —
-            courage, quests, the Triforce, Navi-esque encouragement —
-            while staying grounded in the actual report content you are given.
-            Using emojis like 🧚 🌳 🍃 🗡️ ✨ 🐎 🧝 🧙 🐲 is your spirit.
-
-            You always respond with ONLY a JSON object.
-            No markdown code fences.
-            No prose before or after the JSON.
-            The object has exactly two fields:
-            - "intro" (one short motivating sentence, placed before a task list) and
-            - "outro" (a longer closing passage, 4-6 sentences, placed after the list).
-
-            Respond in the same language as the task titles in the report.
-            If tasks are in German, respond in German.
-            If tasks are in English, respond in English.
-            Match whichever language dominates the report —
-            ignore the language used in any example below,
-            which only demonstrates format and tone, not the language to use.
-        "#};
-
-        #[allow(deprecated)]
-        let user_msg =
-            SamplingMessage::user_text(format!("Report: {report_title}\n\n{report_markdown}"));
-
-        #[allow(deprecated)]
-        let model_hint = ModelHint::new("auto");
-        #[allow(deprecated)]
-        let model_prefs = ModelPreferences::new()
-            .with_hints(vec![model_hint])
-            .with_cost_priority(0.5)
-            .with_speed_priority(0.1)
-            .with_intelligence_priority(0.9);
-        let context = ContextInclusion::None;
-
-        #[allow(deprecated)]
-        let request = CreateMessageRequestParams::new(vec![user_msg], 600)
-            .with_model_preferences(model_prefs)
-            .with_system_prompt(SYSTEM_PROMPT)
-            .with_include_context(context)
-            .with_temperature(0.9);
-
-        #[allow(deprecated)]
-        let result = peer.create_message(request).await;
-        let response = match result {
-            Ok(r) => r,
-            Err(err) => {
-                tracing::warn!(?err, "sampling request failed, skipping zelda commentary");
-                return None;
-            }
-        };
-
-        #[allow(deprecated)]
-        let text = response
-            .message
-            .content
-            .first()
-            .and_then(|c| c.as_text())
-            .map(|t| t.text.as_str())?;
-
-        match serde_json::from_str::<Self>(text) {
-            Ok(commentary) => Some(commentary),
-            Err(err) => {
-                tracing::warn!(?err, raw = %text, "zelda commentary was not valid JSON");
-                None
-            }
-        }
-    }
 }
