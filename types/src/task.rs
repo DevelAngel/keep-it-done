@@ -123,8 +123,8 @@ impl FromStr for Context {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             Err("context must not be empty")
-        } else if !s.starts_with('@') {
-            Err("context must start with '@'")
+        } else if !s.starts_with('#') {
+            Err("context must start with '#'")
         } else {
             Ok(Self(s.to_string()))
         }
@@ -137,10 +137,17 @@ impl Serialize for Context {
     }
 }
 
+/// Deserializes a context, migrating the legacy `@`-prefix (pre-Assignee-
+/// feature) to the current `#`-prefix on the fly. Load-time only — new
+/// input must be parsed via `FromStr`, which accepts only `#`.
 impl<'de> Deserialize<'de> for Context {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let s = String::deserialize(d)?;
-        s.parse().map_err(serde::de::Error::custom)
+        if let Some(rest) = s.strip_prefix('@') {
+            format!("#{rest}").parse().map_err(serde::de::Error::custom)
+        } else {
+            s.parse().map_err(serde::de::Error::custom)
+        }
     }
 }
 

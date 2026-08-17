@@ -19,7 +19,7 @@ A user cannot answer *"What can I do right now, here, with my current energy lev
 - Family member is accustomed to categories from MS To Do — familiar mental model must be preserved
 - Growing task list requires focus mechanisms beyond view switching
 - AI assistant needs machine-readable signals for task recommendation ("What should I do now?")
-- Contexts like `@abends` or `@telefon` encode constraints (kids asleep, quiet environment) that no category can express
+- Contexts like `#abends` or `#telefon` encode constraints (kids asleep, quiet environment) that no category can express
 - Both dimensions must work independently — neither depends on the other
 
 ## Considered Options
@@ -39,7 +39,7 @@ Chosen option: "Replace `context` with `category` + `contexts`", because it clea
 | Stability | Fixed after creation (rare changes) | Fluid — may shift as circumstances change |
 | Cardinality | Exactly one per task | Zero to many per task |
 | Purpose | Classification: *What kind of work is this?* | Actionability filter: *When/where can I do this?* |
-| Examples | `Kinder`, `Finanzen`, `Haushalt`, `KID` | `@telefon`, `@abends`, `@unterwegs`, `@kurz`, `@gemeinsam` |
+| Examples | `Kinder`, `Finanzen`, `Haushalt`, `KID` | `#telefon`, `#abends`, `#unterwegs`, `#kurz`, `#gemeinsam` |
 | Interaction | Grouping, sorting, visual sections | Filtering, chip bar, quick-select |
 
 ### Data Model
@@ -55,17 +55,17 @@ Chosen option: "Replace `context` with `category` + `contexts`", because it clea
 ```json
 {
   "category": "KID",
-  "contexts": ["@deep-focus", "@büro"]
+  "contexts": ["#deep-focus", "#büro"]
 }
 ```
 
 - `category` — required string, replaces the former `context` field
-- `contexts` — optional list of strings, new field, each prefixed with `@`
+- `contexts` — optional list of strings, new field, each prefixed with `#`
 
 Validation rules:
 - `category` is mandatory on create — the AI assistant or web UI must set it
 - `contexts` defaults to an empty list
-- Context values must start with `@` to maintain visual distinction in the UI and CLI output
+- Context values must start with `#` to maintain visual distinction in the UI and CLI output
 - Both fields are free text — no predefined enum, to allow organic growth
 
 ### Consequences
@@ -73,7 +73,7 @@ Validation rules:
 - Good, because category gives every task a stable home — grouping in views is always possible
 - Good, because contexts enable focused filtering without restructuring views
 - Good, because the AI assistant can infer category from natural language and suggest contexts based on task properties
-- Good, because `@`-prefix makes context values visually distinct in CLI output and chip bars
+- Good, because `#`-prefix makes context values visually distinct in CLI output and chip bars
 - Bad, because all existing task files must be migrated (`"context"` → `"category"`, `"contexts": []`)
 - Bad, because existing CLI usage of `--details '{"context": "..."}'` breaks — documentation and AI system prompt must be updated
 
@@ -121,7 +121,7 @@ This transforms a flat list of 20 tasks into 4–5 named groups of 3–5 tasks e
 
 A horizontal scrollable chip bar sits between the view header and the task list:
 
-- Each chip represents one context: `@abends`, `@telefon`, `@unterwegs`, `@kurz`, `@gemeinsam`
+- Each chip represents one context: `#abends`, `#telefon`, `#unterwegs`, `#kurz`, `#gemeinsam`
 - Single tap toggles a context filter — only matching tasks remain visible
 - Multiple contexts can be active simultaneously (AND logic)
 - Active chips are visually highlighted; inactive chips are muted
@@ -132,8 +132,8 @@ Contexts are not visible in the task list row by default — they are a filter m
 
 **Interaction flow:**
 1. User opens "My Day" — sees tasks grouped by category
-2. It is 21:00, kids are asleep → user taps `@abends`
-3. List reduces to tasks tagged `@abends`, still grouped by category
+2. It is 21:00, kids are asleep → user taps `#abends`
+3. List reduces to tasks tagged `#abends`, still grouped by category
 4. User sees 4 tasks across 2 categories — clear, actionable, focused
 
 ### AI Assistant
@@ -142,17 +142,17 @@ Contexts are not visible in the task list row by default — they are a filter m
 
 **Context suggestions:** the AI *suggests* contexts, it does not silently assign them. Context is personal.
 
-- Task involves a phone call → suggest `@telefon`
-- Time estimate ≤ 15 min → suggest `@kurz`
-- Task requires partner involvement → suggest `@gemeinsam`
-- Task involves errands or physical locations → suggest `@unterwegs`
+- Task involves a phone call → suggest `#telefon`
+- Time estimate ≤ 15 min → suggest `#kurz`
+- Task requires partner involvement → suggest `#gemeinsam`
+- Task involves errands or physical locations → suggest `#unterwegs`
 
 **CLI filtering** (to be added):
 
 ```bash
 kid list --category "Kinder"
-kid list --context "@abends"
-kid list --category "Finanzen" --context "@telefon"
+kid list --context "#abends"
+kid list --category "Finanzen" --context "#telefon"
 ```
 
 This enables AI-driven recommendations: *"Was kann ich jetzt tun?"* → AI checks time of day, infers available contexts, queries filtered list.
@@ -175,19 +175,19 @@ Steps 1–3 are a single atomic migration. Steps 4–7 can be rolled out increme
 {
   "summary": "Call pediatrician for routine check-up",
   "category": "Children",
-  "contexts": ["@phone", "@business-hours"],
+  "contexts": ["#phone", "#business-hours"],
   "priority": "B",
   "time_estimate": { "Guess": "10 min" }
 }
 ```
 
-Visible under **Children**; filtered out when `@evenings` is active; AI recommends on a weekday morning.
+Visible under **Children**; filtered out when `#evenings` is active; AI recommends on a weekday morning.
 
 ```json
 {
   "summary": "Update dependency versions",
   "category": "KID",
-  "contexts": ["@evenings", "@quick"],
+  "contexts": ["#evenings", "#quick"],
   "priority": "C",
   "time_estimate": { "Guess": "15 min" }
 }
@@ -199,7 +199,7 @@ Visible under **KID**; AI recommends when user says *"I have 15 minutes and I'm 
 {
   "summary": "Take out new accident insurance for the kids",
   "category": "Finance",
-  "contexts": ["@together", "@deep-focus"],
+  "contexts": ["#together", "#deep-focus"],
   "priority": "A"
 }
 ```

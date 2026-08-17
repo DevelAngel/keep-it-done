@@ -95,7 +95,7 @@ struct AddInput {
     summary: String,
     /// Life-domain category, e.g. "Household", "Finance" — see kid://categories
     category: String,
-    /// GTD-style contexts, each starting with '@' — see kid://contexts
+    /// GTD-style contexts, each starting with '#' — see kid://contexts
     #[serde(default)]
     contexts: Vec<String>,
     /// Optional task details (due_date, start_date, time_estimate, notes, availability)
@@ -141,7 +141,7 @@ struct RecategorizeInput {
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ContextsInput {
     id: Uuid,
-    /// Contexts, each starting with '@'
+    /// Contexts, each starting with '#'
     #[serde(default)]
     contexts: Vec<String>,
 }
@@ -262,7 +262,7 @@ impl ServerHandler for McpService {
         .with_server_info(Implementation::new("kid-mcp", env!("CARGO_PKG_VERSION")))
         .with_instructions(
             "Family task manager. Every task needs a category and should \
-             have at least one context (GTD-style, starting with '@'). \
+             have at least one context (GTD-style, starting with '#'). \
              Fetch kid://categories and kid://contexts to reuse existing \
              values before inventing new ones.",
         )
