@@ -28,6 +28,7 @@ use indexmap::IndexMap;
 
 use serde::{Deserialize, Serialize};
 
+use kid_types::TaskAssignee;
 use kid_types::TaskAuthors;
 use kid_types::TaskAvailability;
 use kid_types::TaskCategory;
@@ -306,6 +307,38 @@ pub async fn replace_task_contexts(
         .get_mut(&id, actor)
         .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
     task.set_contexts(contexts.into_iter().collect::<IndexSet<_>>());
+    Ok(())
+}
+
+#[server(endpoint = "fetch_assignees")]
+pub async fn fetch_assignees() -> Result<Vec<TaskAssignee>, ServerFnError> {
+    let cache = self::ssr::use_task_cache();
+    let cache = cache.read().await;
+    let mut set: std::collections::BTreeSet<TaskAssignee> = std::collections::BTreeSet::new();
+    for (_, task) in cache.iter() {
+        if let Some(a) = task.info().assignee() {
+            set.insert(a.clone());
+        }
+    }
+    Ok(set.into_iter().collect())
+}
+
+#[server(endpoint = "set_task_assignee")]
+pub async fn set_task_assignee(
+    id: Uuid,
+    assignee: Option<TaskAssignee>,
+) -> Result<(), ServerFnError> {
+    let actor = self::ssr::use_actor().await?;
+    tracing::info!("set assignee for task {id}");
+    let cache = self::ssr::use_task_cache();
+    let mut cache = cache.write().await;
+    let mut task = cache
+        .get_mut(&id, actor)
+        .ok_or_else(|| self::ssr::task_not_exist_error(&id))?;
+    match assignee {
+        Some(a) => task.set_assignee(a),
+        None => task.clear_assignee(),
+    }
     Ok(())
 }
 
