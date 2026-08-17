@@ -411,7 +411,10 @@ impl ServerHandler for McpService {
 
 #[tool_router]
 impl McpService {
-    #[tool(description = "List tasks, optionally filtered by status and/or fuzzy search")]
+    #[tool(
+        description = "List tasks, optionally filtered by status and/or fuzzy search",
+        annotations(title = "List Tasks", read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn list(
         &self,
         Parameters(ListInput { search, status }): Parameters<ListInput>,
@@ -462,7 +465,10 @@ impl McpService {
         Json(ListOutput { entries })
     }
 
-    #[tool(description = "Add a new task. Returns the new task's id")]
+    #[tool(
+        description = "Add a new task. Returns the new task's id",
+        annotations(title = "Add Task", read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
+    )]
     async fn add(
         &self,
         Parameters(AddInput {
@@ -491,7 +497,10 @@ impl McpService {
         Ok(CallToolResult::structured(serde_json::json!({ "id": id })))
     }
 
-    #[tool(description = "Rename a task's summary — its identity. Use `update` for other changes")]
+    #[tool(
+        description = "Rename a task's summary — its identity. Use `update` for other changes",
+        annotations(title = "Rename Task", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn rename(
         &self,
         Parameters(RenameInput { id, summary }): Parameters<RenameInput>,
@@ -509,7 +518,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Replace all task details (PUT semantics — omitted fields cleared)")]
+    #[tool(
+        description = "Replace all task details (PUT semantics — omitted fields cleared)",
+        annotations(title = "Replace Task Details", read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn replace(
         &self,
         Parameters(ReplaceInput { id, details }): Parameters<ReplaceInput>,
@@ -528,7 +540,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Patch task details (PATCH semantics — omitted fields unchanged)")]
+    #[tool(
+        description = "Patch task details (PATCH semantics — omitted fields unchanged)",
+        annotations(title = "Patch Task Details", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn update(
         &self,
         Parameters(UpdateInput { id, details }): Parameters<UpdateInput>,
@@ -545,7 +560,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Complete a task, or reopen it with reopen=true")]
+    #[tool(
+        description = "Complete a task, or reopen it with reopen=true",
+        annotations(title = "Complete/Reopen Task", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn complete(
         &self,
         Parameters(CompleteInput { id, reopen }): Parameters<CompleteInput>,
@@ -567,7 +585,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Change a task's category")]
+    #[tool(
+        description = "Change a task's category",
+        annotations(title = "Change Task Category", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn recategorize(
         &self,
         Parameters(RecategorizeInput { id, category }): Parameters<RecategorizeInput>,
@@ -587,7 +608,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Add contexts to a task, keeping existing ones")]
+    #[tool(
+        description = "Add contexts to a task, keeping existing ones",
+        annotations(title = "Add Task Contexts", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn add_contexts(
         &self,
         Parameters(ContextsInput { id, contexts }): Parameters<ContextsInput>,
@@ -610,7 +634,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Replace all of a task's contexts (empty list clears them)")]
+    #[tool(
+        description = "Replace all of a task's contexts (empty list clears them)",
+        annotations(title = "Replace Task Contexts", read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn replace_contexts(
         &self,
         Parameters(ContextsInput { id, contexts }): Parameters<ContextsInput>,
@@ -633,7 +660,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Set or clear a task's priority")]
+    #[tool(
+        description = "Set or clear a task's priority",
+        annotations(title = "Set Task Priority", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn set_priority(
         &self,
         Parameters(SetPriorityInput { id, priority }): Parameters<SetPriorityInput>,
@@ -657,7 +687,10 @@ impl McpService {
         }
     }
 
-    #[tool(description = "Set or clear a task's assignee")]
+    #[tool(
+        description = "Set or clear a task's assignee",
+        annotations(title = "Set Task Assignee", read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
+    )]
     async fn set_assignee(
         &self,
         Parameters(SetAssigneeInput { id, assignee }): Parameters<SetAssigneeInput>,
