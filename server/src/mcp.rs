@@ -900,16 +900,23 @@ impl AssigneeFilter {
 /// Parses a URI path slug (e.g. `alice`, no `@` sigil, or the reserved
 /// `unassigned`) into an [`AssigneeFilter`].
 fn parse_assignee_filter_slug(slug: &str) -> Result<AssigneeFilter, McpError> {
-    if slug == AssigneeFilter::UNASSIGNED_SLUG {
-        Ok(AssigneeFilter::Unassigned)
-    } else {
-        format!("@{slug}").parse().map(AssigneeFilter::Assignee).map_err(parse_err)
+    match slug {
+        AssigneeFilter::UNASSIGNED_SLUG => Ok(AssigneeFilter::Unassigned),
+        slug => format!("@{slug}")
+            .parse()
+            .map(AssigneeFilter::Assignee)
+            .map_err(parse_err),
     }
 }
 
 /// Pushes the four per-filter report resource entries (daily, backlog,
 /// quick wins, weekly) for one assignee (or "unassigned") slug.
-fn push_report_variants(resources: &mut Vec<Resource>, slug: &str, name_suffix: &str, description_suffix: &str) {
+fn push_report_variants(
+    resources: &mut Vec<Resource>,
+    slug: &str,
+    name_suffix: &str,
+    description_suffix: &str,
+) {
     resources.push(
         Resource::new(
             format!("{}/{slug}", daily_report::URI),
@@ -943,7 +950,6 @@ fn push_report_variants(resources: &mut Vec<Resource>, slug: &str, name_suffix: 
         .with_mime_type("text/markdown"),
     );
 }
-
 
 pub(super) mod categories {
     pub const NAME: &str = "Categories";
