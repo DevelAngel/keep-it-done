@@ -26,7 +26,7 @@ use leptos_router::{
 };
 use strum::{EnumCount, FromRepr};
 
-use std::ops::Deref;
+use derive_more::Deref;
 use std::str::FromStr;
 use std::fmt::{self, Display, Formatter};
 
@@ -110,66 +110,29 @@ mod key {
  * view! { <button class=move || edit_mode.get() on:click=move |_| edit_mode.update(…)> }
  * ```
  */
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Deref)]
 struct EditMode(RwSignal<bool>);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 struct AvailableCategoriesCtx(RwSignal<Vec<String>>);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 struct AvailableContextsCtx(RwSignal<Vec<String>>);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 struct AvailableAssigneesCtx(RwSignal<Vec<String>>);
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 struct ScrollToTaskId(RwSignal<Option<Uuid>>);
 
-impl Deref for EditMode {
-    type Target = RwSignal<bool>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Deref for AvailableCategoriesCtx {
-    type Target = RwSignal<Vec<String>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-impl Deref for AvailableContextsCtx {
-    type Target = RwSignal<Vec<String>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-impl Deref for AvailableAssigneesCtx {
-    type Target = RwSignal<Vec<String>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
-impl Deref for ScrollToTaskId {
-    type Target = RwSignal<Option<Uuid>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-
 /// Wraps the delete-task server action so it can be provided via context.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 struct DeleteTaskAction(ServerAction<server::DeleteTask>);
-
-impl Deref for DeleteTaskAction {
-    type Target = ServerAction<server::DeleteTask>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
 
 /// Wraps the expanded-task-id write signal so TaskDetails can collapse
 /// the panel after deletion.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deref)]
 struct CollapseExpanded(WriteSignal<Option<Uuid>>);
-
-impl Deref for CollapseExpanded {
-    type Target = WriteSignal<Option<Uuid>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
 
 /// SSR-evaluated auto-expand: when `?expand=first` is set, a [`Memo`]
 /// resolves to the first task ID once the resource has loaded.
@@ -506,13 +469,11 @@ fn apply_search(data: TaskListData, query: &str) -> TaskListData {
     if query.is_empty() { return data; }
     let words: Vec<&str> = query.split_whitespace().collect();
     let matches = |info: &task::Infos| -> bool {
-        let haystack = format!(
-            "{} {} {} {}",
-            info.summary(),
-            info.category(),
-            info.contexts().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(" "),
-            info.assignee().map(|a| a.to_string()).unwrap_or_default(),
-        );
+        let sum = info.summary();
+        let cat = info.category();
+        let con = info.contexts().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(" ");
+        let ass = info.assignee().map(|a| a.to_string()).unwrap_or_default();
+        let haystack = format!("{sum} {cat} {con} {ass}");
         words.iter().all(|w| sublime_fuzzy::best_match(w, &haystack).is_some())
     };
     match data {

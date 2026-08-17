@@ -2094,6 +2094,7 @@ version = "0.22.0"
 dependencies = [
  "cfg-if",
  "chrono",
+ "derive_more 2.1.1",
  "http",
  "indexmap 2.13.0",
  "kid-types",
