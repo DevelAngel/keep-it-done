@@ -13,7 +13,7 @@ use kid_app::server::{
 };
 use kid_types::task::Details as TaskDetails;
 use kid_types::task::DetailsPatch as TaskDetailsPatch;
-use kid_types::{Task, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
+use kid_types::{Task, TaskAssignee, TaskCategory, TaskContext, TaskInfos, TaskPriority, TaskSummary, Uuid};
 
 use chrono::{Datelike, Weekday};
 
@@ -152,6 +152,14 @@ struct SetPriorityInput {
     /// "A", "B", or "C" — omit or null to clear
     #[serde(default)]
     priority: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct SetAssigneeInput {
+    id: Uuid,
+    /// Mention-style, e.g. "@mia" — omit or null to clear
+    #[serde(default)]
+    assignee: Option<String>,
 }
 
 impl McpServer {
@@ -643,6 +651,30 @@ impl McpService {
                 }
                 Ok(CallToolResult::success(vec![ContentBlock::text(
                     "priority set",
+                )]))
+            }
+            None => Ok(Self::not_found(id)),
+        }
+    }
+
+    #[tool(description = "Set or clear a task's assignee")]
+    async fn set_assignee(
+        &self,
+        Parameters(SetAssigneeInput { id, assignee }): Parameters<SetAssigneeInput>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, McpError> {
+        let assignee: Option<TaskAssignee> =
+            assignee.map(|s| s.parse().map_err(parse_err)).transpose()?;
+        let actor = Self::actor(&context)?;
+        let mut cache = self.task_cache.write().await;
+        match cache.get_mut(&id, actor) {
+            Some(mut task) => {
+                match assignee {
+                    Some(a) => task.set_assignee(a),
+                    None => task.clear_assignee(),
+                }
+                Ok(CallToolResult::success(vec![ContentBlock::text(
+                    "assignee set",
                 )]))
             }
             None => Ok(Self::not_found(id)),
