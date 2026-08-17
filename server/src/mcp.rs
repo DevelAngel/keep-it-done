@@ -333,24 +333,13 @@ impl ServerHandler for McpService {
             let has_unassigned = cache.iter().any(|(_, task)| task.info().assignee().is_none());
             (assignees, has_unassigned)
         };
-        for assignee in &assignees {
-            // URI segments are plain identifiers, no `@` sigil.
-            let slug = assignee.to_string().trim_start_matches('@').to_string();
-            push_report_variants(
-                &mut resources,
-                &slug,
-                &assignee.to_string(),
-                &format!("assigned to {assignee}"),
-            );
+        for assignee in assignees {
+            AssigneeFilter::Assignee(assignee).push_resources(&mut resources);
         }
         if has_unassigned {
-            push_report_variants(
-                &mut resources,
-                AssigneeFilter::UNASSIGNED_SLUG,
-                "Unassigned",
-                "with no assignee",
-            );
+            AssigneeFilter::Unassigned.push_resources(&mut resources);
         }
+
 
         Ok(ListResourcesResult {
             resources,
@@ -439,7 +428,7 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::daily_report::URI)) => {
                 let slug = &uri_str[self::daily_report::URI.len() + 1..];
-                let filter = parse_assignee_filter_slug(slug)?;
+                let filter: AssigneeFilter = slug.parse()?;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
@@ -455,7 +444,7 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::backlog::URI)) => {
                 let slug = &uri_str[self::backlog::URI.len() + 1..];
-                let filter = parse_assignee_filter_slug(slug)?;
+                let filter: AssigneeFilter = slug.parse()?;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
@@ -471,7 +460,7 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::quick_wins::URI)) => {
                 let slug = &uri_str[self::quick_wins::URI.len() + 1..];
-                let filter = parse_assignee_filter_slug(slug)?;
+                let filter: AssigneeFilter = slug.parse()?;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let filtered = cache
@@ -486,7 +475,7 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::weekly_report::URI)) => {
                 let slug = &uri_str[self::weekly_report::URI.len() + 1..];
-                let filter = parse_assignee_filter_slug(slug)?;
+                let filter: AssigneeFilter = slug.parse()?;
                 let markdown = {
                     const DAYS: u32 = 8;
                     let cache = self.task_cache.read().await;
@@ -895,61 +884,88 @@ impl AssigneeFilter {
             Self::Unassigned => assignee.is_none(),
         }
     }
-}
 
-/// Parses a URI path slug (e.g. `alice`, no `@` sigil, or the reserved
-/// `unassigned`) into an [`AssigneeFilter`].
-fn parse_assignee_filter_slug(slug: &str) -> Result<AssigneeFilter, McpError> {
-    match slug {
-        AssigneeFilter::UNASSIGNED_SLUG => Ok(AssigneeFilter::Unassigned),
-        slug => format!("@{slug}")
-            .parse()
-            .map(AssigneeFilter::Assignee)
-            .map_err(parse_err),
+    /// URI path slug: the assignee without its `@` sigil, or the
+    /// reserved `unassigned` slug.
+    fn slug(&self) -> String {
+        match self {
+            Self::Assignee(a) => a.to_string().trim_start_matches('@').to_string(),
+            Self::Unassigned => Self::UNASSIGNED_SLUG.to_string(),
+        }
+    }
+
+    fn name_suffix(&self) -> String {
+        match self {
+            Self::Assignee(a) => a.to_string(),
+            Self::Unassigned => "Unassigned".to_string(),
+        }
+    }
+
+    fn description_suffix(&self) -> String {
+        match self {
+            Self::Assignee(a) => format!("assigned to {a}"),
+            Self::Unassigned => "with no assignee".to_string(),
+        }
+    }
+
+    /// Pushes the four per-filter report resource entries (daily,
+    /// backlog, quick wins, weekly) for this filter.
+    fn push_resources(&self, resources: &mut Vec<Resource>) {
+        let slug = self.slug();
+        let name_suffix = self.name_suffix();
+        let description_suffix = self.description_suffix();
+        resources.push(
+            Resource::new(
+                format!("{}/{slug}", daily_report::URI),
+                format!("Daily Report — {name_suffix}"),
+            )
+            .with_description(format!("Daily Report filtered to tasks {description_suffix}."))
+            .with_mime_type("text/markdown"),
+        );
+        resources.push(
+            Resource::new(
+                format!("{}/{slug}", backlog::URI),
+                format!("Backlog — {name_suffix}"),
+            )
+            .with_description(format!("Backlog filtered to tasks {description_suffix}."))
+            .with_mime_type("text/markdown"),
+        );
+        resources.push(
+            Resource::new(
+                format!("{}/{slug}", quick_wins::URI),
+                format!("Quick Wins — {name_suffix}"),
+            )
+            .with_description(format!("Quick Wins filtered to tasks {description_suffix}."))
+            .with_mime_type("text/markdown"),
+        );
+        resources.push(
+            Resource::new(
+                format!("{}/{slug}", weekly_report::URI),
+                format!("Weekly Review — {name_suffix}"),
+            )
+            .with_description(format!("Weekly Review filtered to tasks {description_suffix}."))
+            .with_mime_type("text/markdown"),
+        );
     }
 }
 
-/// Pushes the four per-filter report resource entries (daily, backlog,
-/// quick wins, weekly) for one assignee (or "unassigned") slug.
-fn push_report_variants(
-    resources: &mut Vec<Resource>,
-    slug: &str,
-    name_suffix: &str,
-    description_suffix: &str,
-) {
-    resources.push(
-        Resource::new(
-            format!("{}/{slug}", daily_report::URI),
-            format!("Daily Report — {name_suffix}"),
-        )
-        .with_description(format!("Daily Report filtered to tasks {description_suffix}."))
-        .with_mime_type("text/markdown"),
-    );
-    resources.push(
-        Resource::new(
-            format!("{}/{slug}", backlog::URI),
-            format!("Backlog — {name_suffix}"),
-        )
-        .with_description(format!("Backlog filtered to tasks {description_suffix}."))
-        .with_mime_type("text/markdown"),
-    );
-    resources.push(
-        Resource::new(
-            format!("{}/{slug}", quick_wins::URI),
-            format!("Quick Wins — {name_suffix}"),
-        )
-        .with_description(format!("Quick Wins filtered to tasks {description_suffix}."))
-        .with_mime_type("text/markdown"),
-    );
-    resources.push(
-        Resource::new(
-            format!("{}/{slug}", weekly_report::URI),
-            format!("Weekly Review — {name_suffix}"),
-        )
-        .with_description(format!("Weekly Review filtered to tasks {description_suffix}."))
-        .with_mime_type("text/markdown"),
-    );
+impl std::str::FromStr for AssigneeFilter {
+    type Err = McpError;
+
+    /// Parses a URI path slug (e.g. `alice`, no `@` sigil, or the
+    /// reserved `unassigned`) into an [`AssigneeFilter`].
+    fn from_str(slug: &str) -> Result<Self, Self::Err> {
+        match slug {
+            Self::UNASSIGNED_SLUG => Ok(Self::Unassigned),
+            slug => format!("@{slug}")
+                .parse()
+                .map(Self::Assignee)
+                .map_err(parse_err),
+        }
+    }
 }
+
+
 
 pub(super) mod categories {
     pub const NAME: &str = "Categories";
