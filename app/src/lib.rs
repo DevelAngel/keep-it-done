@@ -680,8 +680,8 @@ mod search_tests {
     #[test]
     fn matches_context() {
         let data = grouped(vec![
-            ("Inbox", infos_ctx("Anrufen", &["@telefon"])),
-            ("Inbox", infos_ctx("Einkaufen", &["@unterwegs"])),
+            ("Inbox", infos_ctx("Anrufen", &["#telefon"])),
+            ("Inbox", infos_ctx("Einkaufen", &["#unterwegs"])),
         ]);
         let result = apply_search(data, "telefon");
         assert_eq!(grouped_summaries(&result), vec!["Anrufen"]);
@@ -690,7 +690,7 @@ mod search_tests {
     #[test]
     fn cross_field_multi_word() {
         let data = grouped(vec![
-            ("Haushalt", infos_ctx("Staubsaugen", &["@abends"])),
+            ("Haushalt", infos_ctx("Staubsaugen", &["#abends"])),
         ]);
         // "staub" matches summary, "abend" matches context
         let result = apply_search(data, "staub abend");
@@ -1634,7 +1634,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
                             {move || {
                                 let mut ctxs = contexts.get();
                                 if ctxs.is_empty() {
-                                    "@…".to_string()
+                                    "#…".to_string()
                                 } else {
                                     ctxs.sort();
                                     ctxs.join("\u{2009}·\u{2009}")
@@ -1951,7 +1951,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                 {move || (!contexts.get().is_empty() || edit_mode.get()).then(|| view! {
                     <div class="relative">
                         <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
-                            <span class="text-xs text-slate-300 font-bold">"@"</span>
+                            <span class="text-xs text-slate-300 font-bold">"#"</span>
                         </div>
                         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Contexts"</div>
                         // View mode: plain chips
@@ -1968,7 +1968,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                             let add_ctx = move |val: String| {
                                 let mut val = val.trim().to_string();
                                 if val.is_empty() { return; }
-                                if !val.starts_with('@') { val = format!("@{val}"); }
+                                if !val.starts_with('#') { val = format!("#{val}"); }
                                 contexts.update(|v| { if !v.contains(&val) { v.push(val.clone()); } });
                                 available_contexts.update(|v| { if !v.contains(&val) { v.push(val); } });
                                 replace_contexts.dispatch(contexts.get_untracked());
@@ -2014,7 +2014,7 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                                     <input
                                         type="text"
                                         class="bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 flex-1 min-w-0 border border-slate-600 focus:border-slate-500 focus:outline-none"
-                                        placeholder="@context"
+                                        placeholder="#context"
                                         prop:value=move || context_input.get()
                                         on:input=move |ev| context_input.set(event_target_value(&ev))
                                         on:keydown=move |ev| {
