@@ -151,6 +151,38 @@ impl<'de> Deserialize<'de> for Context {
     }
 }
 
+#[derive(Clone, Debug, Deref, DeriveDisplay, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "mcp", schemars(transparent))]
+pub struct Assignee(String);
+
+impl FromStr for Assignee {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            Err("assignee must not be empty")
+        } else if !s.starts_with('@') {
+            Err("assignee must start with '@'")
+        } else {
+            Ok(Self(s.to_string()))
+        }
+    }
+}
+
+impl Serialize for Assignee {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for Assignee {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 pub struct Task {
@@ -201,6 +233,8 @@ pub struct Infos {
     contexts: IndexSet<Context>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     priority: Option<Priority>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    assignee: Option<Assignee>,
 }
 
 #[skip_serializing_none]
@@ -472,6 +506,15 @@ impl<'a> TaskInfos<'a> for (Uuid, Infos) {
     fn clear_priority(&'a mut self) {
         self.1.clear_priority();
     }
+    fn assignee(&'a self) -> Option<&'a Assignee> {
+        self.1.assignee()
+    }
+    fn set_assignee(&'a mut self, assignee: Assignee) {
+        self.1.set_assignee(assignee);
+    }
+    fn clear_assignee(&'a mut self) {
+        self.1.clear_assignee();
+    }
 }
 
 impl<'a> TaskInfos<'a> for Task {
@@ -511,6 +554,15 @@ impl<'a> TaskInfos<'a> for Task {
     fn clear_priority(&'a mut self) {
         self.info.clear_priority();
     }
+    fn assignee(&'a self) -> Option<&'a Assignee> {
+        self.info.assignee()
+    }
+    fn set_assignee(&'a mut self, assignee: Assignee) {
+        self.info.set_assignee(assignee);
+    }
+    fn clear_assignee(&'a mut self) {
+        self.info.clear_assignee();
+    }
 }
 
 impl<'a> TaskInfos<'a> for Infos {
@@ -549,6 +601,15 @@ impl<'a> TaskInfos<'a> for Infos {
     }
     fn clear_priority(&'a mut self) {
         self.priority = None;
+    }
+    fn assignee(&'a self) -> Option<&'a Assignee> {
+        self.assignee.as_ref()
+    }
+    fn set_assignee(&'a mut self, assignee: Assignee) {
+        self.assignee = Some(assignee);
+    }
+    fn clear_assignee(&'a mut self) {
+        self.assignee = None;
     }
 }
 
@@ -865,6 +926,7 @@ impl Infos {
             category: Category::default(),
             contexts: IndexSet::new(),
             priority: None,
+            assignee: None,
         }
     }
 }
