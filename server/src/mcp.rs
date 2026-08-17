@@ -320,53 +320,37 @@ impl ServerHandler for McpService {
                 .with_mime_type("text/markdown"),
         ];
 
-        // Per-assignee report variants, one per assignee currently in use.
+        // Per-assignee report variants, one per assignee currently in use,
+        // plus one "unassigned" variant if any task has no assignee.
         // Assignees aren't known ahead of time, so they're enumerated from
         // the cache, same as categories/contexts above.
-        let assignees: BTreeSet<TaskAssignee> = {
+        let (assignees, has_unassigned): (BTreeSet<TaskAssignee>, bool) = {
             let cache = self.task_cache.read().await;
-            cache
+            let assignees = cache
                 .iter()
                 .filter_map(|(_, task)| task.info().assignee().cloned())
-                .collect()
+                .collect();
+            let has_unassigned = cache.iter().any(|(_, task)| task.info().assignee().is_none());
+            (assignees, has_unassigned)
         };
         for assignee in &assignees {
             // URI segments are plain identifiers, no `@` sigil.
             let slug = assignee.to_string().trim_start_matches('@').to_string();
-            resources.push(
-                Resource::new(
-                    format!("{}/{slug}", self::daily_report::URI),
-                    format!("Daily Report — {assignee}"),
-                )
-                .with_description(format!("Daily Report filtered to tasks assigned to {assignee}."))
-                .with_mime_type("text/markdown"),
-            );
-            resources.push(
-                Resource::new(
-                    format!("{}/{slug}", self::backlog::URI),
-                    format!("Backlog — {assignee}"),
-                )
-                .with_description(format!("Backlog filtered to tasks assigned to {assignee}."))
-                .with_mime_type("text/markdown"),
-            );
-            resources.push(
-                Resource::new(
-                    format!("{}/{slug}", self::quick_wins::URI),
-                    format!("Quick Wins — {assignee}"),
-                )
-                .with_description(format!("Quick Wins filtered to tasks assigned to {assignee}."))
-                .with_mime_type("text/markdown"),
-            );
-            resources.push(
-                Resource::new(
-                    format!("{}/{slug}", self::weekly_report::URI),
-                    format!("Weekly Review — {assignee}"),
-                )
-                .with_description(format!("Weekly Review filtered to tasks assigned to {assignee}."))
-                .with_mime_type("text/markdown"),
+            push_report_variants(
+                &mut resources,
+                &slug,
+                &assignee.to_string(),
+                &format!("assigned to {assignee}"),
             );
         }
-
+        if has_unassigned {
+            push_report_variants(
+                &mut resources,
+                AssigneeFilter::UNASSIGNED_SLUG,
+                "Unassigned",
+                "with no assignee",
+            );
+        }
 
         Ok(ListResourcesResult {
             resources,
@@ -455,13 +439,13 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::daily_report::URI)) => {
                 let slug = &uri_str[self::daily_report::URI.len() + 1..];
-                let assignee = parse_assignee_slug(slug)?;
+                let filter = parse_assignee_filter_slug(slug)?;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
                     let filtered = cache
                         .iter()
-                        .filter(|(_, task)| task.info().assignee() == Some(&assignee));
+                        .filter(|(_, task)| filter.matches(task.info().assignee()));
                     let (groups, _backlog) = group_upcoming(filtered, today);
                     render_daily_report(groups)
                 };
@@ -471,13 +455,13 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::backlog::URI)) => {
                 let slug = &uri_str[self::backlog::URI.len() + 1..];
-                let assignee = parse_assignee_slug(slug)?;
+                let filter = parse_assignee_filter_slug(slug)?;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
                     let filtered = cache
                         .iter()
-                        .filter(|(_, task)| task.info().assignee() == Some(&assignee));
+                        .filter(|(_, task)| filter.matches(task.info().assignee()));
                     let (_groups, backlog) = group_upcoming(filtered, today);
                     render_backlog(backlog)
                 };
@@ -487,12 +471,12 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::quick_wins::URI)) => {
                 let slug = &uri_str[self::quick_wins::URI.len() + 1..];
-                let assignee = parse_assignee_slug(slug)?;
+                let filter = parse_assignee_filter_slug(slug)?;
                 let markdown = {
                     let cache = self.task_cache.read().await;
                     let filtered = cache
                         .iter()
-                        .filter(|(_, task)| task.info().assignee() == Some(&assignee));
+                        .filter(|(_, task)| filter.matches(task.info().assignee()));
                     let groups = group_quick_wins(filtered);
                     render_quick_wins(groups)
                 };
@@ -502,14 +486,14 @@ impl ServerHandler for McpService {
             }
             uri_str if uri_str.starts_with(&format!("{}/", self::weekly_report::URI)) => {
                 let slug = &uri_str[self::weekly_report::URI.len() + 1..];
-                let assignee = parse_assignee_slug(slug)?;
+                let filter = parse_assignee_filter_slug(slug)?;
                 let markdown = {
                     const DAYS: u32 = 8;
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
                     let filtered = cache
                         .iter()
-                        .filter(|(_, task)| task.info().assignee() == Some(&assignee));
+                        .filter(|(_, task)| filter.matches(task.info().assignee()));
                     let changes = group_recently_changed_since(filtered, today, DAYS);
                     render_recent_changes(changes, DAYS)
                 };
@@ -517,6 +501,7 @@ impl ServerHandler for McpService {
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
+
 
             _ => Err(McpError::resource_not_found(
                 format!("unknown resource: {uri}"),
@@ -891,10 +876,72 @@ fn parse_err(e: &str) -> McpError {
     McpError::invalid_params(e.to_string(), None)
 }
 
-/// Parses a URI path slug (e.g. `alice`, no `@` sigil) back into a
-/// [`TaskAssignee`], which requires the `@` prefix.
-fn parse_assignee_slug(slug: &str) -> Result<TaskAssignee, McpError> {
-    format!("@{slug}").parse().map_err(parse_err)
+/// Selects tasks by assignee for the filtered report resources: either a
+/// specific assignee, or explicitly unassigned tasks.
+enum AssigneeFilter {
+    Assignee(TaskAssignee),
+    Unassigned,
+}
+
+impl AssigneeFilter {
+    /// Reserved URI slug for the "no assignee" variant. Doesn't collide
+    /// with real assignee slugs, which are validated to start with `@`
+    /// before the sigil is stripped.
+    const UNASSIGNED_SLUG: &'static str = "unassigned";
+
+    fn matches(&self, assignee: Option<&TaskAssignee>) -> bool {
+        match self {
+            Self::Assignee(a) => assignee == Some(a),
+            Self::Unassigned => assignee.is_none(),
+        }
+    }
+}
+
+/// Parses a URI path slug (e.g. `alice`, no `@` sigil, or the reserved
+/// `unassigned`) into an [`AssigneeFilter`].
+fn parse_assignee_filter_slug(slug: &str) -> Result<AssigneeFilter, McpError> {
+    if slug == AssigneeFilter::UNASSIGNED_SLUG {
+        Ok(AssigneeFilter::Unassigned)
+    } else {
+        format!("@{slug}").parse().map(AssigneeFilter::Assignee).map_err(parse_err)
+    }
+}
+
+/// Pushes the four per-filter report resource entries (daily, backlog,
+/// quick wins, weekly) for one assignee (or "unassigned") slug.
+fn push_report_variants(resources: &mut Vec<Resource>, slug: &str, name_suffix: &str, description_suffix: &str) {
+    resources.push(
+        Resource::new(
+            format!("{}/{slug}", daily_report::URI),
+            format!("Daily Report — {name_suffix}"),
+        )
+        .with_description(format!("Daily Report filtered to tasks {description_suffix}."))
+        .with_mime_type("text/markdown"),
+    );
+    resources.push(
+        Resource::new(
+            format!("{}/{slug}", backlog::URI),
+            format!("Backlog — {name_suffix}"),
+        )
+        .with_description(format!("Backlog filtered to tasks {description_suffix}."))
+        .with_mime_type("text/markdown"),
+    );
+    resources.push(
+        Resource::new(
+            format!("{}/{slug}", quick_wins::URI),
+            format!("Quick Wins — {name_suffix}"),
+        )
+        .with_description(format!("Quick Wins filtered to tasks {description_suffix}."))
+        .with_mime_type("text/markdown"),
+    );
+    resources.push(
+        Resource::new(
+            format!("{}/{slug}", weekly_report::URI),
+            format!("Weekly Review — {name_suffix}"),
+        )
+        .with_description(format!("Weekly Review filtered to tasks {description_suffix}."))
+        .with_mime_type("text/markdown"),
+    );
 }
 
 
