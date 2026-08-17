@@ -283,42 +283,66 @@ impl ServerHandler for McpService {
     ) -> Result<ListResourcesResult, McpError> {
         use indoc::indoc;
         const TTL_MS: u64 = 10 * 60 * 1000;
+
+        let mut resources = vec![
+            Resource::new(self::categories::URI, self::categories::NAME)
+                .with_description("Categories currently in use")
+                .with_mime_type("application/json"),
+            Resource::new(self::contexts::URI, self::contexts::NAME)
+                .with_description("Contexts currently in use")
+                .with_mime_type("application/json"),
+            Resource::new(self::weekly_report::URI, self::weekly_report::NAME)
+                .with_description(indoc! {"
+                    Narrative weekly review, reflecting on the last 7 days of task activity without scores, streaks, or comparisons.
+                    Falls back to a plain list of recent changes if sampling is unavailable.
+                "})
+                .with_mime_type("text/markdown"),
+            Resource::new(self::daily_report::URI, self::daily_report::NAME)
+                .with_description(
+                    "Markdown summary of open tasks for today: grouped into \
+                     Overdue, Today, Tomorrow, This Week, Next Week, Later, and \
+                     Ready to Start. Use this to tell a human what's on their \
+                     plate.",
+                )
+                .with_mime_type("text/markdown"),
+            Resource::new(self::backlog::URI, self::backlog::NAME)
+                .with_description(
+                    "Markdown list of open tasks that have no due date and \
+                     aren't ready to start yet.",
+                )
+                .with_mime_type("text/markdown"),
+            Resource::new(self::quick_wins::URI, self::quick_wins::NAME)
+                .with_description(
+                    "Markdown list of open tasks that have a time estimate, \
+                     grouped from shortest to longest. Use this to suggest \
+                     something to knock out with whatever time is available.",
+                )
+                .with_mime_type("text/markdown"),
+        ];
+
+        // Per-assignee daily report variants, one per assignee currently
+        // in use. Assignees aren't known ahead of time, so they're
+        // enumerated from the cache, same as categories/contexts above.
+        let assignees: BTreeSet<TaskAssignee> = {
+            let cache = self.task_cache.read().await;
+            cache
+                .iter()
+                .filter_map(|(_, task)| task.info().assignee().cloned())
+                .collect()
+        };
+        for assignee in &assignees {
+            let uri = format!("{}{assignee}", self::daily_report::PREFIX);
+            resources.push(
+                Resource::new(uri, format!("Daily Report — {assignee}"))
+                    .with_description(format!(
+                        "Daily Report filtered to tasks assigned to {assignee}."
+                    ))
+                    .with_mime_type("text/markdown"),
+            );
+        }
+
         Ok(ListResourcesResult {
-            resources: vec![
-                Resource::new(self::categories::URI, self::categories::NAME)
-                    .with_description("Categories currently in use")
-                    .with_mime_type("application/json"),
-                Resource::new(self::contexts::URI, self::contexts::NAME)
-                    .with_description("Contexts currently in use")
-                    .with_mime_type("application/json"),
-                Resource::new(self::weekly_report::URI, self::weekly_report::NAME)
-                    .with_description(indoc! {"
-                        Narrative weekly review, reflecting on the last 7 days of task activity without scores, streaks, or comparisons.
-                        Falls back to a plain list of recent changes if sampling is unavailable.
-                    "})
-                    .with_mime_type("text/markdown"),
-                Resource::new(self::daily_report::URI, self::daily_report::NAME)
-                    .with_description(
-                        "Markdown summary of open tasks for today: grouped into \
-                         Overdue, Today, Tomorrow, This Week, Next Week, Later, and \
-                         Ready to Start. Use this to tell a human what's on their \
-                         plate.",
-                    )
-                    .with_mime_type("text/markdown"),
-                Resource::new(self::backlog::URI, self::backlog::NAME)
-                    .with_description(
-                        "Markdown list of open tasks that have no due date and \
-                         aren't ready to start yet.",
-                    )
-                    .with_mime_type("text/markdown"),
-                Resource::new(self::quick_wins::URI, self::quick_wins::NAME)
-                    .with_description(
-                        "Markdown list of open tasks that have a time estimate, \
-                         grouped from shortest to longest. Use this to suggest \
-                         something to knock out with whatever time is available.",
-                    )
-                    .with_mime_type("text/markdown"),
-            ],
+            resources,
             next_cursor: None,
             meta: None,
             // since 2026-07-28 spec
@@ -327,6 +351,8 @@ impl ServerHandler for McpService {
             cache_scope: Some(CacheScope::Private),
         })
     }
+
+
 
     async fn read_resource(
         &self,
@@ -373,6 +399,22 @@ impl ServerHandler for McpService {
                     let cache = self.task_cache.read().await;
                     let today = kid_app::time::today_at_offset(self.time_offset.get());
                     let (groups, _backlog) = group_upcoming(cache.iter(), today);
+                    render_daily_report(groups)
+                };
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
+                ]))
+            }
+            uri_str if uri_str.starts_with(self::daily_report::PREFIX) => {
+                let suffix = &uri_str[self::daily_report::PREFIX.len()..];
+                let assignee: TaskAssignee = suffix.parse().map_err(parse_err)?;
+                let markdown = {
+                    let cache = self.task_cache.read().await;
+                    let today = kid_app::time::today_at_offset(self.time_offset.get());
+                    let filtered = cache
+                        .iter()
+                        .filter(|(_, task)| task.info().assignee() == Some(&assignee));
+                    let (groups, _backlog) = group_upcoming(filtered, today);
                     render_daily_report(groups)
                 };
                 Ok(ReadResourceResult::new(vec![
@@ -788,6 +830,9 @@ pub(super) mod weekly_report {
 pub(super) mod daily_report {
     pub const NAME: &str = "Daily Report";
     pub const URI: &str = "kid://report/daily";
+    /// Prefix for per-assignee variants: `{PREFIX}{assignee}`, e.g.
+    /// `kid://report/daily/@alice`.
+    pub const PREFIX: &str = "kid://report/daily/";
 }
 pub(super) mod backlog {
     pub const NAME: &str = "Backlog";
