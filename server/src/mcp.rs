@@ -432,6 +432,27 @@ impl ServerHandler for McpService {
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
+            self::backlog::URI => {
+                let markdown = {
+                    let cache = self.task_cache.read().await;
+                    let today = kid_app::time::today_at_offset(self.time_offset.get());
+                    let (_groups, backlog) = group_upcoming(cache.iter(), today);
+                    render_backlog(backlog)
+                };
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
+                ]))
+            }
+            self::quick_wins::URI => {
+                let markdown = {
+                    let cache = self.task_cache.read().await;
+                    let groups = group_quick_wins(cache.iter());
+                    render_quick_wins(groups)
+                };
+                Ok(ReadResourceResult::new(vec![
+                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
+                ]))
+            }
             uri_str if uri_str.starts_with(&format!("{}/", self::daily_report::URI)) => {
                 let slug = &uri_str[self::daily_report::URI.len() + 1..];
                 let assignee = parse_assignee_slug(slug)?;
@@ -448,17 +469,6 @@ impl ServerHandler for McpService {
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
                 ]))
             }
-            self::backlog::URI => {
-                let markdown = {
-                    let cache = self.task_cache.read().await;
-                    let today = kid_app::time::today_at_offset(self.time_offset.get());
-                    let (_groups, backlog) = group_upcoming(cache.iter(), today);
-                    render_backlog(backlog)
-                };
-                Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
-                ]))
-            }
             uri_str if uri_str.starts_with(&format!("{}/", self::backlog::URI)) => {
                 let slug = &uri_str[self::backlog::URI.len() + 1..];
                 let assignee = parse_assignee_slug(slug)?;
@@ -470,16 +480,6 @@ impl ServerHandler for McpService {
                         .filter(|(_, task)| task.info().assignee() == Some(&assignee));
                     let (_groups, backlog) = group_upcoming(filtered, today);
                     render_backlog(backlog)
-                };
-                Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
-                ]))
-            }
-            self::quick_wins::URI => {
-                let markdown = {
-                    let cache = self.task_cache.read().await;
-                    let groups = group_quick_wins(cache.iter());
-                    render_quick_wins(groups)
                 };
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(markdown, &uri).with_mime_type("text/markdown"),
