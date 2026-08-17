@@ -10,6 +10,7 @@ pub use crate::task::{
     Context as TaskContext,
     Date as TaskDate,
     Summary as TaskSummary,
+    Assignee as TaskAssignee,
     Filter as TaskFilter, Priority as TaskPriority, Status as TaskStatus, Task,
     TimeEstimate as TaskTimeEstimate,
 };
@@ -48,6 +49,9 @@ pub trait TaskInfos<'a> {
     fn priority(&'a self) -> Option<&'a TaskPriority>;
     fn set_priority(&'a mut self, priority: TaskPriority);
     fn clear_priority(&'a mut self);
+    fn assignee(&'a self) -> Option<&'a TaskAssignee>;
+    fn set_assignee(&'a mut self, assignee: TaskAssignee);
+    fn clear_assignee(&'a mut self);
 
     //provides
     fn is_done(&'a self) -> bool {
