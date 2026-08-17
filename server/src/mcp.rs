@@ -321,24 +321,21 @@ impl ServerHandler for McpService {
         ];
 
         // Per-assignee report variants, one per assignee currently in use,
-        // plus one "unassigned" variant if any task has no assignee.
-        // Assignees aren't known ahead of time, so they're enumerated from
-        // the cache, same as categories/contexts above.
-        let (assignees, has_unassigned): (BTreeSet<TaskAssignee>, bool) = {
+        // plus an "unassigned" variant, always listed regardless of
+        // whether any task currently has no assignee. Assignees aren't
+        // known ahead of time, so they're enumerated from the cache, same
+        // as categories/contexts above.
+        let assignees: BTreeSet<TaskAssignee> = {
             let cache = self.task_cache.read().await;
-            let assignees = cache
+            cache
                 .iter()
                 .filter_map(|(_, task)| task.info().assignee().cloned())
-                .collect();
-            let has_unassigned = cache.iter().any(|(_, task)| task.info().assignee().is_none());
-            (assignees, has_unassigned)
+                .collect()
         };
         for assignee in assignees {
             AssigneeFilter::Assignee(assignee).push_resources(&mut resources);
         }
-        if has_unassigned {
-            AssigneeFilter::Unassigned.push_resources(&mut resources);
-        }
+        AssigneeFilter::Unassigned.push_resources(&mut resources);
 
 
         Ok(ListResourcesResult {
