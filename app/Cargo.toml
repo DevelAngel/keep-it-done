@@ -23,6 +23,7 @@ path = "../types"
 
 [dependencies]
 cfg-if.workspace = true
+derive_more = { workspace = true, features = ["deref"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 chrono = { workspace = true, features = ["now", "clock"] }
