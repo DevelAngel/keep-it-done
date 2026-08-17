@@ -7,7 +7,7 @@ use kid_types_derive::GeneratePatch;
 use kid_types_derive::Patchable;
 
 use chrono::{DateTime, FixedOffset, Timelike, Utc};
-use derive_more::Display;
+use derive_more::{Deref, Display as DeriveDisplay};
 use indexmap::{IndexMap, IndexSet};
 use serde::Deserializer;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,6 @@ use serde_with::rust::double_option;
 
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
-use std::ops::Deref;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -31,7 +30,7 @@ pub enum Filter {
     RecentlyChanged,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Deref, DeriveDisplay, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "mcp", schemars(transparent))]
 pub struct Category(String);
@@ -51,20 +50,6 @@ impl FromStr for Category {
         } else {
             Ok(Self(s.to_string()))
         }
-    }
-}
-
-impl Deref for Category {
-    type Target = str;
-
-    fn deref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for Category {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
     }
 }
 
@@ -93,7 +78,7 @@ fn deserialize_category_lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Categ
     if s.is_empty() { Ok(Category::default()) } else { Ok(Category(s)) }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Deref, DeriveDisplay, PartialEq, Eq)]
 #[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "mcp", schemars(transparent))]
 pub struct Summary(String);
@@ -107,20 +92,6 @@ impl FromStr for Summary {
         } else {
             Ok(Self(s.to_string()))
         }
-    }
-}
-
-impl Deref for Summary {
-    type Target = str;
-
-    fn deref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for Summary {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
     }
 }
 
@@ -141,7 +112,7 @@ impl<'de> Deserialize<'de> for Summary {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Deref, DeriveDisplay, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "mcp", schemars(transparent))]
 pub struct Context(String);
@@ -157,20 +128,6 @@ impl FromStr for Context {
         } else {
             Ok(Self(s.to_string()))
         }
-    }
-}
-
-impl Deref for Context {
-    type Target = str;
-
-    fn deref(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for Context {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
     }
 }
 
@@ -327,7 +284,7 @@ impl Display for Status {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Display, Serialize, Deserialize, PartialEq, Eq, EnumIter)]
+#[derive(Clone, Copy, Debug, Default, DeriveDisplay, Serialize, Deserialize, PartialEq, Eq, EnumIter)]
 #[cfg_attr(feature = "mcp", derive(schemars::JsonSchema))]
 #[display(rename_all = "uppercase")]
 pub enum Priority {
