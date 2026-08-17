@@ -120,6 +120,9 @@ struct AvailableCategoriesCtx(RwSignal<Vec<String>>);
 struct AvailableContextsCtx(RwSignal<Vec<String>>);
 
 #[derive(Clone, Copy)]
+struct AvailableAssigneesCtx(RwSignal<Vec<String>>);
+
+#[derive(Clone, Copy)]
 struct ScrollToTaskId(RwSignal<Option<Uuid>>);
 
 impl Deref for EditMode {
@@ -135,6 +138,11 @@ impl Deref for AvailableCategoriesCtx {
 }
 
 impl Deref for AvailableContextsCtx {
+    type Target = RwSignal<Vec<String>>;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl Deref for AvailableAssigneesCtx {
     type Target = RwSignal<Vec<String>>;
     fn deref(&self) -> &Self::Target { &self.0 }
 }
@@ -456,7 +464,13 @@ impl TaskListData {
 fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
     if filters.is_empty() { return data; }
     let matches = |info: &task::Infos| -> bool {
-        filters.iter().all(|f| info.contexts().iter().any(|c| c.to_string() == *f))
+        filters.iter().all(|f| {
+            if f.starts_with('@') {
+                info.assignee().is_some_and(|a| a.to_string() == *f)
+            } else {
+                info.contexts().iter().any(|c| c.to_string() == *f)
+            }
+        })
     };
     match data {
         TaskListData::EstimateGrouped(groups) => TaskListData::EstimateGrouped(
@@ -493,10 +507,11 @@ fn apply_search(data: TaskListData, query: &str) -> TaskListData {
     let words: Vec<&str> = query.split_whitespace().collect();
     let matches = |info: &task::Infos| -> bool {
         let haystack = format!(
-            "{} {} {}",
+            "{} {} {} {}",
             info.summary(),
             info.category(),
             info.contexts().iter().map(|c| c.to_string()).collect::<Vec<_>>().join(" "),
+            info.assignee().map(|a| a.to_string()).unwrap_or_default(),
         );
         words.iter().all(|w| sublime_fuzzy::best_match(w, &haystack).is_some())
     };
@@ -803,6 +818,20 @@ fn TaskList() -> impl IntoView {
         }
     });
     provide_context(AvailableContextsCtx(available_contexts_ctx));
+    let filter_assignee_resource = Resource::new(|| (), |_| server::fetch_assignees());
+    let available_assignees_ctx: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    Effect::new(move |_| {
+        if let Some(Ok(fetched)) = filter_assignee_resource.get() {
+            available_assignees_ctx.update(|v| {
+                for a in fetched {
+                    let s = a.to_string();
+                    if !v.contains(&s) { v.push(s); }
+                }
+            });
+        }
+    });
+    provide_context(AvailableAssigneesCtx(available_assignees_ctx));
+
 
     window_event_listener(leptos::ev::keydown, move |ev| {
         if ev.key() == key::ESCAPE && !ev.default_prevented() {
@@ -1020,6 +1049,34 @@ fn TaskList() -> impl IntoView {
                                     })}
                                 </div>
                             })}
+                            <div class="flex flex-wrap gap-1.5 mb-1.5">
+                                {move || available_assignees_ctx.get().into_iter().map(|a| {
+                                    let label_class = a.clone();
+                                    let label_click = a.clone();
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class=move || if active_filters.with(|m| m.get(&view).map(|v| v.contains(&label_class)).unwrap_or(false)) {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white transition-colors"
+                                            } else {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                            }
+                                            on:click=move |_| {
+                                                active_filters.update(|m| {
+                                                    let list = m.entry(view).or_default();
+                                                    if let Some(pos) = list.iter().position(|c| c == &label_click) {
+                                                        list.remove(pos);
+                                                    } else {
+                                                        list.push(label_click.clone());
+                                                    }
+                                                });
+                                            }
+                                        >
+                                            {a}
+                                        </button>
+                                    }
+                                }).collect_view()}
+                            </div>
                             <div class="flex flex-wrap gap-1.5">
                                 {move || available_contexts_ctx.get().into_iter().map(|ctx| {
                                     let label_class = ctx.clone();
