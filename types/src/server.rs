@@ -396,7 +396,21 @@ impl TaskCache {
             tracing::info!("task {id}: migrating legacy \"context\" field to \"category\"");
         }
 
-        legacy_status || legacy_time_estimate || legacy_date || legacy_context_field
+        // Legacy context prefix: contexts used to start with '@', now '#'
+        let legacy_context_prefix = v
+            .get("contexts")
+            .and_then(|c| c.as_array())
+            .map(|arr| arr.iter().any(|c| c.as_str().is_some_and(|s| s.starts_with('@'))))
+            .unwrap_or(false);
+        if legacy_context_prefix {
+            tracing::info!("task {id}: migrating legacy '@'-prefixed contexts to '#'");
+        }
+
+        legacy_status
+            || legacy_time_estimate
+            || legacy_date
+            || legacy_context_field
+            || legacy_context_prefix
     }
 
     async fn write_task_file(&self, id: &Uuid, task: &Task) -> TaskResult<()> {
@@ -602,6 +616,18 @@ mod tests {
     #[test]
     fn detect_legacy_format_category_field() {
         let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"category":"Children"}"#;
+        assert!(!TaskCache::detect_legacy_format(&DETECT_ID, json));
+    }
+
+    #[test]
+    fn detect_legacy_format_context_prefix() {
+        let json = r#"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"contexts":["@home"]}"#;
+        assert!(TaskCache::detect_legacy_format(&DETECT_ID, json));
+    }
+
+    #[test]
+    fn detect_legacy_format_context_prefix_migrated() {
+        let json = r##"{"summary":"A","status":{"ToDo":{"since":"2026-01-01T00:00:00Z"}},"contexts":["#home"]}"##;
         assert!(!TaskCache::detect_legacy_format(&DETECT_ID, json));
     }
 
