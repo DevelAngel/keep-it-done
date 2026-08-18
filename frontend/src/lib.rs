@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use kid_app::App;
 
 #[wasm_bindgen::prelude::wasm_bindgen]
