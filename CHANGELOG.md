@@ -3,6 +3,48 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 ---
+## [0.23.0](https://github.com/DevelAngel/keep-it-done/compare/v0.22.0..v0.23.0) - 2026-08-21
+
+### Bug Fixes
+
+- **(app)** stop assignee input losing focus per keystroke - ([ab2787a](https://github.com/DevelAngel/keep-it-done/commit/ab2787ae894671536ccf2193569943e411e9e1fc)) - Angelos Drossos
+- **(app)** stop contexts block remounting on every toggle - ([78d9760](https://github.com/DevelAngel/keep-it-done/commit/78d9760bedf966d9272de49b86fd41cc934424b4)) - Angelos Drossos
+- **(mcp)** always list unassigned report variant - ([dc9f8e7](https://github.com/DevelAngel/keep-it-done/commit/dc9f8e7b7ac0dbf935a3df8987dbf700aab72581)) - Angelos Drossos
+- **(server)** [**breaking**] timeout issues in report due to sampling requests - ([52f3b49](https://github.com/DevelAngel/keep-it-done/commit/52f3b492472f32f31d776f26b8bb7261a1e88480)) - Angelos Drossos
+- **(types)** detect legacy '@'-prefixed contexts on load - ([db4c706](https://github.com/DevelAngel/keep-it-done/commit/db4c706ff463872c7e4359d8fde1cccbf02cda4c)) - Angelos Drossos
+- **(types)** reserve 'unassigned' as assignee name - ([52599e7](https://github.com/DevelAngel/keep-it-done/commit/52599e70f770b2789fc88443e2b61c0ab576cda5)) - Angelos Drossos
+
+### Documentation
+
+- replace CLI with MCP server description - ([f567845](https://github.com/DevelAngel/keep-it-done/commit/f56784567749607d0a3105f1bb8e318e5095c67b)) - Angelos Drossos
+- reframe README around value proposition - ([bb1533d](https://github.com/DevelAngel/keep-it-done/commit/bb1533ddf05c3af2171d6ed889bdd200dd9dbb46)) - Angelos Drossos
+
+### Features
+
+- **(app)** add assignee to task edit mode - ([5e80c35](https://github.com/DevelAngel/keep-it-done/commit/5e80c35b49e6b872f0c4e1240a6adc68930f61c9)) - Angelos Drossos
+- **(app)** add Unassigned filter chip - ([d4341d6](https://github.com/DevelAngel/keep-it-done/commit/d4341d67db2cc24464f2df7eb981e631dbd17b80)) - Angelos Drossos
+- **(filter)** make assignee filter single-select - ([3f4959e](https://github.com/DevelAngel/keep-it-done/commit/3f4959e369e0fcac7ad94f53e22689e79f3f0f4b)) - Angelos Drossos
+- **(mcp)** add set_assignee tool - ([d6122e2](https://github.com/DevelAngel/keep-it-done/commit/d6122e2f8ce93f083f9a2c2e007eb7706a8a2d37)) - Angelos Drossos
+- **(mcp)** add tool annotations to all tools - ([864b2d8](https://github.com/DevelAngel/keep-it-done/commit/864b2d80823799b92222642b9472bc0d6531f797)) - Angelos Drossos
+- **(mcp)** add per-assignee daily report resource - ([b1e525a](https://github.com/DevelAngel/keep-it-done/commit/b1e525a35be3cad836e702bbc66effb21de47da6)) - Angelos Drossos
+- **(mcp)** add per-assignee backlog, quick wins, weekly - ([b7f2532](https://github.com/DevelAngel/keep-it-done/commit/b7f2532bce5e7b6cb2a8897eb69a3f885083820d)) - Angelos Drossos
+- **(mcp)** add unassigned-tasks report variant - ([3451a64](https://github.com/DevelAngel/keep-it-done/commit/3451a6473c27a7393434cb184de66adf4ccb1bcc)) - Angelos Drossos
+- **(types)** [**breaking**] switch context prefix from '@' to '#' - ([4821c34](https://github.com/DevelAngel/keep-it-done/commit/4821c346718a47400d90739ee547e3a57df03aef)) - Angelos Drossos
+- **(types)** add optional Assignee field to Infos - ([e95dd90](https://github.com/DevelAngel/keep-it-done/commit/e95dd90f24f9fcf8cd2e492cbd069f68dafa612f)) - Angelos Drossos
+- **(web)** assignee filter chips and server fns - ([57c7626](https://github.com/DevelAngel/keep-it-done/commit/57c7626fa5290763f7ba07cd3a5b808b9ab9283d)) - Angelos Drossos
+
+### Refactoring
+
+- **(app)** derive_more Deref, readable format string - ([30a30a6](https://github.com/DevelAngel/keep-it-done/commit/30a30a6a8474819f2156862fef18af7f3a1383d2)) - Angelos Drossos
+- **(mcp)** group non-filtered arms before filtered - ([56f3b5f](https://github.com/DevelAngel/keep-it-done/commit/56f3b5fffd450cbb0af1375f496984a61b216188)) - Angelos Drossos
+- **(mcp)** move slug parsing/resources onto AssigneeFilter - ([9917264](https://github.com/DevelAngel/keep-it-done/commit/9917264d258bde5aae377ba56a4eae80056a5c57)) - Angelos Drossos
+- **(types)** use derive_more for wrapper types - ([7a9a2d5](https://github.com/DevelAngel/keep-it-done/commit/7a9a2d5119365d2ea94fdcc48ad5d8d90de31cfa)) - Angelos Drossos
+
+### Style
+
+- **(mcp)** idiomatic slug parsing and signature wrap - ([ba30590](https://github.com/DevelAngel/keep-it-done/commit/ba30590054ba2502fccc9a497f7dd96929ee2e1d)) - Angelos Drossos
+
+---
 ## [0.22.0](https://github.com/DevelAngel/keep-it-done/compare/v0.21.0..v0.22.0) - 2026-08-01
 
 ### Bug Fixes
