@@ -7,7 +7,7 @@ pub mod time;
 
 use crate::error_template::ErrorTemplate;
 
-use kid_types::{TaskAvailability, TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid, ViewSlug};
+use kid_types::{TaskAssignee, TaskAvailability, TaskCategory, TaskContext, TaskDate, TaskDetails, TaskId, TaskInfos, TaskPriority, TaskSummary, TaskTimeEstimate, Uuid, ViewSlug};
 use kid_types::task;
 use strum::IntoEnumIterator;
 use indexmap::IndexMap;
@@ -1548,6 +1548,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
     let category = RwSignal::new(task.category().to_string());
     let contexts: RwSignal<Vec<String>> = RwSignal::new(task.contexts().iter().map(|c| c.to_string()).collect());
     let priority = RwSignal::new(task.priority().copied());
+    let assignee = RwSignal::new(task.assignee().map(|a| a.to_string()).unwrap_or_default());
     let since = *task.since();
 
     let auto_expand = use_context::<AutoExpandFirst>();
@@ -1674,7 +1675,7 @@ fn TaskItem<T: for<'a> TaskId<'a> + for<'a> TaskInfos<'a>>(
 
             // Expanded detail section (Timeline-Style)
             <Show when=is_expanded>
-                <TaskDetails task=id summary=summary category=category contexts=contexts priority=priority since=since/>
+                <TaskDetails task=id summary=summary category=category contexts=contexts priority=priority assignee=assignee since=since/>
             </Show>
         </div>
     }
@@ -1768,7 +1769,7 @@ fn EditableField(
 }
 
 #[component]
-fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, priority: RwSignal<Option<TaskPriority>>, since: DateTime<FixedOffset>) -> impl IntoView {
+fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, category: RwSignal<String>, contexts: RwSignal<Vec<String>>, priority: RwSignal<Option<TaskPriority>>, assignee: RwSignal<String>, since: DateTime<FixedOffset>) -> impl IntoView {
     let id = *task.id();
     let created = task.created();
     let show_since = (since - created.fixed_offset()).abs() >= TimeDelta::minutes(2);
@@ -1782,6 +1783,8 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
     // Shared context: stable across remounts, only ever grows.
     let available_contexts = *use_context::<AvailableContextsCtx>()
         .expect("available_contexts context missing");
+    let available_assignees = *use_context::<AvailableAssigneesCtx>()
+        .expect("available_assignees context missing");
     let edit_mode = use_context::<EditMode>().unwrap_or_default();
     let category_version = use_context::<RwSignal<u32>>().expect("category_version context missing");
     let scroll_to_task_id = use_context::<ScrollToTaskId>();
@@ -1867,6 +1870,41 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
             }
         }
     });
+    let assignee_last_saved = StoredValue::new(assignee.get_untracked());
+    let assignee_error: RwSignal<Option<String>> = RwSignal::new(None);
+    let update_assignee = Action::new(move |value: &String| {
+        let trimmed = value.trim().to_string();
+        assignee_error.set(None);
+        async move {
+            if trimmed.is_empty() {
+                match server::set_task_assignee(id, None).await {
+                    Ok(()) => assignee_last_saved.set_value(String::new()),
+                    Err(e) => {
+                        tracing::error!("clear assignee failed: {e}");
+                        assignee.set(assignee_last_saved.get_value());
+                        assignee_error.set(Some(e.to_string()));
+                    }
+                }
+                return;
+            }
+            let normalized = if trimmed.starts_with('@') { trimmed } else { format!("@{trimmed}") };
+            match normalized.parse::<TaskAssignee>() {
+                Err(e) => {
+                    assignee.set(assignee_last_saved.get_value());
+                    assignee_error.set(Some(e.to_string()));
+                }
+                Ok(a) => match server::set_task_assignee(id, Some(a)).await {
+                    Ok(()) => assignee_last_saved.set_value(normalized),
+                    Err(e) => {
+                        tracing::error!("update assignee failed: {e}");
+                        assignee.set(assignee_last_saved.get_value());
+                        assignee_error.set(Some(e.to_string()));
+                    }
+                },
+            }
+        }
+    });
+
     let context_input = RwSignal::new(String::new());
     let failed_additions: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     let failed_removals: RwSignal<Vec<String>> = RwSignal::new(vec![]);
@@ -2052,6 +2090,65 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                         })}
                     </div>
                 })}
+                // Assignee
+                {move || (!assignee.get().is_empty() || edit_mode.get()).then(|| view! {
+                    <div class="relative">
+                        <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
+                            <span class="text-xs text-slate-300 font-bold">"@"</span>
+                        </div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">"Assignee"</div>
+                        // View mode: plain text
+                        {move || (!edit_mode.get()).then(|| view! {
+                            <div class="text-sm text-slate-200">{move || assignee.get()}</div>
+                        })}
+                        {move || edit_mode.get().then(|| view! {
+                            <EditableField
+                                value=assignee
+                                on_save=move |v: String| { update_assignee.dispatch(v); }
+                                class="w-full bg-slate-700 text-slate-200 text-sm rounded px-2 py-1 mb-1.5 border border-slate-600 focus:border-teal-500 focus:outline-none"
+                                placeholder="@assignee"
+                            />
+                            {move || assignee_error.get().map(|msg| view! {
+                                <div class="text-xs text-red-400 mb-1.5">{msg}</div>
+                            })}
+                            <div class="flex flex-wrap gap-1.5">
+                                {move || available_assignees.get().into_iter().map(|a| {
+                                    let label = StoredValue::new(a);
+                                    view! {
+                                        <button
+                                            type="button"
+                                            class=move || if assignee.get() == label.get_value() {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white cursor-default"
+                                            } else {
+                                                "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                            }
+                                            on:click=move |_| {
+                                                let v = label.get_value();
+                                                if assignee.get_untracked() != v {
+                                                    assignee.set(v.clone());
+                                                    update_assignee.dispatch(v);
+                                                }
+                                            }
+                                        >
+                                            {move || label.get_value()}
+                                        </button>
+                                    }
+                                }).collect_view()}
+                                {move || (!assignee.get().is_empty()).then(|| view! {
+                                    <button
+                                        type="button"
+                                        class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-red-300 hover:bg-slate-600 transition-colors"
+                                        on:click=move |_| {
+                                            assignee.set(String::new());
+                                            update_assignee.dispatch(String::new());
+                                        }
+                                    >"Clear"</button>
+                                })}
+                            </div>
+                        })}
+                    </div>
+                })}
+
                 // Priority (from Infos — renders immediately, no fetch needed)
                 {
                     let priority_initially_set = priority.get_untracked().is_some();
