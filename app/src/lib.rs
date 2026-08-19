@@ -2091,7 +2091,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                     </div>
                 })}
                 // Assignee
-                {move || (!assignee.get().is_empty() || edit_mode.get()).then(|| view! {
+                {
+                    let assignee_initially_set = !assignee.get_untracked().is_empty();
+                    move || (assignee_initially_set || edit_mode.get()).then(|| view! {
                     <div class="relative">
                         <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
                             <span class="text-xs text-slate-300 font-bold">"@"</span>
