@@ -164,6 +164,8 @@ impl FromStr for Assignee {
             Err("assignee must not be empty")
         } else if !s.starts_with('@') {
             Err("assignee must start with '@'")
+        } else if s[1..].eq_ignore_ascii_case("unassigned") {
+            Err("'unassigned' is reserved and cannot be used as an assignee name")
         } else {
             Ok(Self(s.to_string()))
         }
