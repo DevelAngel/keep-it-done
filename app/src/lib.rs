@@ -771,7 +771,8 @@ fn TaskList() -> impl IntoView {
     provide_context(edit_mode);
 
     let filter_open = RwSignal::new(false);
-    let active_filters: RwSignal<HashMap<View, Vec<String>>> = RwSignal::new(HashMap::new());
+    let context_filters: RwSignal<HashMap<View, Vec<String>>> = RwSignal::new(HashMap::new());
+    let assignee_filter: RwSignal<HashMap<View, Option<String>>> = RwSignal::new(HashMap::new());
     let search_query: RwSignal<HashMap<View, String>> = RwSignal::new(HashMap::new());
     let filter_ctx_resource = Resource::new(|| (), |_| server::fetch_contexts());
     let available_contexts_ctx: RwSignal<Vec<String>> = RwSignal::new(vec![]);
@@ -952,7 +953,8 @@ fn TaskList() -> impl IntoView {
                             class=move || {
                                 let v = current_view.get();
                                 let has_active = filter_open.get()
-                                    || active_filters.with(|m| m.get(&v).is_some_and(|f| !f.is_empty()))
+                                    || context_filters.with(|m| m.get(&v).is_some_and(|f| !f.is_empty()))
+                                    || assignee_filter.with(|m| m.get(&v).is_some_and(|a| a.is_some()))
                                     || search_query.with(|m| m.get(&v).is_some_and(|q| !q.trim().is_empty()));
                                 if has_active {
                                     "absolute -left-2 w-8 h-8 flex items-center justify-center text-teal-300 hover:text-white transition-colors"
@@ -1024,18 +1026,18 @@ fn TaskList() -> impl IntoView {
                                     view! {
                                         <button
                                             type="button"
-                                            class=move || if active_filters.with(|m| m.get(&view).map(|v| v.contains(&label_class)).unwrap_or(false)) {
+                                            class=move || if assignee_filter.with(|m| m.get(&view).cloned().flatten().as_ref() == Some(&label_class)) {
                                                 "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white transition-colors"
                                             } else {
                                                 "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                                             }
                                             on:click=move |_| {
-                                                active_filters.update(|m| {
-                                                    let list = m.entry(view).or_default();
-                                                    if let Some(pos) = list.iter().position(|c| c == &label_click) {
-                                                        list.remove(pos);
+                                                assignee_filter.update(|m| {
+                                                    let slot = m.entry(view).or_default();
+                                                    if slot.as_ref() == Some(&label_click) {
+                                                        *slot = None;
                                                     } else {
-                                                        list.push(label_click.clone());
+                                                        *slot = Some(label_click.clone());
                                                     }
                                                 });
                                             }
@@ -1046,18 +1048,18 @@ fn TaskList() -> impl IntoView {
                                 }).collect_view()}
                                 <button
                                     type="button"
-                                    class=move || if active_filters.with(|m| m.get(&view).map(|v| v.iter().any(|f| f == UNASSIGNED_FILTER)).unwrap_or(false)) {
+                                    class=move || if assignee_filter.with(|m| m.get(&view).cloned().flatten().as_deref() == Some(UNASSIGNED_FILTER)) {
                                         "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white transition-colors"
                                     } else {
                                         "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                                     }
                                     on:click=move |_| {
-                                        active_filters.update(|m| {
-                                            let list = m.entry(view).or_default();
-                                            if let Some(pos) = list.iter().position(|f| f == UNASSIGNED_FILTER) {
-                                                list.remove(pos);
+                                        assignee_filter.update(|m| {
+                                            let slot = m.entry(view).or_default();
+                                            if slot.as_deref() == Some(UNASSIGNED_FILTER) {
+                                                *slot = None;
                                             } else {
-                                                list.push(UNASSIGNED_FILTER.to_string());
+                                                *slot = Some(UNASSIGNED_FILTER.to_string());
                                             }
                                         });
                                     }
@@ -1072,13 +1074,13 @@ fn TaskList() -> impl IntoView {
                                     view! {
                                         <button
                                             type="button"
-                                            class=move || if active_filters.with(|m| m.get(&view).map(|v| v.contains(&label_class)).unwrap_or(false)) {
+                                            class=move || if context_filters.with(|m| m.get(&view).map(|v| v.contains(&label_class)).unwrap_or(false)) {
                                                 "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white transition-colors"
                                             } else {
                                                 "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                                             }
                                             on:click=move |_| {
-                                                active_filters.update(|m| {
+                                                context_filters.update(|m| {
                                                     let list = m.entry(view).or_default();
                                                     if let Some(pos) = list.iter().position(|c| c == &label_click) {
                                                         list.remove(pos);
@@ -1103,7 +1105,10 @@ fn TaskList() -> impl IntoView {
                         <ErrorBoundary fallback=|errors| view! { <ErrorTemplate errors/> }>
                             {move || {
                                 let view = current_view.get();
-                                let filters = active_filters.with(|m| m.get(&view).cloned().unwrap_or_default());
+                                let mut filters = context_filters.with(|m| m.get(&view).cloned().unwrap_or_default());
+                                if let Some(a) = assignee_filter.with(|m| m.get(&view).cloned().flatten()) {
+                                    filters.push(a);
+                                }
                                 let query = search_query.with(|m| m.get(&view).cloned().unwrap_or_default());
                                 Suspend::new(async move {
                                     task_list.await.map(|data| {
