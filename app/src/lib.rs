@@ -424,11 +424,18 @@ impl TaskListData {
     }
 }
 
+/// Reserved filter token for "no assignee". Doesn't collide with real
+/// assignee tokens (always `@`-prefixed) or context tokens (always
+/// `#`-prefixed).
+const UNASSIGNED_FILTER: &str = "unassigned";
+
 fn apply_filter(data: TaskListData, filters: &[String]) -> TaskListData {
     if filters.is_empty() { return data; }
     let matches = |info: &task::Infos| -> bool {
         filters.iter().all(|f| {
-            if f.starts_with('@') {
+            if f == UNASSIGNED_FILTER {
+                info.assignee().is_none()
+            } else if f.starts_with('@') {
                 info.assignee().is_some_and(|a| a.to_string() == *f)
             } else {
                 info.contexts().iter().any(|c| c.to_string() == *f)
@@ -1037,6 +1044,26 @@ fn TaskList() -> impl IntoView {
                                         </button>
                                     }
                                 }).collect_view()}
+                                <button
+                                    type="button"
+                                    class=move || if active_filters.with(|m| m.get(&view).map(|v| v.iter().any(|f| f == UNASSIGNED_FILTER)).unwrap_or(false)) {
+                                        "px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-600 text-white transition-colors"
+                                    } else {
+                                        "px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+                                    }
+                                    on:click=move |_| {
+                                        active_filters.update(|m| {
+                                            let list = m.entry(view).or_default();
+                                            if let Some(pos) = list.iter().position(|f| f == UNASSIGNED_FILTER) {
+                                                list.remove(pos);
+                                            } else {
+                                                list.push(UNASSIGNED_FILTER.to_string());
+                                            }
+                                        });
+                                    }
+                                >
+                                    "Unassigned"
+                                </button>
                             </div>
                             <div class="flex flex-wrap gap-1.5">
                                 {move || available_contexts_ctx.get().into_iter().map(|ctx| {
