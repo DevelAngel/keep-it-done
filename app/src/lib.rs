@@ -2031,7 +2031,9 @@ fn TaskDetails<T: for<'a> TaskId<'a>>(task: T, summary: RwSignal<String>, catego
                 // Vertical line
                 <div class="absolute left-3 top-0 -bottom-4 w-0.5 bg-gradient-to-b from-cyan-500 via-teal-500 to-cyan-500"></div>
                 // Contexts
-                {move || (!contexts.get().is_empty() || edit_mode.get()).then(|| view! {
+                {
+                    let contexts_initially_set = !contexts.get_untracked().is_empty();
+                    move || (contexts_initially_set || edit_mode.get()).then(|| view! {
                     <div class="relative">
                         <div class="absolute -left-8 mt-0.5 w-6 h-6 rounded-full bg-slate-700 border-4 border-slate-900 shadow flex items-center justify-center">
                             <span class="text-xs text-slate-300 font-bold">"#"</span>
