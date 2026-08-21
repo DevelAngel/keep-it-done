@@ -7,12 +7,12 @@ A lightweight, self-hosted task management system for families, optimized for na
 
 ## The Idea
 
-Instead of wrestling with complex task apps, talk naturally to your AI assistant: _"We're planning to renovate the kitchen. Help me organize the tasks."_ The AI creates and manages tasks via CLI while the family sees a live browser view.
+Instead of wrestling with complex task apps, talk naturally to your AI assistant: _"We're planning to renovate the kitchen. Help me organize the tasks."_ The AI creates and manages tasks via MCP while the family sees a live browser view.
 
 ```
 ┌──────────────┐                    ┌──────────────┐
-│ AI Assistant │ ── TCP/JSON ─────> │  kid-server  │
-│ (kid CLI)    │                    │              │
+│ AI Assistant │ ── HTTP/MCP ─────> │  kid-server  │
+│              │      (OAuth)       │              │
 └──────────────┘                    │  ┌────────┐  │
                                     │  │ Tasks  │  │
 ┌──────────────┐                    │  │(Files) │  │
@@ -27,7 +27,7 @@ See [Mental Load Analysis](docs/analysis/mental-load-analysis-de.pdf) (in German
 
 - **File-based storage** — tasks as JSON files, no database needed
 - **Mobile-first browser view** — scrollable task list with expandable details
-- **CLI for AI integration** — typed RPC over TCP, JSON output
+- **MCP server for AI integration** — OAuth-secured tools and resources over HTTP
 - **Privacy first** — everything stays on your home network
 - **Zero infrastructure** — runs on a Raspberry Pi or any home server
 
@@ -45,12 +45,12 @@ that can front either type of LLM.
 ## Quick Start
 
 ```bash
-# Start the server
+# Start the server (browser HTTP + MCP, on separate ports)
 cargo run --bin kid-server
 
-# In another terminal
-cargo run --bin kid -- add --summary "Test the system"
-cargo run --bin kid -- list
+# MCP server listens on http://127.0.0.1:9100/mcp by default.
+# Configure allowed OAuth clients via --mcp-clients-file
+# (see server/mcp-clients.example.toml).
 
 # Open browser
 open http://localhost:3000
@@ -92,28 +92,45 @@ Five views, switchable by swipe or tap:
 
 Each task can carry: summary, priority (A/B/C), due date, start date, time estimate, context, and notes. Dates accept both precise timestamps and free-text estimates ("next Friday").
 
-## CLI Commands
+## MCP Tools & Resources
 
-```bash
-kid list
-kid add --summary "Buy paint" --priority B --estimate "2h" --context "Kitchen"
-kid rename --id <uuid> --summary "New summary"
-kid update --id <uuid> --details '{"priority": "A"}'
-kid replace --id <uuid> --details '{...}'
-kid complete --id <uuid>          # mark done
-kid complete --id <uuid> --reopen # reopen
-kid schema                        # print JSON Schema for task details
+Tools (mutating and read operations):
+
 ```
+list             — list tasks, filter by status and/or fuzzy search
+add              — add a task (summary, category, contexts, details)
+rename           — rename a task's summary
+replace          — replace all task details (PUT semantics)
+update           — patch task details (PATCH semantics)
+complete         — complete or reopen a task
+recategorize     — change a task's category
+add_contexts     — add contexts, keeping existing ones
+replace_contexts — replace all contexts
+set_priority     — set or clear priority
+set_assignee     — set or clear assignee
+```
+
+Read-only resources:
+
+```
+kid://categories       — categories currently in use
+kid://contexts         — contexts currently in use
+kid://report/daily     — open tasks grouped by due date
+kid://report/backlog   — open tasks with no due date, not ready to start
+kid://report/quick_wins — open tasks with a time estimate, shortest first
+kid://report/weekly    — narrative review of the last 7 days
+```
+
+Each report also has a per-assignee variant, e.g. `kid://report/daily/alice` or `kid://report/daily/unassigned`.
 
 ## Architecture
 
 ```
 kid/
-├── types/    # kid-types: shared types, RPC trait, storage
+├── types/    # kid-types: shared types, storage
 ├── app/      # kid-app:   Leptos UI (SSR + WASM)
 ├── frontend/ # kid-frontend: WASM binary
-├── server/   # kid-server: Axum + Leptos + tarpc listener
-└── cli/      # kid-cli:   `kid` binary
+└── server/   # kid-server: Axum + Leptos + MCP server (OAuth-secured)
 ```
 
 See [Architecture Overview](docs/architecture-overview.md) for details.
