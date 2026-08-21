@@ -1,13 +1,13 @@
 # Keep It Done
 
-A lightweight, self-hosted task management system for families, optimized for natural interaction with AI assistants.
+Stop wrestling with task apps. Talk to your family's AI assistant instead — it turns a conversation into organized tasks everyone can see.
 
 > [!IMPORTANT]
 > Work-in-Progress! Not production ready.
 
 ## The Idea
 
-Instead of wrestling with complex task apps, talk naturally to your AI assistant: _"We're planning to renovate the kitchen. Help me organize the tasks."_ The AI creates and manages tasks via MCP while the family sees a live browser view.
+Planning is the easy part; keeping track of who's doing what is the mental load. kid removes that load: talk naturally to your AI assistant — _"We're planning to renovate the kitchen. Help me organize the tasks."_ — and it creates and manages the tasks for you via MCP, while the whole family sees a live, shared view in the browser. No app to install, no manual syncing, no one person left holding the whole list in their head.
 
 ```
 ┌──────────────┐                    ┌──────────────┐
@@ -25,11 +25,11 @@ See [Mental Load Analysis](docs/analysis/mental-load-analysis-de.pdf) (in German
 
 ## Features
 
-- **File-based storage** — tasks as JSON files, no database needed
-- **Mobile-first browser view** — scrollable task list with expandable details
-- **MCP server for AI integration** — OAuth-secured tools and resources over HTTP
-- **Privacy first** — everything stays on your home network
-- **Zero infrastructure** — runs on a Raspberry Pi or any home server
+- **No app for the family to learn** — the AI does the data entry, the browser view is read-and-check
+- **Works on the kitchen tablet** — mobile-first, scrollable list, tap to expand details
+- **Any AI assistant, not locked to one vendor** — standard MCP, OAuth-secured
+- **Your family's data stays in your house** — no cloud database, no account required
+- **Runs on hardware you already own** — a Raspberry Pi is enough, JSON files instead of a database
 
 ### A note on privacy
 
